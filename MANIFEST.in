@@ -1,0 +1,4 @@
+graft docs
+
+include tests/*.py
+include tests/*.rst

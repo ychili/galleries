@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+
+[tool.mypy]
+python_version = "3.8"
+implicit_optional = false
+warn_return_any = true
+
+[tool.pylint.basic]
+docstring-min-length = 4
+good-names = ["T", "fg", "bg", "it", "i", "k", "n", "r", "s", "x", "y"]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.string]
+check-quote-consistency = true
+check-str-concat-over-line-jumps = true
