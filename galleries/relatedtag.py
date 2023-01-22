@@ -168,11 +168,12 @@ def clean_directory(pathname: StrPath) -> int:
 
 def get_new_json_filename(dir_path: Path) -> Path:
     datestring = time.strftime("%Y%m%d")
+    incr = 0
     while True:
-        incr = 0
         full_name = dir_path / f"overlaps-{datestring}.{incr}.json"
         if not full_name.exists():
             return full_name
+        incr += 1
 
 
 def get_current_json_filename(dir_path: Path) -> Optional[Path]:
