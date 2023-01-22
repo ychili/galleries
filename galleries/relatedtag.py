@@ -179,4 +179,7 @@ def get_new_json_filename(dir_path: Path) -> Path:
 def get_current_json_filename(dir_path: Path) -> Optional[Path]:
     if not dir_path.is_dir():
         return None
-    return max(path for path in dir_path.glob("*.json"))
+    json_files = list(dir_path.glob("*.json"))
+    if not json_files:
+        return None
+    return max(json_files)
