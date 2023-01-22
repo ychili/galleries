@@ -165,6 +165,13 @@ def acquire_db_config(collection_path: Path) -> Optional[DBConfig]:
     return parser
 
 
+def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
+    """Path sub-command"""
+    collection_path = config.find_collection(cla.collection)
+    print(collection_path)
+    return 0
+
+
 def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
     """Init sub-command"""
     err_msg = "Unable to init"
@@ -468,6 +475,7 @@ def freq_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 def build_cla_parser() -> argparse.ArgumentParser:
     """Build and return command-line argument parser."""
     top_level = argparse.ArgumentParser(add_help=False)
+    top_level.set_defaults(func=path_sc)
     subparsers = top_level.add_subparsers(title="commands")
 
     init_p = subparsers.add_parser(
