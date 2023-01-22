@@ -13,7 +13,6 @@ import json
 import logging
 import math
 import os
-import re
 import shutil
 import sys
 from contextlib import nullcontext
@@ -401,7 +400,8 @@ def overlaps_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
         tag_fields = tag_fields or db_config.get_list("overlaps", "TagFields")
         output_dir = get_db_path(
-            collection_path, "overlaps-" + make_clean_filename(*tag_fields)
+            collection_path,
+            "overlaps-" + relatedtag.get_field_directory_name(tag_fields),
         )
         if cla.clean:
             return relatedtag.clean_directory(output_dir)
@@ -429,7 +429,8 @@ def freq_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
         tag_fields = cla.field or db_config.get_list("overlaps", "TagFields")
         json_dir = get_db_path(
-            collection_path, "overlaps-" + make_clean_filename(*tag_fields)
+            collection_path,
+            "overlaps-" + relatedtag.get_field_directory_name(tag_fields),
         )
         input_file = relatedtag.get_current_json_filename(json_dir)
         if not input_file:
@@ -738,10 +739,6 @@ def parse_global_config(filename: str = "config") -> GlobalConfig:
         init_section = parser["init"]
         global_config.init.update(init_section)
     return global_config
-
-
-def make_clean_filename(*names: str) -> str:
-    return "-".join(re.sub("\\s+", "", name) for name in names)
 
 
 def join_semicolon_list(*items: str) -> str:

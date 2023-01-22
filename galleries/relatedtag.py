@@ -10,9 +10,10 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from contextlib import nullcontext
 from pathlib import Path
 from typing import IO, Optional
@@ -164,6 +165,16 @@ def clean_directory(pathname: StrPath) -> int:
     for file in files:
         file.unlink()
     return 0
+
+
+def get_field_directory_name(names: Iterable[str]) -> str:
+    """For the set of *names*, return one whitespace-free representation.
+
+    >>> get_field_directory_name(["Column B", "Column A"])
+    'ColumnA-ColumnB'
+    """
+    field_names = sorted(set(names))
+    return "-".join(re.sub("\\s+", "", name) for name in field_names)
 
 
 def get_new_json_filename(dir_path: Path) -> Path:
