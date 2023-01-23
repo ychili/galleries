@@ -377,14 +377,15 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
     rows.sort(key=lambda row: util.alphanum_key(row[path_field].casefold()))
     backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
+    log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
         csvfile = open(filename, "w", encoding="utf-8", newline="")
     except OSError as err:
         log.error("Unable to open CSV file for writing: %s", err)
-        log.info("Backup file is saved to %s", backup_file)
         return 1
     with csvfile:
         util.write_rows(rows=rows, fieldnames=fieldnames, file=csvfile)
+    log.info("Success: Saved refreshed table to '%s'", filename)
     return 0
 
 
