@@ -9,3 +9,7 @@ def load_tests(unused_loader, tests, unused_ignore):
     for module in (galleryms, relatedtag, util):
         tests.addTests(doctest.DocTestSuite(module))
     return tests
+
+
+if __name__ == "__main__":
+    unittest.main()
