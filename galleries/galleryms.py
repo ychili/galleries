@@ -699,7 +699,7 @@ class Tabulator:
         return val
 
 
-class OverlapTable:
+class OverlapTable(Collection):
     """2D hash table of overlap between tag pairs
 
     Methods allow accessing overlap values, as well as calculating similarity
