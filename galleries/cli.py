@@ -576,7 +576,11 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     query_p.set_defaults(func=query_sc)
 
-    refresh_p = subparsers.add_parser("refresh", help="update the table")
+    refresh_p = subparsers.add_parser(
+        "refresh",
+        help="update the table",
+        description="Update galleries' info, garden tags.",
+    )
     refresh_p.add_argument(
         "--no-check",
         action="store_true",
