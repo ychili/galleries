@@ -85,8 +85,11 @@ def main(
                     "Field name from FieldFormats file not found in input: %s", field
                 )
                 return 1
+        galleries = list(matched_rows)
+        gallery_total = len(galleries)
+        log.info(f"Found {gallery_total} galler{'y' if gallery_total == 1 else 'ies'}")
         try:
-            print_formatted(matched_rows, field_formats)
+            print_formatted(galleries, field_formats)
         except BrokenPipeError:
             # Even though BrokenPipeError was caught, suppress the error
             # message by closing stderr before exiting.
