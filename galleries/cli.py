@@ -317,7 +317,15 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     else:
         input_file = nullcontext(sys.stdin)
     with input_file as file:
-        return table_query.main(csv.DictReader(file), cla.term, tag_fields, field_fmts)
+        try:
+            return table_query.main(
+                csv.DictReader(file), cla.term, tag_fields, field_fmts
+            )
+        except BrokenPipeError:
+            # Even though BrokenPipeError was caught, suppress the error
+            # message by closing stderr before exiting.
+            sys.stderr.close()
+            return 0
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:

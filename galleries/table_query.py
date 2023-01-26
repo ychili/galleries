@@ -88,12 +88,7 @@ def main(
         galleries = list(matched_rows)
         gallery_total = len(galleries)
         log.info(f"Found {gallery_total} galler{'y' if gallery_total == 1 else 'ies'}")
-        try:
-            print_formatted(galleries, field_formats)
-        except BrokenPipeError:
-            # Even though BrokenPipeError was caught, suppress the error
-            # message by closing stderr before exiting.
-            sys.stderr.close()
+        print_formatted(galleries, field_formats)
     else:
         util.write_rows(matched_rows, fieldnames=fieldnames)
     return 0
