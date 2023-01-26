@@ -41,25 +41,39 @@ class Gardener:
         self._count_field = count_field
         self._root_path = Path(root_path or Path.cwd())
 
+    def _set_tag_action(
+        self,
+        field: str,
+        func: Optional[Callable[..., Any]] = None,
+        *args: Any,
+        **kwds: Any,
+    ) -> None:
+        actions = self._tag_fields.setdefault(field, [])
+        if func is None:
+            return
+        actions.append((func, args, kwds))
+
     def set_normalize_tags(self, *fields: str) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            self._tag_fields.setdefault(field, [])
-            self._tag_fields[field] = self._tag_fields.get(field, [])
+            self._set_tag_action(field)
 
     def set_imply_tags(
         self, implications: Collection[gms.BaseImplication], *fields: str
     ) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            actions = self._tag_fields.setdefault(field, [])
-            actions.append((gms.TagSet.apply_implications, [implications], {}))
+            self._set_tag_action(field, gms.TagSet.apply_implications, implications)
 
     def set_remove_tags(self, mask: gms.TagSet, *fields: str) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            actions = self._tag_fields.setdefault(field, [])
-            actions.append((gms.TagSet.difference_update, [mask], {}))
+            self._set_tag_action(field, gms.TagSet.difference_update, mask)
+
+    def set_alias_tags(self, aliases: Mapping[str, str], *fields: str) -> None:
+        self._needed_fields.update(fields)
+        for field in fields:
+            self._set_tag_action(field, gms.TagSet.apply_aliases, aliases)
 
     def garden_rows(
         self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None

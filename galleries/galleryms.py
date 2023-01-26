@@ -70,6 +70,13 @@ class TagSet(Set[str]):
             # populated on the previous iteration.
             current_tags = new_tags
 
+    def apply_aliases(self, aliases: Mapping[str, str]) -> None:
+        """Update with *aliases*, translating tags from key to value."""
+        found = self & aliases.keys()
+        for tag in found:
+            self.remove(tag)
+            self.add(aliases[tag])
+
 
 class Gallery(Dict[str, Any]):
     """Represent one row of the database."""
