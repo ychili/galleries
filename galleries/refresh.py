@@ -121,6 +121,13 @@ def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
     return frozenset()
 
 
+def get_aliases(filename: os.PathLike) -> dict[str, str]:
+    path = Path(filename)
+    text = path.read_text(encoding="utf-8")
+    data = json.loads(text)
+    return {str(alias): str(tag) for alias, tag in data.items()}
+
+
 def get_tags_from_file(*filepaths: os.PathLike) -> gms.TagSet:
     """
     Merge (union) whitespaced-separated tags from files in *filepaths* into one
