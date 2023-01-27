@@ -80,14 +80,15 @@ ensuring that each tag field contains a tag set:
 no duplicate tags, each tag sorted, lowercased,
 and separated by a single space.
 
-Implications and removals
--------------------------
+Implications, aliases, and removals
+-----------------------------------
 
 In addition to normalizing tags and updating the gallery file count,
-the ``refresh`` command will optionally apply implications and removals
-to tag fields.
+the ``refresh`` command will optionally apply implications, aliases,
+and removals to tag fields.
 Implications add tags to a tag set that are implied by tags
 already in the set.
+Aliases replace aliased tags.
 Removals simply remove tags from a set if present.
 The data for these actions are stored in files.
 Two types of "implications files" are understood,
@@ -115,7 +116,15 @@ and "green_shirt" is a tag in a tag set
 that the implication is being applied to,
 then the tag "shirt" will be added to the set.
 
-After all implications have been applied and no more tags can be added,
+Aliases are specified much like regular implications.
+The file must be a JSON formatted object containing
+a series of key–value pairs relating one string to another,
+each string representing one tag.
+If the tag in the key is found in the tag set,
+it will be replaced with the tag in the value.
+
+After all implications and all aliases have been applied
+and no more tags can be added,
 removals will be applied.
 A removals file contains strings separated by whitespace,
 each string representing one tag.
@@ -123,15 +132,15 @@ These tags will be removed from tag sets if they are present.
 This can be useful for cleaning up tags added by descriptor implications
 but which do not count as tags themselves.
 
-Implications and removals will be performed by ``refresh``
+Implications, aliases, and removals will be performed by ``refresh``
 if the [refresh] section of the configuration file contains arguments to
-either the keys "Implications" or "Removals".
+any of the keys "Implications", "Aliases", or "Removals", respectively.
 The arguments to these keys should be a semicolon-separated list of files.
 Filenames are relative to the ``.galleries`` sub-directory of
 your collection (the same as all filenames in the configuration).
-Implications from each implications file will be applied in the order
-the files are listed.
-Removals will be applied after the implications.
+Implications from each implications file and aliases from each alias file
+will be applied in the order the files are listed.
+Removals will be applied after that.
 If this process should only be applied to a subset of TagFields,
 add the "ImplicatingFields" key to the [refresh] section.
 
