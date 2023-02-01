@@ -366,10 +366,10 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             log.error("Unable to decode file as JSON: %s", err)
             log.debug(err.doc)
             return 1
-        for impl_set in impl_list:
-            gardener.set_imply_tags(impl_set, *implicating_fields)
         for alias_group in alias_list:
             gardener.set_alias_tags(alias_group, *implicating_fields)
+        for impl_set in impl_list:
+            gardener.set_imply_tags(impl_set, *implicating_fields)
         gardener.set_remove_tags(black_set, *implicating_fields)
     try:
         csvfile = open(filename, encoding="utf-8", newline="")
