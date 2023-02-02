@@ -117,26 +117,23 @@ class Gardener:
         field_aliases: dict[frozenset[str], dict[str, str]] = {}
         field_impl: dict[frozenset[str], set[gms.BaseImplication]] = {}
         black_sets: dict[frozenset[str], gms.TagSet] = {}
-        if aliases is not None:
-            for filename in aliases:
-                field_aliases.setdefault(fields, {}).update(get_aliases(filename))
-        if implications is not None:
-            for filename in implications:
-                field_impl.setdefault(fields, set()).update(get_implications(filename))
+        for filename in aliases or []:
+            field_aliases.setdefault(fields, {}).update(get_aliases(filename))
+        for filename in implications or []:
+            field_impl.setdefault(fields, set()).update(get_implications(filename))
         if removals is not None:
             black_sets.setdefault(fields, gms.TagSet()).update(
                 get_tags_from_file(*removals)
             )
-        if unified is not None:
-            uof = UnifiedObjectFormat(default_fields=fields)
-            for filename in unified:
-                uof.update(get_unified(filename))
-            for field, mapping in uof.get_aliases():
-                field_aliases.setdefault(field, {}).update(mapping)
-            for field, impl in uof.get_implications():
-                field_impl.setdefault(field, set()).update(impl)
-            for field, black in uof.get_removals():
-                black_sets.setdefault(field, gms.TagSet()).update(black)
+        uof = UnifiedObjectFormat(default_fields=fields)
+        for filename in unified or []:
+            uof.update(get_unified(filename))
+        for field_group, mapping in uof.get_aliases():
+            field_aliases.setdefault(field_group, {}).update(mapping)
+        for field_group, impl in uof.get_implications():
+            field_impl.setdefault(field_group, set()).update(impl)
+        for field_group, black in uof.get_removals():
+            black_sets.setdefault(field_group, gms.TagSet()).update(black)
         for field_group, mapping in field_aliases.items():
             self.set_alias_tags(mapping, *field_group)
         for field_group, impl in field_impl.items():
