@@ -8,15 +8,11 @@ import csv
 import json
 import logging
 import os
-from collections.abc import Collection, Iterator
+from collections.abc import Collection, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Optional, Tuple, TypeVar
+from typing import Callable, Optional
 
 from . import galleryms as gms
-
-T = TypeVar("T")
-# Make 3.8 happy: import Iterable, Mapping from typing not collections.abc
-TagAction = Tuple[Callable[..., Any], Iterable[T], Mapping[str, T]]
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +22,7 @@ class Gardener:
 
     def __init__(self) -> None:
         self._needed_fields: set[str] = set()
-        self._tag_fields: dict[str, list[TagAction]] = {}
+        self._tag_fields: dict[str, list[Callable[[gms.TagSet], None]]] = {}
         self._do_count: Callable[[gms.Gallery], None] = lambda *args, **kwds: None
         self._path_field: str = str()
         self._count_field: str = str()
@@ -42,16 +38,12 @@ class Gardener:
         self._root_path = Path(root_path or Path.cwd())
 
     def _set_tag_action(
-        self,
-        field: str,
-        func: Optional[Callable[..., Any]] = None,
-        *args: Any,
-        **kwds: Any,
+        self, field: str, func: Optional[Callable[[gms.TagSet], None]] = None
     ) -> None:
         actions = self._tag_fields.setdefault(field, [])
         if func is None:
             return
-        actions.append((func, args, kwds))
+        actions.append(func)
 
     def set_normalize_tags(self, *fields: str) -> None:
         self._needed_fields.update(fields)
@@ -63,17 +55,23 @@ class Gardener:
     ) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(field, gms.TagSet.apply_implications, implications)
+            self._set_tag_action(
+                field, lambda ts: gms.TagSet.apply_implications(ts, implications)
+            )
 
     def set_remove_tags(self, mask: gms.TagSet, *fields: str) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(field, gms.TagSet.difference_update, mask)
+            self._set_tag_action(
+                field, lambda ts: gms.TagSet.difference_update(ts, mask)
+            )
 
     def set_alias_tags(self, aliases: Mapping[str, str], *fields: str) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(field, gms.TagSet.apply_aliases, aliases)
+            self._set_tag_action(
+                field, lambda ts: gms.TagSet.apply_aliases(ts, aliases)
+            )
 
     def garden_rows(
         self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None
@@ -90,8 +88,8 @@ class Gardener:
             self._do_count(gallery)
             for field, actions in self._tag_fields.items():
                 tags = gallery.normalize_tags(field)
-                for action, args, kwds in actions:
-                    action(tags, *args, **kwds)
+                for action in actions:
+                    action(tags)
                 gallery[field] = tags
             yield gallery
 
