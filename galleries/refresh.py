@@ -279,6 +279,9 @@ def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
 
 
 def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
+    """
+    Do not attempt :module:`tomllib` import until this function is called.
+    """
     try:
         import tomllib
     except ModuleNotFoundError:
