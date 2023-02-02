@@ -37,3 +37,13 @@ Test the ``refresh.Gardener``.
 ...     str(gallery["Field1"]), str(gallery["Field2"])
 ...
 ('tag1 tag2 tag5', 'tag3 tag4')
+
+Test the ``refresh.UnifiedObjectFormat``.
+
+>>> from galleries.refresh import UnifiedObjectFormat
+>>> uof = UnifiedObjectFormat({"descriptors": ["green"]})
+>>> list(uof.get_implications())
+[(frozenset(), {DescriptorImplication('green')})]
+>>> uof.update({"aliases": {"forest": "tree"}})
+>>> list(uof.get_aliases())
+[(frozenset(), {'forest': 'tree'})]
