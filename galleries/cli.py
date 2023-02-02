@@ -349,28 +349,23 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     implications = db_config.get_multi_paths("refresh", "Implications")
     aliases = db_config.get_multi_paths("refresh", "Aliases")
     removals = db_config.get_multi_paths("refresh", "Removals")
-    if implications or aliases or removals:
+    unified = db_config.get_multi_paths("refresh", "TagActions")
+    if implications or aliases or removals or unified:
         implicating_fields = db_config.get_implicating_fields(tag_fields)
         try:
-            impl_list = [
-                refresh.get_implications(filename) for filename in implications
-            ]
-            alias_list = [refresh.get_aliases(filename) for filename in aliases]
-            black_set = refresh.get_tags_from_file(*removals)
+            gardener.merge_settings_from_files(
+                fields=implicating_fields,
+                unified=unified,
+                aliases=aliases,
+                implications=implications,
+                removals=removals,
+            )
         except OSError as err:
+            # OSErrors from unified are caught and handled
             log.error(
                 "Unable to open implication/alias/removal file for reading: %s", err
             )
             return 1
-        except json.JSONDecodeError as err:
-            log.error("Unable to decode file as JSON: %s", err)
-            log.debug(err.doc)
-            return 1
-        for impl_set in impl_list:
-            gardener.set_imply_tags(impl_set, *implicating_fields)
-        for alias_group in alias_list:
-            gardener.set_alias_tags(alias_group, *implicating_fields)
-        gardener.set_remove_tags(black_set, *implicating_fields)
     try:
         csvfile = open(filename, encoding="utf-8", newline="")
     except OSError as err:
