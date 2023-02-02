@@ -87,7 +87,9 @@ def main(
                 return 1
         galleries = list(matched_rows)
         gallery_total = len(galleries)
-        log.info(f"Found {gallery_total} galler{'y' if gallery_total == 1 else 'ies'}")
+        log.info(
+            "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
+        )
         print_formatted(galleries, field_formats)
     else:
         util.write_rows(matched_rows, fieldnames=fieldnames)
