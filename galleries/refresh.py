@@ -119,12 +119,14 @@ class Gardener:
         black_sets: dict[frozenset[str], gms.TagSet] = {}
         if aliases is not None:
             for filename in aliases:
-                field_aliases[fields] = get_aliases(filename)
+                field_aliases.setdefault(fields, {}).update(get_aliases(filename))
         if implications is not None:
             for filename in implications:
-                field_impl[fields] = set(get_implications(filename))
+                field_impl.setdefault(fields, set()).update(get_implications(filename))
         if removals is not None:
-            black_sets[fields] = get_tags_from_file(*removals)
+            black_sets.setdefault(fields, gms.TagSet()).update(
+                get_tags_from_file(*removals)
+            )
         if unified is not None:
             uof = UnifiedObjectFormat(default_fields=fields)
             for filename in unified:
