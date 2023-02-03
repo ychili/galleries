@@ -463,6 +463,8 @@ class RegularImplication(BaseImplication):
     """
 
     def __init__(self, antecedent: str, consequent: str) -> None:
+        if antecedent == consequent:
+            raise ValueError(f"Cannot implicate a tag to itself: {antecedent!r}")
         self.antecedent = antecedent
         self.consequent = consequent
 
