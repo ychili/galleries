@@ -8,7 +8,7 @@ import csv
 import json
 import logging
 import os
-from collections.abc import Collection, Hashable, Iterator, MutableMapping
+from collections.abc import Collection, Hashable, Iterable, Iterator, MutableMapping
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, TypeVar, Union
 
@@ -182,6 +182,37 @@ class UnifiedObjectFormat:
             for field, table in field_tables.items():
                 # Within a field, tables are overwritten by update
                 self.field_tables.setdefault(field, {}).update(table)
+
+    def merge_aliases(
+        self, alias_files: Iterable[os.PathLike]
+    ) -> dict[frozenset[str], dict[str, str]]:
+        field_aliases: dict[frozenset[str], dict[str, str]] = {}
+        for filename in alias_files:
+            mapping = get_aliases(filename)
+            field_aliases.setdefault(self.default_fields, {}).update(mapping)
+        for field_group, mapping in self.get_aliases():
+            field_aliases.setdefault(field_group, {}).update(mapping)
+        return field_aliases
+
+    def merge_implications(
+        self, implications_files: Iterable[os.PathLike]
+    ) -> dict[frozenset[str], set[gms.BaseImplication]]:
+        field_impl: dict[frozenset[str], set[gms.BaseImplication]] = {}
+        for filename in implications_files:
+            impl = get_implications(filename)
+            field_impl.setdefault(self.default_fields, set()).update(impl)
+        for field_group, impl in self.get_implications():
+            field_impl.setdefault(field_group, set()).update(impl)
+        return field_impl
+
+    def merge_removals(
+        self, removals_files: Iterable[os.PathLike]
+    ) -> dict[frozenset[str], gms.TagSet]:
+        black_sets: dict[frozenset[str], gms.TagSet] = {}
+        if removals_files:
+            removals = get_tags_from_file(*removals_files)
+            black_sets.setdefault(self.default_fields, gms.TagSet()).update(removals)
+        return black_sets
 
     def get_aliases(self) -> Iterator[tuple[frozenset[str], dict[str, str]]]:
         for field, table in self.field_tables.items():
