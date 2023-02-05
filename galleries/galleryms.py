@@ -35,6 +35,96 @@ TS = TypeVar("TS", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
 
 
+class ImplicationGraph:
+    def __init__(
+        self, implications: Optional[Iterable[RegularImplication]] = None
+    ) -> None:
+        self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
+        if implications is not None:
+            for implication in implications:
+                self.add(implication)
+
+    def add(self, implication: RegularImplication) -> None:
+        self.add_edge(implication.antecedent, implication.consequent)
+
+    def add_edge(self, antecedent: str, *consequent: str) -> None:
+        self.graph[antecedent].update(consequent)
+
+    def find_cycle(self) -> Optional[list[str]]:
+        stack: list[str] = []
+        itstack: list[Callable[[], str]] = []
+        seen: set[str] = set()
+        node2stacki: dict[str, int] = {}
+        for node in self.graph:
+            if node in seen:
+                continue
+            while True:
+                if node in seen:
+                    # If we have seen already the node and is in the
+                    # current stack we have found a cycle.
+                    if node in node2stacki:
+                        return stack[node2stacki[node] :] + [node]
+                    # else go on to get next successor
+                else:
+                    seen.add(node)
+                    itstack.append(iter(self.graph[node]).__next__)
+                    node2stacki[node] = len(stack)
+                    stack.append(node)
+                # Backtrack to the topmost stack entry with
+                # at least another successor.
+                while stack:
+                    try:
+                        node = itstack[-1]()
+                        break
+                    except StopIteration:
+                        del node2stacki[stack.pop()]
+                        itstack.pop()
+                else:
+                    break
+        return None
+
+    def tags_implied_by(self, tag: str) -> TagSet:
+        return self.graph.get(tag, TagSet())
+
+    def descendants_of(self, tag: str) -> TagSet:
+        descendants = TagSet()
+        current_tags = self.tags_implied_by(tag)
+        while current_tags:
+            new_tags = TagSet()
+            for implied_tag in current_tags:
+                new_tags.update(self.tags_implied_by(implied_tag))
+            descendants.update(new_tags)
+            current_tags = new_tags
+        return descendants
+
+
+class Implicator(ImplicationGraph):
+    def __init__(
+        self,
+        implications: Optional[Iterable[RegularImplication]] = None,
+        aliases: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        super().__init__(implications)
+        self.implications = frozenset(implications or [])
+        self.aliases = aliases or {}
+
+    def validate_implications_not_aliased(self) -> list[tuple[RegularImplication, str]]:
+        events = []
+        for implication in self.implications:
+            if tag := self.aliases.get(implication.antecedent):
+                events.append((implication, tag))
+            if tag := self.aliases.get(implication.consequent):
+                events.append((implication, tag))
+        return events
+
+    def implicate(self, tagset: TagSet) -> None:
+        tagset.apply_aliases(self.aliases)
+        new_tags = TagSet()
+        for tag in tagset:
+            new_tags.update(self.descendants_of(tag))
+        tagset.update(new_tags)
+
+
 class TagSet(Set[str]):
     """A set of tags
 
@@ -53,15 +143,25 @@ class TagSet(Set[str]):
     def __str__(self) -> str:
         return " ".join(sorted(self))
 
-    def apply_implications(self, implications: Collection[BaseImplication]) -> None:
+    def implied_tags(self: TS, implications: Iterable[BaseImplication]) -> TS:
+        consequents = type(self)()
+        for implication in implications:
+            for tag in self:
+                if implied := implication.match(tag):
+                    consequents.add(implied)
+                    break
+        return consequents
+
+    def aliased_tags(self: TS, aliases: Mapping[str, str]) -> TS:
+        """Return a new set with aliased tags replaced by real tags."""
+        tagset = type(self)(self.copy())
+        return tagset.apply_aliases(aliases)
+
+    def apply_implications(self, implications: Iterable[BaseImplication]) -> None:
         """Update with *implications*."""
         current_tags = self
         while implications:
-            new_tags = TagSet()
-            for tag in current_tags:
-                for implication in implications:
-                    if match := implication.match(tag):
-                        new_tags.add(match)
+            new_tags = current_tags.implied_tags(implications)
             if not new_tags:
                 # No new tags implied. Exit.
                 break
@@ -72,10 +172,10 @@ class TagSet(Set[str]):
 
     def apply_aliases(self, aliases: Mapping[str, str]) -> None:
         """Update with *aliases*, translating tags from key to value."""
-        found = self & aliases.keys()
-        for tag in found:
-            self.remove(tag)
-            self.add(aliases[tag])
+        for alias, tag in aliases.items():
+            if alias in self:
+                self.remove(alias)
+                self.add(tag)
 
 
 class Gallery(Dict[str, Any]):
