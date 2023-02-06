@@ -3,6 +3,7 @@
 """Gallery management system"""
 
 from __future__ import annotations
+import dataclasses
 
 import fnmatch
 import heapq
@@ -531,6 +532,7 @@ class BaseImplication(ABC):
         pass
 
 
+@dataclasses.dataclass(frozen=True)
 class DescriptorImplication(BaseImplication):
     """Store a descriptor implication.
 
@@ -541,10 +543,11 @@ class DescriptorImplication(BaseImplication):
     >>> DescriptorImplication("green").match("green_shirt")
     'shirt'
     """
+    word: str
+    pattern: re.Pattern = dataclasses.field(init=False, compare=False)
 
-    def __init__(self, word: str) -> None:
-        self.word = word
-        self.pattern = re.compile(f"\\A{word}_(.+)")
+    def __post_init__(self):
+        setattr(self, "pattern", re.compile(f"\\A{self.word}_(.+)"))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.word!r})"
@@ -556,15 +559,14 @@ class DescriptorImplication(BaseImplication):
         return None
 
 
+@dataclasses.dataclass(frozen=True)
 class RegularImplication(BaseImplication):
     """Store a regular implication.
 
     *antecedent* implies *consequent*.
     """
-
-    def __init__(self, antecedent: str, consequent: str) -> None:
-        self.antecedent = antecedent
-        self.consequent = consequent
+    antecedent: str
+    consequent: str
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}" f"({self.antecedent!r}, {self.consequent!r})"
