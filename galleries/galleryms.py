@@ -3,8 +3,8 @@
 """Gallery management system"""
 
 from __future__ import annotations
-import dataclasses
 
+import dataclasses
 import fnmatch
 import heapq
 import itertools
@@ -23,6 +23,7 @@ from collections.abc import (
     MutableMapping,
     Sequence,
 )
+from collections.abc import MutableSet, MutableSequence
 from operator import itemgetter
 from pathlib import Path
 from textwrap import TextWrapper
@@ -37,59 +38,58 @@ Table = TypeVar("Table", bound="OverlapTable")
 
 
 class ImplicationGraph:
-    def __init__(
-        self, implications: Optional[Iterable[RegularImplication]] = None
-    ) -> None:
-        self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
-        if implications is not None:
-            for implication in implications:
-                self.add(implication)
+    """Directed acyclic graph of tag implications
 
-    def add(self, implication: RegularImplication) -> None:
-        self.add_edge(implication.antecedent, implication.consequent)
+    >>> graph = ImplicationGraph({'a': {'b'}, 'b': {'c'}})
+    >>> sorted(graph.descendants_of('a'))
+    ['b', 'c']
+    """
+
+    def __init__(self, graph: Optional[Mapping[str, TagSet]] = None) -> None:
+        self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
+        if graph is not None:
+            for node, consequents in graph.items():
+                self.add_edge(node, *consequents)
 
     def add_edge(self, antecedent: str, *consequent: str) -> None:
         self.graph[antecedent].update(consequent)
 
+    def _traverse(
+        self, node: str, stack: MutableSequence[str], seen: MutableSet[str]
+    ) -> Optional[str]:
+        """Recursive function to visit each node in the graph"""
+        # Mark current node as visited and add to recursion stack
+        seen.add(node)
+        stack.append(node)
+        # If any neighbor is visited and in recursion stack
+        # then graph is cyclic
+        for neighbor in self.graph[node]:
+            if neighbor not in seen:
+                if cycle_0 := self._traverse(neighbor, stack, seen):
+                    return cycle_0
+            elif neighbor in stack:
+                return neighbor
+        # Pop node from stack -- its descendants are free of cycles
+        stack.pop()
+        return None
+
     def find_cycle(self) -> Optional[list[str]]:
-        stack: list[str] = []
-        itstack: list[Callable[[], str]] = []
-        seen: set[str] = set()
-        node2stacki: dict[str, int] = {}
-        for node in self.graph:
-            if node in seen:
-                continue
-            while True:
-                if node in seen:
-                    # If we have seen already the node and is in the
-                    # current stack we have found a cycle.
-                    if node in node2stacki:
-                        return stack[node2stacki[node] :] + [node]
-                    # else go on to get next successor
-                else:
-                    seen.add(node)
-                    itstack.append(iter(self.graph[node]).__next__)
-                    node2stacki[node] = len(stack)
-                    stack.append(node)
-                # Backtrack to the topmost stack entry with
-                # at least another successor.
-                while stack:
-                    try:
-                        node = itstack[-1]()
-                        break
-                    except StopIteration:
-                        del node2stacki[stack.pop()]
-                        itstack.pop()
-                else:
-                    break
+        # We don't expect to exceed max recursion depth
+        nodes_seen: set[str] = set()
+        recursion_stack: list[str] = []
+        for node in dict(self.graph):
+            if node not in nodes_seen:
+                if cycle_0 := self._traverse(node, recursion_stack, nodes_seen):
+                    cycle = recursion_stack[recursion_stack.index(cycle_0) :]
+                    return cycle + [cycle_0]
         return None
 
     def tags_implied_by(self, tag: str) -> TagSet:
         return self.graph.get(tag, TagSet())
 
     def descendants_of(self, tag: str) -> TagSet:
-        descendants = TagSet()
         current_tags = self.tags_implied_by(tag)
+        descendants = current_tags
         while current_tags:
             new_tags = TagSet()
             for implied_tag in current_tags:
@@ -100,22 +100,33 @@ class ImplicationGraph:
 
 
 class Implicator(ImplicationGraph):
+    """Collection of tag implications + tag aliases"""
+
     def __init__(
         self,
         implications: Optional[Iterable[RegularImplication]] = None,
         aliases: Optional[Mapping[str, str]] = None,
     ) -> None:
-        super().__init__(implications)
-        self.implications = frozenset(implications or [])
+        super().__init__()
+        self.implications = set(implications or [])
         self.aliases = aliases or {}
+        if implications is not None:
+            for implication in implications:
+                self.add(implication)
 
-    def validate_implications_not_aliased(self) -> list[tuple[RegularImplication, str]]:
-        events = []
+    def add(self, implication: RegularImplication) -> None:
+        self.add_edge(implication.antecedent, implication.consequent)
+        self.implications.add(implication)
+
+    def validate_implications_not_aliased(
+        self,
+    ) -> list[tuple[RegularImplication, str, str]]:
+        events: list[tuple[RegularImplication, str, str]] = []
         for implication in self.implications:
             if tag := self.aliases.get(implication.antecedent):
-                events.append((implication, tag))
+                events.append((implication, implication.antecedent, tag))
             if tag := self.aliases.get(implication.consequent):
-                events.append((implication, tag))
+                events.append((implication, implication.consequent, tag))
         return events
 
     def implicate(self, tagset: TagSet) -> None:
@@ -543,11 +554,12 @@ class DescriptorImplication(BaseImplication):
     >>> DescriptorImplication("green").match("green_shirt")
     'shirt'
     """
+
     word: str
     pattern: re.Pattern = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self):
-        setattr(self, "pattern", re.compile(f"\\A{self.word}_(.+)"))
+        object.__setattr__(self, "pattern", re.compile(f"\\A{self.word}_(.+)"))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.word!r})"
@@ -565,6 +577,7 @@ class RegularImplication(BaseImplication):
 
     *antecedent* implies *consequent*.
     """
+
     antecedent: str
     consequent: str
 
