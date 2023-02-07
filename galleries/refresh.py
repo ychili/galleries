@@ -5,12 +5,14 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import logging
 import os
-from collections.abc import Collection, Hashable, Iterable, Iterator, MutableMapping
+from collections import defaultdict
+from collections.abc import Collection, Hashable, Iterable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, TypeVar, Union
+from typing import Any, Callable, Mapping, Optional, TypeVar
 
 from . import galleryms as gms
 
@@ -75,6 +77,11 @@ class Gardener:
                 field, lambda ts: gms.TagSet.apply_aliases(ts, aliases)
             )
 
+    def set_implicator(self, implicator: gms.Implicator, *fields: str) -> None:
+        self._needed_fields.update(fields)
+        for field in fields:
+            self._set_tag_action(field, lambda ts: implicator.implicate(ts))
+
     def garden_rows(
         self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None
     ) -> Iterator[gms.Gallery]:
@@ -100,159 +107,79 @@ class Gardener:
         folder = gallery.check_folder(self._path_field, cwd=self._root_path)
         gallery.update_count(self._count_field, folder)
 
-    def merge_settings_from_files(
-        self,
-        fields: Collection[str],
-        unified: Optional[Collection[os.PathLike]] = None,
-        aliases: Optional[Collection[os.PathLike]] = None,
-        implications: Optional[Collection[os.PathLike]] = None,
-        removals: Optional[Collection[os.PathLike]] = None,
-    ) -> None:
-        """Set tag actions contained in files.
-
-        Tag actions will be applied to default implicating fields *fields*,
-        except for files in *unified* that contain field information.
-        """
-        fields = frozenset(fields)
-        field_aliases: dict[frozenset[str], dict[str, str]] = {}
-        field_impl: dict[frozenset[str], set[gms.BaseImplication]] = {}
-        black_sets: dict[frozenset[str], gms.TagSet] = {}
-        for filename in aliases or []:
-            field_aliases.setdefault(fields, {}).update(get_aliases(filename))
-        for filename in implications or []:
-            field_impl.setdefault(fields, set()).update(get_implications(filename))
-        if removals is not None:
-            black_sets.setdefault(fields, gms.TagSet()).update(
-                get_tags_from_file(*removals)
-            )
-        uof = UnifiedObjectFormat(default_fields=fields)
-        for filename in unified or []:
-            uof.update(get_unified(filename))
-        for field_group, mapping in uof.get_aliases():
-            field_aliases.setdefault(field_group, {}).update(mapping)
-        for field_group, impl in uof.get_implications():
-            field_impl.setdefault(field_group, set()).update(impl)
-        for field_group, black in uof.get_removals():
-            black_sets.setdefault(field_group, gms.TagSet()).update(black)
-        for field_group, mapping in field_aliases.items():
-            self.set_alias_tags(mapping, *field_group)
-        for field_group, impl in field_impl.items():
-            self.set_imply_tags(impl, *field_group)
-        for field_group, black in black_sets.items():
-            self.set_remove_tags(black, *field_group)
-
 
 class UnifiedObjectFormat:
     """Extract tag actions from one, unified object format.
 
-    Field information is given via top-level keys "fieldnames" = <array>
-    and/or "fieldgroups" = <table>.
+    Field information is given via top-level key "fieldnames" = <array>.
     """
 
-    def __init__(
-        self,
-        obj: Optional[Mapping] = None,
-        default_fields: Optional[Collection[str]] = None,
-    ) -> None:
-        self.field_tables: dict[frozenset[str], MutableMapping] = {}
-        self.default_fields: frozenset[str] = frozenset(default_fields or [])
-        if obj is not None:
-            self.update(obj)
+    def __init__(self, mapping: Optional[Mapping] = None) -> None:
+        self.field_tables: defaultdict[Optional[str], dict] = defaultdict(dict)
+        if mapping is not None:
+            self.update(mapping)
 
     def __bool__(self) -> bool:
         return bool(self.field_tables)
 
     def update(self, *others: Mapping) -> None:
         for obj in others:
-            fieldnames = {
-                str(name): frozenset([str(name)])
-                for name in get_with_type(obj, "fieldnames", list)
-            }
-            fieldgroups = {
-                str(name): frozenset(map(str, group))
-                for name, group in get_with_type(obj, "fieldgroups", dict).items()
-            }
-            field_tables = {self.default_fields: obj}
-            if fieldnames or fieldgroups:
-                # Field names have been given -- overwrite top level
-                field_tables = {
-                    fields: get_with_type(obj, name, dict)
-                    for name, fields in dict(**fieldnames, **fieldgroups).items()
-                }
-            for field, table in field_tables.items():
-                # Within a field, tables are overwritten by update
-                self.field_tables.setdefault(field, {}).update(table)
+            fieldnames = [str(name) for name in get_with_type(obj, "fieldnames", list)]
+            for name in fieldnames:
+                self.field_tables[name].update(get_with_type(obj, name, dict))
+            if not fieldnames:
+                # If no fieldnames, assign to default fieldname None
+                self.field_tables[None].update(obj)
 
-    def merge_aliases(
-        self, alias_files: Iterable[os.PathLike]
-    ) -> dict[frozenset[str], dict[str, str]]:
-        field_aliases: dict[frozenset[str], dict[str, str]] = {}
-        for filename in alias_files:
-            mapping = get_aliases(filename)
-            field_aliases.setdefault(self.default_fields, {}).update(mapping)
-        for field_group, mapping in self.get_aliases():
-            field_aliases.setdefault(field_group, {}).update(mapping)
-        return field_aliases
+    def parse_aliases(self, key: Optional[str]) -> dict[str, str]:
+        alias_table = get_with_type(self.field_tables[key], "aliases", dict).items()
+        return {str(alias): str(tag) for alias, tag in alias_table}
 
-    def merge_implications(
-        self, implications_files: Iterable[os.PathLike]
-    ) -> dict[frozenset[str], set[gms.BaseImplication]]:
-        field_impl: dict[frozenset[str], set[gms.BaseImplication]] = {}
-        for filename in implications_files:
-            impl = get_implications(filename)
-            field_impl.setdefault(self.default_fields, set()).update(impl)
-        for field_group, impl in self.get_implications():
-            field_impl.setdefault(field_group, set()).update(impl)
-        return field_impl
+    def get_aliases(self) -> Iterator[tuple[Optional[str], dict[str, str]]]:
+        for field in self.field_tables.keys():
+            yield field, self.parse_aliases(field)
 
-    def merge_removals(
-        self, removals_files: Iterable[os.PathLike]
-    ) -> dict[frozenset[str], gms.TagSet]:
-        black_sets: dict[frozenset[str], gms.TagSet] = {}
-        if removals_files:
-            removals = get_tags_from_file(*removals_files)
-            black_sets.setdefault(self.default_fields, gms.TagSet()).update(removals)
-        return black_sets
+    @staticmethod
+    def _get_descriptors(table: Mapping) -> Iterator[gms.RegularImplication]:
+        adjectives = get_with_type(table, "adjectives", list)
+        nouns = get_with_type(table, "nouns", list)
+        mask = frozenset(str(arg) for arg in get_with_type(table, "mask", list))
+        for adj, noun in itertools.product(adjectives, nouns):
+            antecedent = f"{adj}_{noun}"
+            if antecedent not in mask:
+                yield gms.RegularImplication(antecedent, noun)
 
-    def get_aliases(self) -> Iterator[tuple[frozenset[str], dict[str, str]]]:
-        for field, table in self.field_tables.items():
-            yield field, {
-                str(alias): str(tag)
-                for alias, tag in get_with_type(table, "aliases", dict).items()
-            }
+    @staticmethod
+    def _get_regulars(table: Mapping) -> set[gms.RegularImplication]:
+        return {gms.RegularImplication(str(k), str(v)) for k, v in table.items()}
+
+    def parse_implications(self, key: Optional[str]) -> set[gms.RegularImplication]:
+        impl_table = get_with_type(self.field_tables[key], "implications", dict)
+        impl = self._get_regulars(impl_table)
+        desc_table = get_with_type(self.field_tables[key], "descriptors", dict)
+        descriptors = frozenset(self._get_descriptors(desc_table))
+        return impl | descriptors
 
     def get_implications(
         self,
-    ) -> Iterator[
-        tuple[
-            frozenset[str],
-            set[Union[gms.DescriptorImplication, gms.RegularImplication]],
-        ]
-    ]:
-        for field, table in self.field_tables.items():
-            descriptors = {
-                gms.DescriptorImplication(str(desc))
-                for desc in get_with_type(table, "descriptors", list)
-            }
-            impl = {
-                gms.RegularImplication(str(k), str(v))
-                for k, v in get_with_type(table, "implications", dict).items()
-            }
-            yield field, descriptors | impl
+    ) -> Iterator[tuple[Optional[str], set[gms.RegularImplication]]]:
+        for field in self.field_tables.keys():
+            yield field, self.parse_implications(field)
 
-    def get_removals(self) -> Iterator[tuple[frozenset[str], gms.TagSet]]:
-        for field, table in self.field_tables.items():
-            yield field, gms.TagSet(
-                str(tag) for tag in get_with_type(table, "removals", list)
-            )
+    def make_implicator(self, *field: Optional[str]) -> gms.Implicator:
+        implications: set[gms.RegularImplication] = set()
+        aliases: dict[str, str] = {}
+        for name in field:
+            implications.update(self.parse_implications(name))
+            aliases.update(self.parse_aliases(name))
+        return gms.Implicator(implications=implications, aliases=aliases)
 
-    def set_tag_actions(self, gardener: Gardener) -> None:
-        for field, aliases in self.get_aliases():
-            gardener.set_alias_tags(aliases, *field)
-        for field, implications in self.get_implications():
-            gardener.set_imply_tags(implications, *field)
-        for field, tag_set in self.get_removals():
-            gardener.set_remove_tags(tag_set, *field)
+    def implicators(self) -> Iterator[tuple[Optional[str], gms.Implicator]]:
+        for implications, aliases in zip(self.get_implications(), self.get_aliases()):
+            impl_field, impl = implications
+            alias_field, alias = aliases
+            assert impl_field == alias_field
+            yield impl_field, gms.Implicator(implications=impl, aliases=alias)
 
 
 def get_with_type(mapping: Mapping, name: Hashable, class_or_type: type[T]) -> T:
@@ -289,11 +216,7 @@ def get_unified(filename: os.PathLike, file_format: Optional[str] = None) -> Map
     load = load_from_json
     if path.match("*.toml") and file_format != "json":
         load = load_from_toml
-    try:
-        obj = load(path)
-    except OSError as err:
-        log.error("Unable to open file for reading: %s", err)
-        return {}
+    obj = load(path)
     return check_mapping(obj)
 
 
@@ -310,7 +233,7 @@ def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
 
 def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
     """
-    Do not attempt :module:`tomllib` import until this function is called.
+    Do not attempt :mod:`tomllib` import until this function is called.
     """
     try:
         import tomllib
@@ -320,7 +243,7 @@ def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
         try:
             return tomllib.load(file)
         except tomllib.TOMLDecodeError as err:
-            log.error("Unable to decode file as TOML: %s", err)
+            log.error("Unable to decode file as TOML: In %s: %s", filename, err)
             return {}
 
 
@@ -329,7 +252,7 @@ def load_from_json(filename: os.PathLike) -> Any:
         try:
             return json.load(file)
         except json.JSONDecodeError as err:
-            log.error("Unable to decode file as JSON: %s", err)
+            log.error("Unable to decode file as JSON: In %s: %s", filename, err)
             return {}
 
 
