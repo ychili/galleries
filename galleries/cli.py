@@ -345,27 +345,14 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     count_field = db_config.get("refresh", "CountField")
     if not cla.no_check:
         gardener.set_update_count(path_field, count_field, collection_path)
-    # Third, see if there are enough values to perform tag gardening
-    implications = db_config.get_multi_paths("refresh", "Implications")
-    aliases = db_config.get_multi_paths("refresh", "Aliases")
-    removals = db_config.get_multi_paths("refresh", "Removals")
-    unified = db_config.get_multi_paths("refresh", "TagActions")
-    if implications or aliases or removals or unified:
-        implicating_fields = db_config.get_implicating_fields(tag_fields)
-        try:
-            gardener.merge_settings_from_files(
-                fields=implicating_fields,
-                unified=unified,
-                aliases=aliases,
-                implications=implications,
-                removals=removals,
-            )
-        except OSError as err:
-            # OSErrors from unified are caught and handled
-            log.error(
-                "Unable to open implication/alias/removal file for reading: %s", err
-            )
-            return 1
+    # Third, see if there are enough values to perform implication
+    try:
+        status = set_tag_actions(gardener, db_config, validate=cla.validate)
+    except OSError as err:
+        log.error("Unable to open tag file for reading: %s", err)
+        return 1
+    if status != 0:
+        return status
     try:
         csvfile = open(filename, encoding="utf-8", newline="")
     except OSError as err:
@@ -395,6 +382,62 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     with csvfile:
         util.write_rows(rows=rows, fieldnames=fieldnames, file=csvfile)
     log.info("Success: Saved refreshed table to '%s'", filename)
+    return 0
+
+
+def set_tag_actions(
+    gardener: refresh.Gardener, config: DBConfig, validate: bool = False
+) -> int:
+    """Sub-function of ``refresh_sc``
+
+    Responsible for loading tag actions/implications from file and adding them
+    to the gardener.
+    """
+    implications = config.get_multi_paths("refresh", "Implications")
+    aliases = config.get_multi_paths("refresh", "Aliases")
+    removals = config.get_multi_paths("refresh", "Removals")
+    unified = config.get_multi_paths("refresh", "TagActions")
+    implicating_fields = config.get_implicating_fields()
+    for filename in aliases:
+        gardener.set_alias_tags(refresh.get_aliases(filename), *implicating_fields)
+    for filename in implications:
+        gardener.set_imply_tags(refresh.get_implications(filename), *implicating_fields)
+    if removals:
+        gardener.set_remove_tags(
+            refresh.get_tags_from_file(*removals), *implicating_fields
+        )
+    uof = refresh.UnifiedObjectFormat()
+    for filename in unified:
+        uof.update(refresh.get_unified(filename))
+    for field, implic in uof.implicators():
+        if validate:
+            log.debug("Validating implicator for field(s): %s", field)
+            if events := implic.validate_implications_not_aliased():
+                log.debug(events)
+                log.error(
+                    "Tags in implication must not be aliased to another tag: "
+                    "'%s' implies '%s', but '%s' is aliased to '%s'",
+                    events[0][0].antecedent,
+                    events[0][0].consequent,
+                    events[0][1],
+                    events[0][2],
+                )
+                log.error(
+                    "Found %d instance%s where tags in implication were aliased",
+                    len(events),
+                    "" if len(events) == 1 else "s",
+                )
+                return 1
+            if cycle := implic.find_cycle():
+                log.error(
+                    "Tag implication cannot create a circular relation with another tag implication: %s",
+                    " -> ".join(cycle),
+                )
+                return 1
+        if field == None:
+            gardener.set_implicator(implic, *implicating_fields)
+        else:
+            gardener.set_implicator(implic, field)
     return 0
 
 
@@ -594,6 +637,11 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "--no-check",
         action="store_true",
         help="skip PathField checks/CountField updates",
+    )
+    refresh_p.add_argument(
+        "--validate",
+        action="store_true",
+        help="check any TagActions files for correctness",
     )
     refresh_p.set_defaults(func=refresh_sc)
 
