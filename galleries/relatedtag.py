@@ -51,7 +51,8 @@ def create_new_json_file(
         table = OverlapTable(*tagsets_from_rows(reader, tag_fields))
         log.debug("Read from CSV file %r", csvfile)
     log.info(
-        "Counted overlaps of %d 2-combinations of %d elements in %d sets (average %.2f elements per set)",
+        "Counted overlaps of %d 2-combinations of %d elements in %d sets "
+        "(average %.2f elements per set)",
         math.comb(len(table), 2),
         len(table),
         table.n_sets,

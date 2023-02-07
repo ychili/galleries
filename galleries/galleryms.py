@@ -21,9 +21,10 @@ from collections.abc import (
     Iterator,
     Mapping,
     MutableMapping,
+    MutableSequence,
+    MutableSet,
     Sequence,
 )
-from collections.abc import MutableSet, MutableSequence
 from operator import itemgetter
 from pathlib import Path
 from textwrap import TextWrapper
