@@ -4,12 +4,31 @@ import galleries.galleryms
 
 
 class TestImplicationGraph(unittest.TestCase):
+    @staticmethod
+    def _make(graph):
+        return galleries.galleryms.ImplicationGraph(graph)
+
     def _assert_cycle(self, graph, cycle):
-        ig = galleries.galleryms.ImplicationGraph()
-        for node, implies in graph.items():
-            ig.add_edge(node, *implies)
+        ig = self._make(graph)
         err = ig.find_cycle()
         self.assertEqual(cycle, err)
+
+    def test_simple(self):
+        self._assert_cycle({1: {2}, 2: {3}}, None)
+
+    def test_empty(self):
+        self._assert_cycle({}, None)
+
+    def test_descendants(self):
+        ig = self._make({"1": {"2"}, "2": {"3"}})
+        top = ig.descendants_of("1")
+        self.assertEqual(sorted(top), ["2", "3"])
+        middle = ig.descendants_of("2")
+        self.assertEqual(sorted(middle), ["3"])
+        end = ig.descendants_of("3")
+        self.assertEqual(sorted(end), [])
+        none = ig.descendants_of("4")
+        self.assertEqual(sorted(none), [])
 
     def test_cycle(self):
         # Self cycle
