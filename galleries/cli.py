@@ -352,7 +352,7 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         log.error("Unable to open tag file for reading: %s", err)
         return 1
     if status != 0:
-        return status
+        return 1
     try:
         csvfile = open(filename, encoding="utf-8", newline="")
     except OSError as err:
@@ -393,6 +393,7 @@ def set_tag_actions(
     Responsible for loading tag actions/implications from file and adding them
     to the gardener.
     """
+    status = 0
     implications = config.get_multi_paths("refresh", "Implications")
     aliases = config.get_multi_paths("refresh", "Aliases")
     removals = config.get_multi_paths("refresh", "Removals")
@@ -427,18 +428,19 @@ def set_tag_actions(
                     len(events),
                     "" if len(events) == 1 else "s",
                 )
-                return 1
+                status += 1
             if cycle := implic.find_cycle():
                 log.error(
-                    "Tag implication cannot create a circular relation with another tag implication: %s",
+                    "Tag implication cannot create a circular relation with "
+                    "another tag implication: %s",
                     " -> ".join(cycle),
                 )
-                return 1
-        if field == None:
+                status += 1
+        if field is None:
             gardener.set_implicator(implic, *implicating_fields)
         else:
             gardener.set_implicator(implic, field)
-    return 0
+    return status
 
 
 def overlaps_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
