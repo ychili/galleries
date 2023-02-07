@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Collection, Hashable, Iterable, Iterator
+from collections.abc import Collection, Hashable, Iterator
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, TypeVar
 
@@ -80,7 +80,7 @@ class Gardener:
     def set_implicator(self, implicator: gms.Implicator, *fields: str) -> None:
         self._needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(field, lambda ts: implicator.implicate(ts))
+            self._set_tag_action(field, implicator.implicate)
 
     def garden_rows(
         self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None
