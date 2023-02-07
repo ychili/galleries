@@ -41,9 +41,9 @@ Test the ``refresh.Gardener``.
 Test the ``refresh.UnifiedObjectFormat``.
 
 >>> from galleries.refresh import UnifiedObjectFormat
->>> uof = UnifiedObjectFormat({"descriptors": ["green"]})
+>>> uof = UnifiedObjectFormat({"implications": {"car": "vehicle"}})
 >>> list(uof.get_implications())
-[(frozenset(), {DescriptorImplication('green')})]
+[(None, {RegularImplication('car', 'vehicle')})]
 >>> uof.update({"aliases": {"forest": "tree"}})
 >>> list(uof.get_aliases())
-[(frozenset(), {'forest': 'tree'})]
+[(None, {'forest': 'tree'})]
