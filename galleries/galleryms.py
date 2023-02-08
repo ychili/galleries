@@ -164,7 +164,7 @@ class Implicator(ImplicationGraph):
         """Find instances where tags in implication have been aliased.
 
         Return a list of AliasedImplication objects, each of which contains
-        the implication of whose member tags one has been aliased and the two
+        an implication, a member tag of which has been aliased, and the two
         tags in the tag alias.
         Return an empty list, if none found.
         """

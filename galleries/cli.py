@@ -413,15 +413,26 @@ def set_tag_actions(
     for field, implic in uof.implicators():
         if validate:
             log.debug("Validating implicator for field(s): %s", field)
+            if events := implic.validate_aliases_not_aliased():
+                log.debug(events)
+                log.error(
+                    "Cannot alias a tag to a tag that is itself aliased: %s",
+                    " -> ".join(events[0]),
+                )
+                log.error(
+                    "Found %d instance%s of transitive aliases",
+                    len(events),
+                    "" if len(events) == 1 else "s",
+                )
             if events := implic.validate_implications_not_aliased():
                 log.debug(events)
                 log.error(
                     "Tags in implication must not be aliased to another tag: "
                     "'%s' implies '%s', but '%s' is aliased to '%s'",
-                    events[0][0].antecedent,
-                    events[0][0].consequent,
-                    events[0][1],
-                    events[0][2],
+                    events[0].implication.antecedent,
+                    events[0].implication.consequent,
+                    events[0].antecedent,
+                    events[0].consequent,
                 )
                 log.error(
                     "Found %d instance%s where tags in implication were aliased",
