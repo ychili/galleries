@@ -44,9 +44,13 @@ class ImplicationGraph:
     >>> graph = ImplicationGraph({'a': {'b'}, 'b': {'c'}})
     >>> sorted(graph.descendants_of('a'))
     ['b', 'c']
+    >>> tagset = TagSet(['d'])
+    >>> graph.join_descendants(tagset, 'a')
+    >>> sorted(tagset)
+    ['a', 'b', 'c', 'd']
     """
 
-    def __init__(self, graph: Optional[Mapping[str, TagSet]] = None) -> None:
+    def __init__(self, graph: Optional[Mapping[str, Iterable[str]]] = None) -> None:
         self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
         if graph is not None:
             for node, consequents in graph.items():
@@ -76,7 +80,7 @@ class ImplicationGraph:
 
     def find_cycle(self) -> Optional[list[str]]:
         # We don't expect to exceed max recursion depth
-        nodes_seen: set[str] = set()
+        nodes_seen = TagSet()
         recursion_stack: list[str] = []
         for node in dict(self.graph):
             if node not in nodes_seen:
@@ -86,6 +90,7 @@ class ImplicationGraph:
         return None
 
     def tags_implied_by(self, tag: str) -> TagSet:
+        """Get children of *tag* from graph without creating default entry."""
         return self.graph.get(tag, TagSet())
 
     def descendants_of(self, tag: str) -> TagSet:
@@ -98,6 +103,13 @@ class ImplicationGraph:
             descendants.update(new_tags)
             current_tags = new_tags
         return descendants
+
+    def join_descendants(self, tagset: TagSet, tag: str) -> None:
+        """Add *tag* and its descendants to *tagset*."""
+        tagset.add(tag)
+        for neighbor in self.graph[tag]:
+            if neighbor not in tagset:
+                self.join_descendants(tagset, neighbor)
 
 
 class Implicator(ImplicationGraph):
@@ -130,12 +142,17 @@ class Implicator(ImplicationGraph):
                 events.append((implication, implication.consequent, tag))
         return events
 
+    def validate_aliases_not_aliased(self) -> list[tuple[str, str, str]]:
+        events: list[tuple[str, str, str]] = []
+        for alias, tag in self.aliases.items():
+            if other_tag := self.aliases.get(tag):
+                events.append((alias, tag, other_tag))
+        return events
+
     def implicate(self, tagset: TagSet) -> None:
         tagset.apply_aliases(self.aliases)
-        new_tags = TagSet()
-        for tag in tagset:
-            new_tags.update(self.descendants_of(tag))
-        tagset.update(new_tags)
+        for tag in list(tagset):
+            self.join_descendants(tagset, tag)
 
 
 class TagSet(Set[str]):
@@ -168,7 +185,8 @@ class TagSet(Set[str]):
     def aliased_tags(self: TS, aliases: Mapping[str, str]) -> TS:
         """Return a new set with aliased tags replaced by real tags."""
         tagset = type(self)(self.copy())
-        return tagset.apply_aliases(aliases)
+        tagset.apply_aliases(aliases)
+        return tagset
 
     def apply_implications(self, implications: Iterable[BaseImplication]) -> None:
         """Update with *implications*."""
@@ -907,7 +925,7 @@ class OverlapTable(Collection):
 
     # UNARY METHODS
 
-    def __contains__(self, tag: str) -> bool:
+    def __contains__(self, tag: object) -> bool:
         return tag in self.counter
 
     def overlaps(self, tag: str) -> Iterator[tuple[str, int]]:
