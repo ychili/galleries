@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import fnmatch
 import heapq
 import itertools
@@ -15,24 +16,189 @@ import warnings
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from collections.abc import (
-    Collection,
+    Hashable,
     Iterable,
     Iterator,
     Mapping,
     MutableMapping,
+    MutableSequence,
+    MutableSet,
     Sequence,
 )
 from operator import itemgetter
 from pathlib import Path
 from textwrap import TextWrapper
-from typing import IO, Any, Callable, Dict, Optional, Set, TypeVar, Union
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    NamedTuple,
+    NewType,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 T = TypeVar("T")
+H = TypeVar("H", bound=Hashable)
 _Comparable = TypeVar("_Comparable", int, float)
 StrPath = Union[str, Path]
 _Real = Union[float, int]
 TS = TypeVar("TS", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
+TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
+
+
+class AliasedImplication(NamedTuple):
+    implication: RegularImplication
+    antecedent: str
+    consequent: str
+
+
+class ImplicationGraph:
+    """Directed acyclic graph of tag implications
+
+    >>> graph = ImplicationGraph({'a': {'b'}, 'b': {'c'}})
+    >>> sorted(graph.descendants_of('a'))
+    ['b', 'c']
+    >>> tagset = TagSet(['d'])
+    >>> graph.join_descendants(tagset, 'a')
+    >>> sorted(tagset)
+    ['a', 'b', 'c', 'd']
+    """
+
+    def __init__(self, graph: Optional[Mapping[str, Iterable[str]]] = None) -> None:
+        self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
+        if graph is not None:
+            for node, consequents in graph.items():
+                self.add_edge(node, *consequents)
+
+    def add_edge(self, antecedent: str, *consequent: str) -> None:
+        self.graph[antecedent].update(consequent)
+
+    def _traverse(
+        self, node: str, stack: MutableSequence[str], seen: MutableSet[str]
+    ) -> Optional[str]:
+        """Recursive function to visit each node in the graph"""
+        # Mark current node as visited and add to recursion stack
+        seen.add(node)
+        stack.append(node)
+        # If any neighbor is visited and in recursion stack
+        # then graph is cyclic
+        for neighbor in self.graph[node]:
+            if neighbor not in seen:
+                if cycle_0 := self._traverse(neighbor, stack, seen):
+                    return cycle_0
+            elif neighbor in stack:
+                return neighbor
+        # Pop node from stack -- its descendants are free of cycles
+        stack.pop()
+        return None
+
+    def find_cycle(self) -> Optional[list[str]]:
+        """Find cycles in the graph. Return ``None`` if no cycles found.
+
+        If multiple cycles exist, only one will be returned.
+        The cycle is returned as a list of nodes, such that each node is, in
+        the graph, an immediate predecessor of the next node in the list.
+        The first and last node in the list will be the same, to make it clear
+        that it is cyclic.
+        """
+        # We don't expect to exceed max recursion depth
+        nodes_seen = TagSet()
+        recursion_stack: list[str] = []
+        for node in list(self.graph):
+            if node not in nodes_seen:
+                if cycle_0 := self._traverse(node, recursion_stack, nodes_seen):
+                    cycle = recursion_stack[recursion_stack.index(cycle_0) :]
+                    return cycle + [cycle_0]
+        return None
+
+    def tags_implied_by(self, tag: str) -> TagSet:
+        """Get children of *tag* from graph without creating default entry."""
+        return self.graph.get(tag, TagSet())
+
+    def descendants_of(self, tag: str) -> TagSet:
+        current_tags = self.tags_implied_by(tag)
+        descendants = current_tags
+        while current_tags:
+            new_tags = TagSet()
+            for implied_tag in current_tags:
+                new_tags.update(self.tags_implied_by(implied_tag))
+            descendants.update(new_tags)
+            current_tags = new_tags
+        return descendants
+
+    def join_descendants(self, tagset: TagSet, tag: str) -> None:
+        """Add *tag* and its descendants to *tagset*."""
+        tagset.add(tag)
+        for neighbor in self.graph[tag]:
+            if neighbor not in tagset:
+                self.join_descendants(tagset, neighbor)
+
+
+class Implicator(ImplicationGraph):
+    """Collection of tag implications + tag aliases"""
+
+    def __init__(
+        self,
+        implications: Optional[Iterable[RegularImplication]] = None,
+        aliases: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        super().__init__()
+        self.implications = set(implications or [])
+        self.aliases = aliases or {}
+        if implications is not None:
+            for implication in implications:
+                self.add(implication)
+
+    def add(self, implication: RegularImplication) -> None:
+        self.add_edge(implication.antecedent, implication.consequent)
+        self.implications.add(implication)
+
+    def validate_implications_not_aliased(
+        self,
+    ) -> list[AliasedImplication]:
+        """Find instances where tags in implication have been aliased.
+
+        Return a list of AliasedImplication objects, each of which contains
+        an implication, a member tag of which has been aliased, and the two
+        tags in the tag alias.
+        Return an empty list, if none found.
+        """
+        events: list[AliasedImplication] = []
+        for implication in self.implications:
+            if tag := self.aliases.get(implication.antecedent):
+                events.append(
+                    AliasedImplication(implication, implication.antecedent, tag)
+                )
+            if tag := self.aliases.get(implication.consequent):
+                events.append(
+                    AliasedImplication(implication, implication.consequent, tag)
+                )
+        return events
+
+    def validate_aliases_not_aliased(self) -> list[TransitiveAliases]:
+        """Find instances in aliases where a -> b && b -> c.
+
+        Return a list of 3-tuples, of which each element is a tag in the
+        transitive relation, in the order a -> b -> c.
+        Return an empty list, if none found.
+        """
+        events: list[TransitiveAliases] = []
+        for alias, tag in self.aliases.items():
+            if other_tag := self.aliases.get(tag):
+                events.append(TransitiveAliases((alias, tag, other_tag)))
+        return events
+
+    def implicate(self, tagset: TagSet) -> None:
+        tagset.apply_aliases(self.aliases)
+        for tag in list(tagset):
+            self.join_descendants(tagset, tag)
 
 
 class TagSet(Set[str]):
@@ -53,15 +219,26 @@ class TagSet(Set[str]):
     def __str__(self) -> str:
         return " ".join(sorted(self))
 
-    def apply_implications(self, implications: Collection[BaseImplication]) -> None:
+    def implied_tags(self: TS, implications: Iterable[BaseImplication]) -> TS:
+        consequents = type(self)()
+        for implication in implications:
+            for tag in self:
+                if implied := implication.match(tag):
+                    consequents.add(implied)
+                    break
+        return consequents
+
+    def aliased_tags(self: TS, aliases: Mapping[str, str]) -> TS:
+        """Return a new set with aliased tags replaced by real tags."""
+        tagset = type(self)(self.copy())
+        tagset.apply_aliases(aliases)
+        return tagset
+
+    def apply_implications(self, implications: Iterable[BaseImplication]) -> None:
         """Update with *implications*."""
         current_tags = self
         while implications:
-            new_tags = TagSet()
-            for tag in current_tags:
-                for implication in implications:
-                    if match := implication.match(tag):
-                        new_tags.add(match)
+            new_tags = current_tags.implied_tags(implications)
             if not new_tags:
                 # No new tags implied. Exit.
                 break
@@ -72,10 +249,10 @@ class TagSet(Set[str]):
 
     def apply_aliases(self, aliases: Mapping[str, str]) -> None:
         """Update with *aliases*, translating tags from key to value."""
-        found = self & aliases.keys()
-        for tag in found:
-            self.remove(tag)
-            self.add(aliases[tag])
+        for alias, tag in aliases.items():
+            if alias in self:
+                self.remove(alias)
+                self.add(tag)
 
 
 class Gallery(Dict[str, Any]):
@@ -94,6 +271,11 @@ class Gallery(Dict[str, Any]):
             return TagSet.from_tagstring(self[field])
         return self[field]
 
+    def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
+        """Get the ``Path`` value from *field* relative to *cwd*."""
+        name = self[field]
+        return Path(cwd, name)
+
     def check_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Check if *field* contains the name of a folder that exists.
 
@@ -104,12 +286,11 @@ class Gallery(Dict[str, Any]):
         directory.
         Otherwise return the ``Path``.
         """
-        name = self[field]
-        path = Path(cwd, name)
+        path = self.get_folder(field, cwd=cwd)
         if not path.exists():
-            raise FileNotFoundError(cwd, name)
+            raise FileNotFoundError(path)
         if not path.is_dir():
-            raise NotADirectoryError(cwd, name)
+            raise NotADirectoryError(path)
         return path
 
     def update_count(self, field: str, folder_path: Path) -> None:
@@ -431,6 +612,7 @@ class BaseImplication(ABC):
         pass
 
 
+@dataclasses.dataclass(frozen=True)
 class DescriptorImplication(BaseImplication):
     """Store a descriptor implication.
 
@@ -442,9 +624,11 @@ class DescriptorImplication(BaseImplication):
     'shirt'
     """
 
-    def __init__(self, word: str) -> None:
-        self.word = word
-        self.pattern = re.compile(f"\\A{word}_(.+)")
+    word: str
+    pattern: re.Pattern = dataclasses.field(init=False, compare=False)
+
+    def __post_init__(self):
+        object.__setattr__(self, "pattern", re.compile(f"\\A{self.word}_(.+)"))
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.word!r})"
@@ -456,17 +640,15 @@ class DescriptorImplication(BaseImplication):
         return None
 
 
+@dataclasses.dataclass(frozen=True)
 class RegularImplication(BaseImplication):
     """Store a regular implication.
 
     *antecedent* implies *consequent*.
     """
 
-    def __init__(self, antecedent: str, consequent: str) -> None:
-        if antecedent == consequent:
-            raise ValueError(f"Cannot implicate a tag to itself: {antecedent!r}")
-        self.antecedent = antecedent
-        self.consequent = consequent
+    antecedent: str
+    consequent: str
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}" f"({self.antecedent!r}, {self.consequent!r})"
@@ -708,7 +890,7 @@ class Tabulator:
         return val
 
 
-class OverlapTable(Collection):
+class OverlapTable(Collection[H]):
     """2D hash table of overlap between tag pairs
 
     Methods allow accessing overlap values, as well as calculating similarity
@@ -742,13 +924,13 @@ class OverlapTable(Collection):
     # can be thought of as a normalizing factor, to normalize the number of
     # galleries in common to a 0.0 - 1.0 range.
 
-    def __init__(self, *sets: TagSet) -> None:
+    def __init__(self, *sets: Iterable[H]) -> None:
         self.n_sets: int = 0
-        self.counter: Counter[str] = Counter()
-        self.table: defaultdict[str, dict[str, int]] = defaultdict()
+        self.counter: Counter[H] = Counter()
+        self.table: defaultdict[H, dict[H, int]] = defaultdict()
         self.update(*sets)
 
-    def update(self, *sets: TagSet) -> None:
+    def update(self, *sets: Iterable[H]) -> None:
         """Update the table with new sets of tags.
 
         This is the only method to edit the table.
@@ -771,7 +953,7 @@ class OverlapTable(Collection):
 
     # BINARY METHODS
 
-    def get(self, x: str, y: str, /) -> int:
+    def get(self, x: H, y: H, /) -> int:
         """Get the number of overlaps between *x* and *y*."""
         try:
             return self.table[x][y]
@@ -781,7 +963,7 @@ class OverlapTable(Collection):
                     return diagonal
             raise
 
-    def similarity(self, x: str, y: str, /) -> float:
+    def similarity(self, x: H, y: H, /) -> float:
         """Calculate similarity between two tags *x* and *y*.
 
         Inversely, distance(x,y) is equal to 1 - similarity(x,y).
@@ -793,10 +975,10 @@ class OverlapTable(Collection):
 
     # UNARY METHODS
 
-    def __contains__(self, tag: str) -> bool:
+    def __contains__(self, tag: object) -> bool:
         return tag in self.counter
 
-    def overlaps(self, tag: str) -> Iterator[tuple[str, int]]:
+    def overlaps(self, tag: H) -> Iterator[tuple[H, int]]:
         """
         Yield the tags that *tag* overlaps with and their number of overlaps.
         """
@@ -805,7 +987,7 @@ class OverlapTable(Collection):
         yield (tag, self.counter[tag])
         yield from ((key, value) for key, value in items if value > 0)
 
-    def similarities(self, tag: str) -> Iterator[tuple[str, float]]:
+    def similarities(self, tag: H) -> Iterator[tuple[H, float]]:
         """Calculate similarity between *tag* and every other tag."""
         # Trigger KeyError
         items = self.table[tag].items()
@@ -814,9 +996,7 @@ class OverlapTable(Collection):
             if value > 0.0:
                 yield key, self.similarity(tag, key)
 
-    def similar_tags(
-        self, tag: str, n: Optional[int] = None
-    ) -> list[tuple[str, float]]:
+    def similar_tags(self, tag: H, n: Optional[int] = None) -> list[tuple[H, float]]:
         """
         List the *n* most similar tags to *tag* and their similarity values
         from the most similar to the least, not including *tag* itself. If *n*
@@ -831,14 +1011,14 @@ class OverlapTable(Collection):
     def __len__(self) -> int:
         return len(self.counter)
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[H]:
         return iter(self.counter)
 
-    def pairs(self) -> Iterator[tuple[str, str]]:
+    def pairs(self) -> Iterator[tuple[H, H]]:
         """Iterate over all unique tag combinations."""
         return itertools.combinations(self.counter, 2)
 
-    def pairs_overlaps(self) -> Iterator[tuple[tuple[str, str], int]]:
+    def pairs_overlaps(self) -> Iterator[tuple[tuple[H, H], int]]:
         """Iterate over the table.
 
         Yield ((x, y), table[x][y]) for every unique pair.
@@ -848,7 +1028,7 @@ class OverlapTable(Collection):
 
     def frequent_overlaps(
         self, n: Optional[int] = None
-    ) -> list[tuple[tuple[str, str], int]]:
+    ) -> list[tuple[tuple[H, H], int]]:
         """
         List the *n* most likely different tag pairs to overlap and their
         number of overlaps. If *n* is None, then list all tag pairs.
@@ -873,7 +1053,7 @@ class OverlapTable(Collection):
         return json.dump(self._to_dict(), file, **kwds)
 
     @classmethod
-    def from_json(cls: type[Table], obj: dict) -> Table:
+    def from_json(cls: type[Table], obj: Mapping) -> Table:
         """
         Reconstruct the object from *obj*, a dictionary containing the
         object's data attributes.

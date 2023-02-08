@@ -64,7 +64,8 @@ def main(
     for search_term in query.all_terms():
         if not search_term.fields:
             log.error(
-                "All search terms must have field specifiers if no --field argument(s) are provided: %s",
+                "All search terms must have field specifiers "
+                "if no --field argument(s) are provided: %s",
                 search_term,
             )
             return 1

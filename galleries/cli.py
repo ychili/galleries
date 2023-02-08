@@ -345,32 +345,14 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     count_field = db_config.get("refresh", "CountField")
     if not cla.no_check:
         gardener.set_update_count(path_field, count_field, collection_path)
-    # Third, see if there are enough values to perform tag gardening
-    implications = db_config.get_multi_paths("refresh", "Implications")
-    aliases = db_config.get_multi_paths("refresh", "Aliases")
-    removals = db_config.get_multi_paths("refresh", "Removals")
-    if implications or aliases or removals:
-        implicating_fields = db_config.get_implicating_fields(tag_fields)
-        try:
-            impl_list = [
-                refresh.get_implications(filename) for filename in implications
-            ]
-            alias_list = [refresh.get_aliases(filename) for filename in aliases]
-            black_set = refresh.get_tags_from_file(*removals)
-        except OSError as err:
-            log.error(
-                "Unable to open implication/alias/removal file for reading: %s", err
-            )
-            return 1
-        except json.JSONDecodeError as err:
-            log.error("Unable to decode file as JSON: %s", err)
-            log.debug(err.doc)
-            return 1
-        for alias_group in alias_list:
-            gardener.set_alias_tags(alias_group, *implicating_fields)
-        for impl_set in impl_list:
-            gardener.set_imply_tags(impl_set, *implicating_fields)
-        gardener.set_remove_tags(black_set, *implicating_fields)
+    # Third, see if there are enough values to perform implication
+    try:
+        status = set_tag_actions(gardener, db_config, validate=cla.validate)
+    except OSError as err:
+        log.error("Unable to open tag file for reading: %s", err)
+        return 1
+    if status != 0:
+        return 1
     try:
         csvfile = open(filename, encoding="utf-8", newline="")
     except OSError as err:
@@ -401,6 +383,75 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         util.write_rows(rows=rows, fieldnames=fieldnames, file=csvfile)
     log.info("Success: Saved refreshed table to '%s'", filename)
     return 0
+
+
+def set_tag_actions(
+    gardener: refresh.Gardener, config: DBConfig, validate: bool = False
+) -> int:
+    """Sub-function of ``refresh_sc``
+
+    Responsible for loading tag actions/implications from file and adding them
+    to the gardener.
+    """
+    status = 0
+    implications = config.get_multi_paths("refresh", "Implications")
+    aliases = config.get_multi_paths("refresh", "Aliases")
+    removals = config.get_multi_paths("refresh", "Removals")
+    unified = config.get_multi_paths("refresh", "TagActions")
+    implicating_fields = config.get_implicating_fields()
+    for filename in aliases:
+        gardener.set_alias_tags(refresh.get_aliases(filename), *implicating_fields)
+    for filename in implications:
+        gardener.set_imply_tags(refresh.get_implications(filename), *implicating_fields)
+    if removals:
+        gardener.set_remove_tags(
+            refresh.get_tags_from_file(*removals), *implicating_fields
+        )
+    uof = refresh.UnifiedObjectFormat()
+    for filename in unified:
+        uof.update(refresh.get_unified(filename))
+    for field, implic in uof.implicators():
+        if validate:
+            log.debug("Validating implicator for field(s): %s", field)
+            if events := implic.validate_aliases_not_aliased():
+                log.debug(events)
+                log.error(
+                    "Cannot alias a tag to a tag that is itself aliased: %s",
+                    " -> ".join(events[0]),
+                )
+                log.error(
+                    "Found %d instance%s of transitive aliases",
+                    len(events),
+                    "" if len(events) == 1 else "s",
+                )
+            if events := implic.validate_implications_not_aliased():
+                log.debug(events)
+                log.error(
+                    "Tags in implication must not be aliased to another tag: "
+                    "'%s' implies '%s', but '%s' is aliased to '%s'",
+                    events[0].implication.antecedent,
+                    events[0].implication.consequent,
+                    events[0].antecedent,
+                    events[0].consequent,
+                )
+                log.error(
+                    "Found %d instance%s where tags in implication were aliased",
+                    len(events),
+                    "" if len(events) == 1 else "s",
+                )
+                status += 1
+            if cycle := implic.find_cycle():
+                log.error(
+                    "Tag implication cannot create a circular relation with "
+                    "another tag implication: %s",
+                    " -> ".join(cycle),
+                )
+                status += 1
+        if field is None:
+            gardener.set_implicator(implic, *implicating_fields)
+        else:
+            gardener.set_implicator(implic, field)
+    return status
 
 
 def overlaps_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -599,6 +650,11 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "--no-check",
         action="store_true",
         help="skip PathField checks/CountField updates",
+    )
+    refresh_p.add_argument(
+        "--validate",
+        action="store_true",
+        help="check any TagActions files for correctness",
     )
     refresh_p.set_defaults(func=refresh_sc)
 

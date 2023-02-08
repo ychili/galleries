@@ -5,14 +5,18 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import logging
 import os
-from collections.abc import Collection, Iterator, Mapping
+from collections import defaultdict
+from collections.abc import Collection, Hashable, Iterator
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Mapping, Optional, TypeVar
 
 from . import galleryms as gms
+
+T = TypeVar("T")
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +77,11 @@ class Gardener:
                 field, lambda ts: gms.TagSet.apply_aliases(ts, aliases)
             )
 
+    def set_implicator(self, implicator: gms.Implicator, *fields: str) -> None:
+        self._needed_fields.update(fields)
+        for field in fields:
+            self._set_tag_action(field, implicator.implicate)
+
     def garden_rows(
         self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None
     ) -> Iterator[gms.Gallery]:
@@ -95,8 +104,156 @@ class Gardener:
 
     def _update_count(self, gallery: gms.Gallery) -> None:
         log.info("Checking folder: %s", gallery[self._path_field])
-        folder = gallery.check_folder(self._path_field, cwd=self._root_path)
+        folder = gallery.get_folder(self._path_field, cwd=self._root_path)
         gallery.update_count(self._count_field, folder)
+
+
+class UnifiedObjectFormat:
+    """Extract tag actions from one, unified object format.
+
+    Field information is given via top-level key "fieldnames" = <array>.
+    """
+
+    def __init__(self, mapping: Optional[Mapping] = None) -> None:
+        self.field_tables: defaultdict[Optional[str], dict] = defaultdict(dict)
+        if mapping is not None:
+            self.update(mapping)
+
+    def __bool__(self) -> bool:
+        return bool(self.field_tables)
+
+    def update(self, *others: Mapping) -> None:
+        for obj in others:
+            fieldnames = [str(name) for name in get_with_type(obj, "fieldnames", list)]
+            for name in fieldnames:
+                self.field_tables[name].update(get_with_type(obj, name, dict))
+            if not fieldnames:
+                # If no fieldnames, assign to default fieldname None
+                self.field_tables[None].update(obj)
+
+    def parse_aliases(self, key: Optional[str]) -> dict[str, str]:
+        alias_table = get_with_type(self.field_tables[key], "aliases", dict).items()
+        return {str(alias): str(tag) for alias, tag in alias_table}
+
+    def get_aliases(self) -> Iterator[tuple[Optional[str], dict[str, str]]]:
+        for field in self.field_tables.keys():
+            yield field, self.parse_aliases(field)
+
+    @staticmethod
+    def _get_descriptors(table: Mapping) -> Iterator[gms.RegularImplication]:
+        adjectives = get_with_type(table, "adjectives", list)
+        nouns = get_with_type(table, "nouns", list)
+        mask = frozenset(str(arg) for arg in get_with_type(table, "mask", list))
+        for adj, noun in itertools.product(adjectives, nouns):
+            antecedent = f"{adj}_{noun}"
+            if antecedent not in mask:
+                yield gms.RegularImplication(antecedent, noun)
+
+    @staticmethod
+    def _get_regulars(table: Mapping) -> set[gms.RegularImplication]:
+        return {gms.RegularImplication(str(k), str(v)) for k, v in table.items()}
+
+    def parse_implications(self, key: Optional[str]) -> set[gms.RegularImplication]:
+        impl_table = get_with_type(self.field_tables[key], "implications", dict)
+        impl = self._get_regulars(impl_table)
+        desc_table = get_with_type(self.field_tables[key], "descriptors", dict)
+        descriptors = frozenset(self._get_descriptors(desc_table))
+        return impl | descriptors
+
+    def get_implications(
+        self,
+    ) -> Iterator[tuple[Optional[str], set[gms.RegularImplication]]]:
+        for field in self.field_tables.keys():
+            yield field, self.parse_implications(field)
+
+    def make_implicator(self, *field: Optional[str]) -> gms.Implicator:
+        implications: set[gms.RegularImplication] = set()
+        aliases: dict[str, str] = {}
+        for name in field:
+            implications.update(self.parse_implications(name))
+            aliases.update(self.parse_aliases(name))
+        return gms.Implicator(implications=implications, aliases=aliases)
+
+    def implicators(self) -> Iterator[tuple[Optional[str], gms.Implicator]]:
+        for implications, aliases in zip(self.get_implications(), self.get_aliases()):
+            impl_field, impl = implications
+            alias_field, alias = aliases
+            assert impl_field == alias_field
+            yield impl_field, gms.Implicator(implications=impl, aliases=alias)
+
+
+def get_with_type(mapping: Mapping, name: Hashable, class_or_type: type[T]) -> T:
+    """Get value from *mapping* using key *name* if it has the correct type.
+
+    If the value is missing or is not an instance of *class_or_type*, return
+    an empty instance of *class_or_type*.
+    Additionally, emit a warning if the type is wrong.
+    """
+    try:
+        value = mapping[name]
+    except KeyError:
+        return class_or_type()
+    if isinstance(value, class_or_type):
+        return value
+    log.warning(
+        "Key is present but value is wrong type (value is %s but should be %s): %s",
+        type(value),
+        class_or_type,
+        name,
+    )
+    return class_or_type()
+
+
+def get_unified(filename: os.PathLike, file_format: Optional[str] = None) -> Mapping:
+    """Read *filename* and parse tag actions based on its file extension.
+
+    ``*.toml`` files will be parsed as TOML. Anything else will be parsed as
+    JSON.
+
+    Or, force parsing as JSON if *file_format* == "json".
+    """
+    path = Path(filename)
+    load = load_from_json
+    if path.match("*.toml") and file_format != "json":
+        load = load_from_toml
+    obj = load(path)
+    return check_mapping(obj)
+
+
+def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
+    """
+    Return *obj* if it is a mapping. Otherwise return an empty instance of
+    *default*.
+    """
+    if not isinstance(obj, Mapping):
+        log.error("Decoded file was not mapping")
+        return default()
+    return obj
+
+
+def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
+    """
+    Do not attempt :mod:`tomllib` import until this function is called.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib
+    with open(filename, "rb") as file:
+        try:
+            return tomllib.load(file)
+        except tomllib.TOMLDecodeError as err:
+            log.error("Unable to decode file as TOML: In %s: %s", filename, err)
+            return {}
+
+
+def load_from_json(filename: os.PathLike) -> Any:
+    with open(filename, "rb") as file:
+        try:
+            return json.load(file)
+        except json.JSONDecodeError as err:
+            log.error("Unable to decode file as JSON: In %s: %s", filename, err)
+            return {}
 
 
 def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
@@ -104,8 +261,7 @@ def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
     extensions = ("dat", "txt", "asc", "list")
     path = Path(filename)
     if path.match("*.json"):
-        text = path.read_text(encoding="utf-8")
-        data = json.loads(text)
+        data = check_mapping(load_from_json(path))
         return frozenset(
             gms.RegularImplication(str(k), str(v)) for k, v in data.items()
         )
@@ -120,9 +276,7 @@ def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
 
 
 def get_aliases(filename: os.PathLike) -> dict[str, str]:
-    path = Path(filename)
-    text = path.read_text(encoding="utf-8")
-    data = json.loads(text)
+    data = check_mapping(load_from_json(filename))
     return {str(alias): str(tag) for alias, tag in data.items()}
 
 

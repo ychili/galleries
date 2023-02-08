@@ -37,3 +37,23 @@ Test the ``refresh.Gardener``.
 ...     str(gallery["Field1"]), str(gallery["Field2"])
 ...
 ('tag1 tag2 tag5', 'tag3 tag4')
+
+Test the ``refresh.UnifiedObjectFormat``.
+
+>>> from galleries.refresh import UnifiedObjectFormat
+>>> uof = UnifiedObjectFormat({"implications": {"car": "vehicle"}})
+>>> list(uof.get_implications())
+[(None, {RegularImplication('car', 'vehicle')})]
+>>> uof.update({"aliases": {"forest": "tree"}})
+>>> list(uof.get_aliases())
+[(None, {'forest': 'tree'})]
+
+Test implication by ``Implicator``.
+
+>>> from galleries.galleryms import Implicator, RegularImplication, TagSet
+>>> i = Implicator([RegularImplication("car", "vehicle"), RegularImplication("bus", "vehicle")])
+>>> i.find_cycle()
+>>> tagset = TagSet(["car", "dog"])
+>>> i.implicate(tagset)
+>>> sorted(tagset)
+['car', 'dog', 'vehicle']
