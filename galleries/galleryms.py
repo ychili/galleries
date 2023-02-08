@@ -16,7 +16,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from collections.abc import (
-    Collection,
+    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -32,6 +32,7 @@ from typing import (
     IO,
     Any,
     Callable,
+    Collection,
     Dict,
     NamedTuple,
     NewType,
@@ -43,6 +44,7 @@ from typing import (
 )
 
 T = TypeVar("T")
+H = TypeVar("H", bound=Hashable)
 _Comparable = TypeVar("_Comparable", int, float)
 StrPath = Union[str, Path]
 _Real = Union[float, int]
@@ -884,7 +886,7 @@ class Tabulator:
         return val
 
 
-class OverlapTable(Collection):
+class OverlapTable(Collection[H]):
     """2D hash table of overlap between tag pairs
 
     Methods allow accessing overlap values, as well as calculating similarity
@@ -918,13 +920,13 @@ class OverlapTable(Collection):
     # can be thought of as a normalizing factor, to normalize the number of
     # galleries in common to a 0.0 - 1.0 range.
 
-    def __init__(self, *sets: TagSet) -> None:
+    def __init__(self, *sets: Iterable[H]) -> None:
         self.n_sets: int = 0
-        self.counter: Counter[str] = Counter()
-        self.table: defaultdict[str, dict[str, int]] = defaultdict()
+        self.counter: Counter[H] = Counter()
+        self.table: defaultdict[H, dict[H, int]] = defaultdict()
         self.update(*sets)
 
-    def update(self, *sets: TagSet) -> None:
+    def update(self, *sets: Iterable[H]) -> None:
         """Update the table with new sets of tags.
 
         This is the only method to edit the table.
@@ -947,7 +949,7 @@ class OverlapTable(Collection):
 
     # BINARY METHODS
 
-    def get(self, x: str, y: str, /) -> int:
+    def get(self, x: H, y: H, /) -> int:
         """Get the number of overlaps between *x* and *y*."""
         try:
             return self.table[x][y]
@@ -957,7 +959,7 @@ class OverlapTable(Collection):
                     return diagonal
             raise
 
-    def similarity(self, x: str, y: str, /) -> float:
+    def similarity(self, x: H, y: H, /) -> float:
         """Calculate similarity between two tags *x* and *y*.
 
         Inversely, distance(x,y) is equal to 1 - similarity(x,y).
@@ -972,7 +974,7 @@ class OverlapTable(Collection):
     def __contains__(self, tag: object) -> bool:
         return tag in self.counter
 
-    def overlaps(self, tag: str) -> Iterator[tuple[str, int]]:
+    def overlaps(self, tag: H) -> Iterator[tuple[H, int]]:
         """
         Yield the tags that *tag* overlaps with and their number of overlaps.
         """
@@ -981,7 +983,7 @@ class OverlapTable(Collection):
         yield (tag, self.counter[tag])
         yield from ((key, value) for key, value in items if value > 0)
 
-    def similarities(self, tag: str) -> Iterator[tuple[str, float]]:
+    def similarities(self, tag: H) -> Iterator[tuple[H, float]]:
         """Calculate similarity between *tag* and every other tag."""
         # Trigger KeyError
         items = self.table[tag].items()
@@ -990,9 +992,7 @@ class OverlapTable(Collection):
             if value > 0.0:
                 yield key, self.similarity(tag, key)
 
-    def similar_tags(
-        self, tag: str, n: Optional[int] = None
-    ) -> list[tuple[str, float]]:
+    def similar_tags(self, tag: H, n: Optional[int] = None) -> list[tuple[H, float]]:
         """
         List the *n* most similar tags to *tag* and their similarity values
         from the most similar to the least, not including *tag* itself. If *n*
@@ -1007,14 +1007,14 @@ class OverlapTable(Collection):
     def __len__(self) -> int:
         return len(self.counter)
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[H]:
         return iter(self.counter)
 
-    def pairs(self) -> Iterator[tuple[str, str]]:
+    def pairs(self) -> Iterator[tuple[H, H]]:
         """Iterate over all unique tag combinations."""
         return itertools.combinations(self.counter, 2)
 
-    def pairs_overlaps(self) -> Iterator[tuple[tuple[str, str], int]]:
+    def pairs_overlaps(self) -> Iterator[tuple[tuple[H, H], int]]:
         """Iterate over the table.
 
         Yield ((x, y), table[x][y]) for every unique pair.
@@ -1024,7 +1024,7 @@ class OverlapTable(Collection):
 
     def frequent_overlaps(
         self, n: Optional[int] = None
-    ) -> list[tuple[tuple[str, str], int]]:
+    ) -> list[tuple[tuple[H, H], int]]:
         """
         List the *n* most likely different tag pairs to overlap and their
         number of overlaps. If *n* is None, then list all tag pairs.
@@ -1049,7 +1049,7 @@ class OverlapTable(Collection):
         return json.dump(self._to_dict(), file, **kwds)
 
     @classmethod
-    def from_json(cls: type[Table], obj: dict) -> Table:
+    def from_json(cls: type[Table], obj: Mapping) -> Table:
         """
         Reconstruct the object from *obj*, a dictionary containing the
         object's data attributes.
