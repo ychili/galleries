@@ -28,7 +28,19 @@ from collections.abc import (
 from operator import itemgetter
 from pathlib import Path
 from textwrap import TextWrapper
-from typing import IO, Any, Callable, Dict, Optional, Set, TypeVar, Union
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Dict,
+    NamedTuple,
+    NewType,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 T = TypeVar("T")
 _Comparable = TypeVar("_Comparable", int, float)
@@ -36,6 +48,13 @@ StrPath = Union[str, Path]
 _Real = Union[float, int]
 TS = TypeVar("TS", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
+TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
+
+
+class AliasedImplication(NamedTuple):
+    implication: RegularImplication
+    antecedent: str
+    consequent: str
 
 
 class ImplicationGraph:
@@ -79,10 +98,18 @@ class ImplicationGraph:
         return None
 
     def find_cycle(self) -> Optional[list[str]]:
+        """Find cycles in the graph. Return ``None`` if no cycles found.
+
+        If multiple cycles exist, only one will be returned.
+        The cycle is returned as a list of nodes, such that each node is, in
+        the graph, an immediate predecessor of the next node in the list.
+        The first and last node in the list will be the same, to make it clear
+        that it is cyclic.
+        """
         # We don't expect to exceed max recursion depth
         nodes_seen = TagSet()
         recursion_stack: list[str] = []
-        for node in dict(self.graph):
+        for node in list(self.graph):
             if node not in nodes_seen:
                 if cycle_0 := self._traverse(node, recursion_stack, nodes_seen):
                     cycle = recursion_stack[recursion_stack.index(cycle_0) :]
@@ -133,20 +160,37 @@ class Implicator(ImplicationGraph):
 
     def validate_implications_not_aliased(
         self,
-    ) -> list[tuple[RegularImplication, str, str]]:
-        events: list[tuple[RegularImplication, str, str]] = []
+    ) -> list[AliasedImplication]:
+        """Find instances where tags in implication have been aliased.
+
+        Return a list of AliasedImplication objects, each of which contains
+        the implication of whose member tags one has been aliased and the two
+        tags in the tag alias.
+        Return an empty list, if none found.
+        """
+        events: list[AliasedImplication] = []
         for implication in self.implications:
             if tag := self.aliases.get(implication.antecedent):
-                events.append((implication, implication.antecedent, tag))
+                events.append(
+                    AliasedImplication(implication, implication.antecedent, tag)
+                )
             if tag := self.aliases.get(implication.consequent):
-                events.append((implication, implication.consequent, tag))
+                events.append(
+                    AliasedImplication(implication, implication.consequent, tag)
+                )
         return events
 
-    def validate_aliases_not_aliased(self) -> list[tuple[str, str, str]]:
-        events: list[tuple[str, str, str]] = []
+    def validate_aliases_not_aliased(self) -> list[TransitiveAliases]:
+        """Find instances in aliases where a -> b && b -> c.
+
+        Return a list of 3-tuples, of which each element is a tag in the
+        transitive relation, in the order a -> b -> c.
+        Return an empty list, if none found.
+        """
+        events: list[TransitiveAliases] = []
         for alias, tag in self.aliases.items():
             if other_tag := self.aliases.get(tag):
-                events.append((alias, tag, other_tag))
+                events.append(TransitiveAliases((alias, tag, other_tag)))
         return events
 
     def implicate(self, tagset: TagSet) -> None:
