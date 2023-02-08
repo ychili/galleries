@@ -271,6 +271,11 @@ class Gallery(Dict[str, Any]):
             return TagSet.from_tagstring(self[field])
         return self[field]
 
+    def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
+        """Get the ``Path`` value from *field* relative to *cwd*."""
+        name = self[field]
+        return Path(cwd, name)
+
     def check_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Check if *field* contains the name of a folder that exists.
 
@@ -281,12 +286,11 @@ class Gallery(Dict[str, Any]):
         directory.
         Otherwise return the ``Path``.
         """
-        name = self[field]
-        path = Path(cwd, name)
+        path = self.get_folder(field, cwd=cwd)
         if not path.exists():
-            raise FileNotFoundError(cwd, name)
+            raise FileNotFoundError(path)
         if not path.is_dir():
-            raise NotADirectoryError(cwd, name)
+            raise NotADirectoryError(path)
         return path
 
     def update_count(self, field: str, folder_path: Path) -> None:

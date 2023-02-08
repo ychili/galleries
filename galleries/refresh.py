@@ -104,7 +104,7 @@ class Gardener:
 
     def _update_count(self, gallery: gms.Gallery) -> None:
         log.info("Checking folder: %s", gallery[self._path_field])
-        folder = gallery.check_folder(self._path_field, cwd=self._root_path)
+        folder = gallery.get_folder(self._path_field, cwd=self._root_path)
         gallery.update_count(self._count_field, folder)
 
 
