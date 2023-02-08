@@ -47,3 +47,13 @@ Test the ``refresh.UnifiedObjectFormat``.
 >>> uof.update({"aliases": {"forest": "tree"}})
 >>> list(uof.get_aliases())
 [(None, {'forest': 'tree'})]
+
+Test implication by ``Implicator``.
+
+>>> from galleries.galleryms import Implicator, RegularImplication, TagSet
+>>> i = Implicator([RegularImplication("car", "vehicle"), RegularImplication("bus", "vehicle")])
+>>> i.find_cycle()
+>>> tagset = TagSet(["car", "dog"])
+>>> i.implicate(tagset)
+>>> sorted(tagset)
+['car', 'dog', 'vehicle']
