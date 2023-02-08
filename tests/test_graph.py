@@ -30,6 +30,14 @@ class TestImplicationGraph(unittest.TestCase):
         none = ig.descendants_of("4")
         self.assertEqual(sorted(none), [])
 
+    def test_join_descendants(self):
+        ig = self._make({"1": {"2"}, "2": {"3"}, "4": {"5"}})
+        test_set = galleries.galleryms.TagSet({"1", "5"})
+        ig.join_descendants(test_set, "6")
+        self.assertEqual(sorted(test_set), ["1", "5", "6"])
+        ig.join_descendants(test_set, "2")
+        self.assertEqual(sorted(test_set), ["1", "2", "3", "5", "6"])
+
     def test_cycle(self):
         # Self cycle
         self._assert_cycle({1: {1}}, [1, 1])
