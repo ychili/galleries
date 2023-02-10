@@ -15,6 +15,7 @@ import math
 import os
 import shutil
 import sys
+from collections.abc import Iterable
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Optional, TextIO, Union
@@ -334,6 +335,8 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     db_config = acquire_db_config(collection_path)
     if not db_config:
         return 1
+    if cla.validate:
+        return validate_tag_actions(db_config)
     gardener = refresh.Gardener()
     # First, acquire all "guaranteed" values.
     filename = db_config.get_path("db", "CSVName")
@@ -347,7 +350,7 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         gardener.set_update_count(path_field, count_field, collection_path)
     # Third, see if there are enough values to perform implication
     try:
-        status = set_tag_actions(gardener, db_config, validate=cla.validate)
+        status = set_tag_actions(gardener, db_config)
     except OSError as err:
         log.error("Unable to open tag file for reading: %s", err)
         return 1
@@ -385,15 +388,76 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     return 0
 
 
-def set_tag_actions(
-    gardener: refresh.Gardener, config: DBConfig, validate: bool = False
-) -> int:
+def validate_tag_actions(config: DBConfig) -> int:
+    """Sub-function of ``refresh_sc``
+
+    Validate the ``Implicator``s from any TagActions files.
+    """
+    unified = config.get_multi_paths("refresh", "TagActions")
+    if not unified:
+        log.info("No TagActions files to validate")
+        return 0
+    uof = refresh.UnifiedObjectFormat()
+    for filename in unified:
+        try:
+            obj = refresh.get_unified(filename)
+        except OSError as err:
+            log.error("Unable to open TagActions file for reading: %s", err)
+            return 1
+        uof.update(obj)
+    errors = 0
+    for field, implic in uof.implicators():
+        log.debug("Validating implicator for field(s): %s", field)
+        if events := implic.validate_aliases_not_aliased():
+            log.debug(events)
+            log.error(
+                "Cannot alias a tag to a tag that is itself aliased: %s",
+                " -> ".join(events[0]),
+            )
+            log.error(
+                "Found %d instance%s of transitive aliases",
+                len(events),
+                "" if len(events) == 1 else "s",
+            )
+            errors += len(events)
+        if events := implic.validate_implications_not_aliased():
+            log.debug(events)
+            log.error(
+                "Tags in implication must not be aliased to another tag: "
+                "'%s' implies '%s', but '%s' is aliased to '%s'",
+                events[0].implication.antecedent,
+                events[0].implication.consequent,
+                events[0].antecedent,
+                events[0].consequent,
+            )
+            log.error(
+                "Found %d instance%s where tags in implication were aliased",
+                len(events),
+                "" if len(events) == 1 else "s",
+            )
+            errors += len(events)
+        if cycle := implic.find_cycle():
+            log.error(
+                "Tag implication cannot create a circular relation with "
+                "another tag implication: %s",
+                " -> ".join(cycle),
+            )
+            log.info("More circular relations may exist in the implication graph")
+            errors += 1
+    msg = "Found %d logical error%s in TagActions files: %s"
+    paths = join_semicolon_list(config.get_list("refresh", "TagActions"))
+    log.info(msg, errors, "" if errors == 1 else "s", paths)
+    if errors != 0:
+        return 1
+    return 0
+
+
+def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
     """Sub-function of ``refresh_sc``
 
     Responsible for loading tag actions/implications from file and adding them
     to the gardener.
     """
-    status = 0
     implications = config.get_multi_paths("refresh", "Implications")
     aliases = config.get_multi_paths("refresh", "Aliases")
     removals = config.get_multi_paths("refresh", "Removals")
@@ -411,47 +475,11 @@ def set_tag_actions(
     for filename in unified:
         uof.update(refresh.get_unified(filename))
     for field, implic in uof.implicators():
-        if validate:
-            log.debug("Validating implicator for field(s): %s", field)
-            if events := implic.validate_aliases_not_aliased():
-                log.debug(events)
-                log.error(
-                    "Cannot alias a tag to a tag that is itself aliased: %s",
-                    " -> ".join(events[0]),
-                )
-                log.error(
-                    "Found %d instance%s of transitive aliases",
-                    len(events),
-                    "" if len(events) == 1 else "s",
-                )
-            if events := implic.validate_implications_not_aliased():
-                log.debug(events)
-                log.error(
-                    "Tags in implication must not be aliased to another tag: "
-                    "'%s' implies '%s', but '%s' is aliased to '%s'",
-                    events[0].implication.antecedent,
-                    events[0].implication.consequent,
-                    events[0].antecedent,
-                    events[0].consequent,
-                )
-                log.error(
-                    "Found %d instance%s where tags in implication were aliased",
-                    len(events),
-                    "" if len(events) == 1 else "s",
-                )
-                status += 1
-            if cycle := implic.find_cycle():
-                log.error(
-                    "Tag implication cannot create a circular relation with "
-                    "another tag implication: %s",
-                    " -> ".join(cycle),
-                )
-                status += 1
         if field is None:
             gardener.set_implicator(implic, *implicating_fields)
         else:
             gardener.set_implicator(implic, field)
-    return status
+    return 0
 
 
 def overlaps_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -654,7 +682,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     refresh_p.add_argument(
         "--validate",
         action="store_true",
-        help="check any TagActions files for correctness",
+        help="check TagActions files for correctness and exit",
     )
     refresh_p.set_defaults(func=refresh_sc)
 
@@ -816,7 +844,7 @@ def parse_global_config(filename: str = "config") -> GlobalConfig:
     return global_config
 
 
-def join_semicolon_list(*items: str) -> str:
+def join_semicolon_list(items: Iterable[str]) -> str:
     return "; ".join(items)
 
 
