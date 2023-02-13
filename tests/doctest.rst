@@ -57,3 +57,12 @@ Test implication by ``Implicator``.
 >>> i.implicate(tagset)
 >>> sorted(tagset)
 ['car', 'dog', 'vehicle']
+
+Test the ``refresh.WordMultiplier``.
+
+>>> from galleries.refresh import WordMultiplier
+>>> wm = WordMultiplier()
+>>> wm.add_set("letters", "ABC")
+>>> wm.add_set("numbers", "123")
+>>> sorted(wm.chain(["letters", "numbers"], join="".join))
+[('A1', '1'), ('A2', '2'), ('A3', '3'), ('B1', '1'), ('B2', '2'), ('B3', '3'), ('C1', '1'), ('C2', '2'), ('C3', '3')]
