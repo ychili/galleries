@@ -10,13 +10,14 @@ import json
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Collection, Hashable, Iterator
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, TypeVar
+from typing import Any, Callable, Generic, Hashable, Iterable, Optional, TypeVar
 
 from . import galleryms as gms
 
 T = TypeVar("T")
+Symbol = TypeVar("Symbol", bound=Hashable)
 
 log = logging.getLogger(__name__)
 
@@ -141,13 +142,21 @@ class UnifiedObjectFormat:
 
     @staticmethod
     def _get_descriptors(table: Mapping) -> Iterator[gms.RegularImplication]:
-        adjectives = get_with_type(table, "adjectives", list)
-        nouns = get_with_type(table, "nouns", list)
-        mask = frozenset(str(arg) for arg in get_with_type(table, "mask", list))
-        for adj, noun in itertools.product(adjectives, nouns):
-            antecedent = f"{adj}_{noun}"
-            if antecedent not in mask:
-                yield gms.RegularImplication(antecedent, noun)
+        symbols = WordMultiplier()
+        sets_table = get_with_type(table, "sets", dict)
+        for name in sets_table:
+            symbols.add_set(name, get_with_type(sets_table, name, list))
+        unions_table = get_with_type(table, "unions", dict)
+        for name in unions_table:
+            elements = get_with_type(unions_table, name, list)
+            symbols.add_union(name, *elements)
+        chains_table = get_with_type(table, "chains", dict)
+        for name in chains_table:
+            chain = get_with_type(chains_table, name, list)
+            if len(chain) < 2:
+                log.warning("Chain has less than two names in it: %s", name)
+                continue
+            yield from symbols.implications_from_chain(chain)
 
     @staticmethod
     def _get_regulars(table: Mapping) -> set[gms.RegularImplication]:
@@ -180,6 +189,51 @@ class UnifiedObjectFormat:
             alias_field, alias = aliases
             assert impl_field == alias_field
             yield impl_field, gms.Implicator(implications=impl, aliases=alias)
+
+
+class WordMultiplier(Generic[Symbol]):
+    def __init__(self) -> None:
+        self.symbols: defaultdict[Symbol, Iterable[str]] = defaultdict(frozenset)
+
+    def add_set(self, name: Symbol, words: Iterable[str]) -> None:
+        self.symbols[name] = frozenset(map(str, words))
+
+    def add_union(self, union_name: Symbol, *sets: Symbol) -> None:
+        union_set = (self.symbols[name] for name in sets)
+        self.symbols[union_name] = Chain(*union_set)
+
+    def chain(
+        self, names: Sequence[Symbol], join: Callable[[Iterable[str]], T] = tuple
+    ) -> Iterator[tuple[T, T]]:
+        descriptors = [self.symbols[name] for name in reversed(names)]
+        for consequent, antecedent in set_chains(*descriptors):
+            yield join(reversed(antecedent)), join(reversed(consequent))
+
+    def implications_from_chain(
+        self, names: Sequence[Symbol]
+    ) -> Iterator[gms.RegularImplication]:
+        for antecedent, consequent in self.chain(names, join="_".join):
+            yield gms.RegularImplication(antecedent=antecedent, consequent=consequent)
+
+
+class Chain(Iterable[T]):
+    def __init__(self, *iterables: Iterable[T]) -> None:
+        self.iterables = iterables
+
+    def __iter__(self) -> Iterator[T]:
+        yield from itertools.chain(*self.iterables)
+
+
+def set_chains(
+    *word_sets: Iterable[str],
+) -> Iterator[tuple[tuple[str, ...], tuple[str, ...]]]:
+    for group in itertools.product(*word_sets):
+        group = iter(group)
+        result_stack = [next(group)]
+        for elem in group:
+            consequent = tuple(result_stack)
+            result_stack.append(elem)
+            yield consequent, tuple(result_stack)
 
 
 def get_with_type(mapping: Mapping, name: Hashable, class_or_type: type[T]) -> T:
