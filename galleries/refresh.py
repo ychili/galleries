@@ -10,9 +10,9 @@ import json
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, Generic, Hashable, Iterable, Optional, TypeVar
+from typing import Any, Callable, Generic, Hashable, Optional, TypeVar
 
 from . import galleryms as gms
 
@@ -192,15 +192,30 @@ class UnifiedObjectFormat:
 
 
 class WordMultiplier(Generic[Symbol]):
-    def __init__(self) -> None:
+    """Generate implications by compounding sets of words
+
+    By default compound words by joining them with a single underscore ("_"),
+    or by calling *join* if provided.
+
+    >>> wm = WordMultiplier()
+    >>> wm.add_set("letters", "AB")
+    >>> wm.add_set("numbers", "12")
+    >>> sorted(wm.chain(["letters", "numbers"], join="".join)
+    [('A1', '1'), ('A2', '2'), ('B1', '1'), ('B2', '2')]
+    """
+
+    def __init__(self, join: Callable[[Iterable[str]], str] = "_".join) -> None:
+        self.join = join
         self.symbols: defaultdict[Symbol, Iterable[str]] = defaultdict(frozenset)
 
     def add_set(self, name: Symbol, words: Iterable[str]) -> None:
+        """Map set of words *words* to *name*."""
         self.symbols[name] = frozenset(map(str, words))
 
     def add_union(self, union_name: Symbol, *sets: Symbol) -> None:
+        """Map the union of sets with names *sets* to *union_name*."""
         union_set = (self.symbols[name] for name in sets)
-        self.symbols[union_name] = Chain(*union_set)
+        self.symbols[union_name] = frozenset(itertools.chain(*union_set))
 
     def chain(
         self, names: Sequence[Symbol], join: Callable[[Iterable[str]], T] = tuple
@@ -212,21 +227,22 @@ class WordMultiplier(Generic[Symbol]):
     def implications_from_chain(
         self, names: Sequence[Symbol]
     ) -> Iterator[gms.RegularImplication]:
-        for antecedent, consequent in self.chain(names, join="_".join):
+        """Yield implications from sets referred to by *names*.
+
+        For a chain of two sets A and B, yield ab -> b for each word in each
+        set. With a third set C, yield abc -> bc and bc -> c. And so on.
+        """
+        for antecedent, consequent in self.chain(names, join=self.join):
             yield gms.RegularImplication(antecedent=antecedent, consequent=consequent)
-
-
-class Chain(Iterable[T]):
-    def __init__(self, *iterables: Iterable[T]) -> None:
-        self.iterables = iterables
-
-    def __iter__(self) -> Iterator[T]:
-        yield from itertools.chain(*self.iterables)
 
 
 def set_chains(
     *word_sets: Iterable[str],
 ) -> Iterator[tuple[tuple[str, ...], tuple[str, ...]]]:
+    """
+    For each n-tuple in the product of n iterables *word_sets*, yield pairs
+    ((a,),(a,b)), ((a,b),(a,b,c)), ((a,b,c),(a,b,c,d)), and so on, up to n.
+    """
     for group in itertools.product(*word_sets):
         group = iter(group)
         result_stack = [next(group)]
