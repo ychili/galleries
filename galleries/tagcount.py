@@ -46,11 +46,10 @@ def summarize(reader: csv.DictReader, tag_fields: list[str]) -> int:
     if (status := check_field_names(reader.fieldnames, tag_fields)) is not None:
         return status
     tag_sets = list(tagsets_from_rows(reader, tag_fields))
-    print("TOTAL")
+    print("TOTALS")
     print(f"  galleries   {len(tag_sets)}")
     counts = tag_counts(tag_sets).values()
     total_tags = sum(counts)
-    print("TOTALS")
     print(f"  tags        {total_tags}")
     print(f"  unique_tags {len(counts)}")
     print("AVERAGES")
