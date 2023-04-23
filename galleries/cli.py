@@ -408,6 +408,8 @@ def validate_tag_actions(config: DBConfig) -> int:
     errors = 0
     for field, implic in uof.implicators():
         log.debug("Validating implicator for field(s): %s", field)
+        # For alias error events, log all in debug output, but log only the
+        # first example in error output.
         if ta_events := implic.validate_aliases_not_aliased():
             log.debug(ta_events)
             log.error(
