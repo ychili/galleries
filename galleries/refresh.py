@@ -244,9 +244,9 @@ def set_chains(
     ((a,),(a,b)), ((a,b),(a,b,c)), ((a,b,c),(a,b,c,d)), and so on, up to n.
     """
     for group in itertools.product(*word_sets):
-        group = iter(group)
-        result_stack = [next(group)]
-        for elem in group:
+        group_it = iter(group)
+        result_stack = [next(group_it)]
+        for elem in group_it:
             consequent = tuple(result_stack)
             result_stack.append(elem)
             yield consequent, tuple(result_stack)
