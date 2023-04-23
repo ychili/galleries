@@ -442,8 +442,9 @@ class NumericCondition(SearchTerm):
         values: list[float] = []
         for fieldname in self.fields:
             try:
-                values.append(float(cache.setdefault(fieldname, gallery[fieldname])))
-            except ValueError:
+                value = cache.setdefault(fieldname, gallery[fieldname])
+                values.append(float(value))  # type: ignore
+            except (ValueError, TypeError):
                 # Rows with null or invalid values _will_ be excluded from
                 # results
                 return False
