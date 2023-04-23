@@ -408,34 +408,34 @@ def validate_tag_actions(config: DBConfig) -> int:
     errors = 0
     for field, implic in uof.implicators():
         log.debug("Validating implicator for field(s): %s", field)
-        if events := implic.validate_aliases_not_aliased():
-            log.debug(events)
+        if ta_events := implic.validate_aliases_not_aliased():
+            log.debug(ta_events)
             log.error(
                 "Cannot alias a tag to a tag that is itself aliased: %s",
-                " -> ".join(events[0]),
+                " -> ".join(ta_events[0]),
             )
             log.error(
                 "Found %d instance%s of transitive aliases",
-                len(events),
-                "" if len(events) == 1 else "s",
+                len(ta_events),
+                "" if len(ta_events) == 1 else "s",
             )
-            errors += len(events)
-        if events := implic.validate_implications_not_aliased():
-            log.debug(events)
+            errors += len(ta_events)
+        if ai_events := implic.validate_implications_not_aliased():
+            log.debug(ai_events)
             log.error(
                 "Tags in implication must not be aliased to another tag: "
                 "'%s' implies '%s', but '%s' is aliased to '%s'",
-                events[0].implication.antecedent,
-                events[0].implication.consequent,
-                events[0].antecedent,
-                events[0].consequent,
+                ai_events[0].implication.antecedent,
+                ai_events[0].implication.consequent,
+                ai_events[0].antecedent,
+                ai_events[0].consequent,
             )
             log.error(
                 "Found %d instance%s where tags in implication were aliased",
-                len(events),
-                "" if len(events) == 1 else "s",
+                len(ai_events),
+                "" if len(ai_events) == 1 else "s",
             )
-            errors += len(events)
+            errors += len(ai_events)
         if cycle := implic.find_cycle():
             log.error(
                 "Tag implication cannot create a circular relation with "
