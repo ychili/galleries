@@ -573,7 +573,10 @@ def build_cla_parser() -> argparse.ArgumentParser:
     """Build and return command-line argument parser."""
     top_level = argparse.ArgumentParser(add_help=False)
     top_level.set_defaults(func=path_sc)
-    subparsers = top_level.add_subparsers(title="commands")
+    subparsers = top_level.add_subparsers(
+        title="commands",
+        description="'%(prog)s COMMAND --help' shows help message for COMMAND.",
+    )
 
     init_p = subparsers.add_parser(
         "init",
@@ -774,7 +777,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "-v",
         "--verbose",
         action="count",
-        help="turn on verbose output (-vv for debug output)",
+        help="turn on verbose output ('-vv' for debug output)",
     )
 
     return top_level
