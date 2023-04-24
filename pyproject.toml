@@ -21,4 +21,4 @@ max-line-length = 100
 
 [tool.pylint.string]
 check-quote-consistency = true
-check-str-concat-over-line-jumps = true
+check-str-concat-over-line-jumps = false
