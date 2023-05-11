@@ -7,6 +7,9 @@
 Basics
 ======
 
+.. TODO: Give an example of a row in the table.
+   TODO: Explain directory structure in tree format.
+
 A "gallery" is a directory with some number of files that you wish to tag.
 A "collection" is a parent directory of such galleries that will share a
 common tagging system.
@@ -374,7 +377,7 @@ Analyzing tag relationships
 The ``overlaps`` and ``freq`` commands are used for analyzing the
 co-occurrence of different tags.
 First, run ``galleries overlaps`` to generate an overlap table for
-one or more tag fields
+one or more tag fields.
 An overlap table contains the number of times two tags
 co-occur in a gallery, i.e. overlap.
 The overlap table is stored in JSON format.
