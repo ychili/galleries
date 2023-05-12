@@ -9,6 +9,7 @@ import itertools
 import json
 import logging
 import os
+import re
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -140,34 +141,49 @@ class UnifiedObjectFormat:
         for field in self.field_tables.keys():
             yield field, self.parse_aliases(field)
 
-    @staticmethod
-    def _get_descriptors(table: Mapping) -> Iterator[gms.RegularImplication]:
-        symbols = WordMultiplier()
+    def _get_descriptors(self, key: Optional[str]) -> Iterator[gms.RegularImplication]:
+        table = get_with_type(self.field_tables[key], "descriptors", dict)
+        symbols: WordMultiplier = WordMultiplier()
         sets_table = get_with_type(table, "sets", dict)
         for name in sets_table:
+            if name in symbols:
+                fqn = toml_address([key, "descriptors", "sets", name])
+                log.warning("In %s: Over-writing set name: %s", fqn, name)
             symbols.add_set(name, get_with_type(sets_table, name, list))
         unions_table = get_with_type(table, "unions", dict)
         for name in unions_table:
+            if name in symbols:
+                fqn = toml_address([key, "descriptors", "unions", name])
+                log.warning("In %s: Over-writing set/union name: %s", fqn, name)
             elements = get_with_type(unions_table, name, list)
-            symbols.add_union(name, *elements)
+            try:
+                symbols.add_union(name, *elements)
+            except KeyError as err:
+                fqn = toml_address([key, "descriptors", "unions", name])
+                log.warning("In %s: Bad set/union name: %s", fqn, err)
         chains_table = get_with_type(table, "chains", dict)
         for name in chains_table:
             chain = get_with_type(chains_table, name, list)
             if len(chain) < 2:
-                log.warning("Chain has less than two names in it: %s", name)
+                fqn = toml_address([key, "descriptors", "chains", name])
+                log.warning(
+                    "In %s: Chain has fewer than two names in it: %s", fqn, name
+                )
                 continue
-            yield from symbols.implications_from_chain(chain)
+            try:
+                yield from symbols.implications_from_chain(chain)
+            except KeyError as err:
+                fqn = toml_address([key, "descriptors", "chains", name])
+                log.warning("In %s: Bad set/union name: %s", fqn, err)
 
-    @staticmethod
-    def _get_regulars(table: Mapping) -> set[gms.RegularImplication]:
+    def _get_regulars(self, key: Optional[str]) -> set[gms.RegularImplication]:
+        table = get_with_type(self.field_tables[key], "implications", dict)
         return {gms.RegularImplication(str(k), str(v)) for k, v in table.items()}
 
     def parse_implications(self, key: Optional[str]) -> set[gms.RegularImplication]:
-        impl_table = get_with_type(self.field_tables[key], "implications", dict)
-        impl = self._get_regulars(impl_table)
-        desc_table = get_with_type(self.field_tables[key], "descriptors", dict)
-        descriptors = frozenset(self._get_descriptors(desc_table))
-        return impl | descriptors
+        impl = self._get_regulars(key)
+        impl.update(self._get_descriptors(key))
+        return impl
 
     def get_implications(
         self,
@@ -206,7 +222,10 @@ class WordMultiplier(Generic[Symbol]):
 
     def __init__(self, join: Callable[[Iterable[str]], str] = "_".join) -> None:
         self.join = join
-        self.symbols: defaultdict[Symbol, Iterable[str]] = defaultdict(frozenset)
+        self.symbols: dict[Symbol, frozenset[str]] = {}
+
+    def __contains__(self, value: Symbol) -> bool:
+        return value in self.symbols
 
     def add_set(self, name: Symbol, words: Iterable[str]) -> None:
         """Map set of words *words* to *name*."""
@@ -323,6 +342,26 @@ def load_from_json(filename: os.PathLike) -> Any:
         except json.JSONDecodeError as err:
             log.error("Unable to decode file as JSON: In %s: %s", filename, err)
             return {}
+
+
+def toml_address(keys: Iterable[Optional[str]]) -> str:
+    """Quote *keys* according to TOML rules and join by periods.
+
+    Empty strings and Nones are skipped.
+
+    >>> toml_address([None, "bare", "two words", "bang!"])
+    'bare."two words"."bang!"'
+    """
+    bare_chars = "[A-Za-z0-9_-]+"
+    quoted = []
+    for key in keys:
+        if not key:
+            continue
+        if re.fullmatch(bare_chars, key):
+            quoted.append(key)
+        else:
+            quoted.append(f'"{key}"')
+    return ".".join(quoted)
 
 
 def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
