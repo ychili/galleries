@@ -240,6 +240,9 @@ The unions sub-table associates an array of set names
 (as defined in the sets sub-table) with a new name.
 This new name can be used in a chains declaration
 and represents the union (merger) of its constituent sets.
+Unions may contain other unions,
+but cannot refer to ones that have not been defined yet.
+In this situation, the order in which unions are defined matters.
 
 The advantage of the TagActions format is that,
 without the original string-matching variety of descriptor implications,
@@ -270,6 +273,20 @@ for logical consistency in three ways.
 While you are writing rules in your TagActions file (or files),
 you can perform these three checks *without* then updating the table
 using the ``refresh`` command's ``--validate`` option.
+
+TagActions respect the "ImplicatingFields" key of [refresh]
+and will only be applied to fields named therein.
+For finer control, you can define multiple TagActions files
+("TagActions" accepts a semicolon-separated list).
+If a TagActions file contains a top-level array called "fieldnames"
+then the instructions in that file will be applied only to the fields named in
+that array.
+So, for an example, the line
+``fieldnames = ["ATags", "BTags"]``
+at the top of a TOML-formatted TagActions file will restrict the implications
+and aliases in the rest of the file to the tag fields ATags and BTags.
+If this "fieldnames" key is absent, the file will be applied to the default
+"ImplicatingFields" or, if that is absent, "TagFields".
 
 Querying the table
 ------------------
