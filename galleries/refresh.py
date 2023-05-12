@@ -125,6 +125,12 @@ class UnifiedObjectFormat:
         return bool(self.field_tables)
 
     def update(self, *others: Mapping) -> None:
+        """Update field_tables.
+
+        Tables under the same fieldname will be overwritten (e.g., an aliases
+        table can be added to an implications table, but new implications can't
+        be added to existing implications.
+        """
         for obj in others:
             fieldnames = [str(name) for name in get_with_type(obj, "fieldnames", list)]
             for name in fieldnames:
@@ -146,15 +152,12 @@ class UnifiedObjectFormat:
         symbols: WordMultiplier = WordMultiplier()
         sets_table = get_with_type(table, "sets", dict)
         for name in sets_table:
-            if name in symbols:
-                fqn = toml_address([key, "descriptors", "sets", name])
-                log.warning("In %s: Over-writing set name: %s", fqn, name)
             symbols.add_set(name, get_with_type(sets_table, name, list))
         unions_table = get_with_type(table, "unions", dict)
         for name in unions_table:
             if name in symbols:
                 fqn = toml_address([key, "descriptors", "unions", name])
-                log.warning("In %s: Over-writing set/union name: %s", fqn, name)
+                log.warning("In %s: Over-writing set name with union: %s", fqn, name)
             elements = get_with_type(unions_table, name, list)
             try:
                 symbols.add_union(name, *elements)
