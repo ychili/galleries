@@ -200,7 +200,7 @@ class WordMultiplier(Generic[Symbol]):
     >>> wm = WordMultiplier()
     >>> wm.add_set("letters", "AB")
     >>> wm.add_set("numbers", "12")
-    >>> sorted(wm.chain(["letters", "numbers"], join="".join)
+    >>> sorted(wm.chain(["letters", "numbers"], join="".join))
     [('A1', '1'), ('A2', '2'), ('B1', '1'), ('B2', '2')]
     """
 
