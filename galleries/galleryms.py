@@ -151,7 +151,7 @@ class Implicator(ImplicationGraph):
     ) -> None:
         super().__init__()
         self.implications = set(implications or [])
-        self.aliases = aliases or {}
+        self.aliases = dict(aliases or {})
         if implications is not None:
             for implication in implications:
                 self.add(implication)
