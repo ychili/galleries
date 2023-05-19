@@ -224,7 +224,6 @@ class TagActionsObject:
                 self.extr.warn("Bad set/union name: %s", err)
 
     def _make_implicator(self, spec: Set[frozenset[str]]) -> gms.Implicator:
-        spec = frozenset(spec)
         implic = gms.Implicator()
         for pool in spec:
             data = self._pools[pool]
@@ -382,28 +381,6 @@ def set_chains(
             consequent = tuple(result_stack)
             result_stack.append(elem)
             yield consequent, tuple(result_stack)
-
-
-def get_with_type(mapping: Mapping, name: Hashable, class_or_type: type[T]) -> T:
-    """Get value from *mapping* using key *name* if it has the correct type.
-
-    If the value is missing or is not an instance of *class_or_type*, return
-    an empty instance of *class_or_type*.
-    Additionally, emit a warning if the type is wrong.
-    """
-    try:
-        value = mapping[name]
-    except KeyError:
-        return class_or_type()
-    if isinstance(value, class_or_type):
-        return value
-    log.warning(
-        "Key is present but value is wrong type (value is %s but should be %s): %s",
-        type(value),
-        class_or_type,
-        name,
-    )
-    return class_or_type()
 
 
 def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
