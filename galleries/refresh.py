@@ -250,6 +250,12 @@ class TagActionsObject:
 
 
 class ObjectExtractor:
+    """Helper for validating types within mappings/objects
+
+    Help keep track of position in the object tree, so that warnings emitted
+    will include this info.
+    """
+
     def __init__(
         self,
         source: Optional[os.PathLike] = None,
