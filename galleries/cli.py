@@ -406,7 +406,7 @@ def validate_tag_actions(config: DBConfig) -> int:
             return 1
     errors = 0
     for fields, implic in tao.implicators():
-        log.debug("Validating implicator for field(s): %s", ", ".join(fields))
+        log.debug("Validating implicator for field(s): %s", ", ".join(sorted(fields)))
         # For alias error events, log all in debug output, but log only the
         # first example in error output.
         if ta_events := implic.validate_aliases_not_aliased():
