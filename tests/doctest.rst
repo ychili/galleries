@@ -38,15 +38,16 @@ Test the ``refresh.Gardener``.
 ...
 ('tag1 tag2 tag5', 'tag3 tag4')
 
-Test the ``refresh.UnifiedObjectFormat``.
+Test the ``refresh.TagActionsObject``.
 
->>> from galleries.refresh import UnifiedObjectFormat
->>> uof = UnifiedObjectFormat({"implications": {"car": "vehicle"}})
->>> list(uof.get_implications())
-[(None, {RegularImplication('car', 'vehicle')})]
->>> uof.update({"aliases": {"forest": "tree"}})
->>> list(uof.get_aliases())
-[(None, {'forest': 'tree'})]
+>>> from galleries.refresh import TagActionsObject
+>>> tao = TagActionsObject()
+>>> tao.update({"implications": {"car": "vehicle"}})
+>>> tao.get_implicator().implications
+{RegularImplication('car', 'vehicle')}
+>>> tao.update({"aliases": {"forest": "tree"}})
+>>> tao.get_implicator().aliases
+{'forest': 'tree'}
 
 Test implication by ``Implicator``.
 

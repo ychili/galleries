@@ -118,6 +118,9 @@ class _TagActionsContainer:
     implications: set[gms.RegularImplication] = dataclasses.field(default_factory=set)
     aliases: dict[str, str] = dataclasses.field(default_factory=dict)
 
+    def to_implicator(self) -> gms.Implicator:
+        return gms.Implicator(implications=self.implications, aliases=self.aliases)
+
 
 class TagActionsObject:
     """Extract tag actions from one, unified object format."""
@@ -156,10 +159,10 @@ class TagActionsObject:
         dests = self._parse_fields(obj)
         for dest, table_name in dests.items():
             if table_name is None:
-                table = contextlib.nullcontext(obj)
+                cm = contextlib.nullcontext(obj)
             else:
-                table = self.extr.get(obj, table_name)
-            with table:
+                cm = self.extr.get(obj, table_name)
+            with cm as table:
                 if not table:
                     self.extr.warn("Table not found with name: %s", table_name)
                     continue
@@ -230,7 +233,9 @@ class TagActionsObject:
                 implic.add(impl)
         return implic
 
-    def get_implicator(self, fieldname: str) -> gms.Implicator:
+    def get_implicator(self, fieldname: Optional[str] = None) -> gms.Implicator:
+        if fieldname is None:
+            return self._pools[self.default_tag_fields].to_implicator()
         spec = self._field_spec[fieldname]
         return self._make_implicator(spec)
 
@@ -271,7 +276,7 @@ class ObjectExtractor:
     def get(self, mapping: Mapping, key: Hashable, default: Any = None) -> Iterator:
         self._parse_stack.append(str(key))
         try:
-            value = mapping.get(key, default=default)
+            value = mapping.get(key, default)
         except AttributeError:
             self.warn("Expected a mapping got a %s", type(mapping))
             yield default
