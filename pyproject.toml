@@ -14,7 +14,7 @@ warn_return_any = false
 
 [tool.pylint.basic]
 docstring-min-length = 4
-good-names = ["T", "fg", "bg", "it", "i", "k", "n", "r", "s", "x", "y"]
+good-names = ["T", "cm", "fg", "bg", "it", "i", "k", "n", "r", "s", "x", "y"]
 
 [tool.pylint.format]
 max-line-length = 100
