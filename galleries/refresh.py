@@ -115,8 +115,8 @@ class Gardener:
 @dataclasses.dataclass
 class _TagActionsContainer:
     fields: frozenset[str]
-    implications: set[gms.RegularImplication] = set()
-    aliases: dict[str, str] = {}
+    implications: set[gms.RegularImplication] = dataclasses.field(default_factory=set)
+    aliases: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 class TagActionsObject:
