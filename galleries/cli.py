@@ -397,17 +397,16 @@ def validate_tag_actions(config: DBConfig) -> int:
     if not unified:
         log.info("No TagActions files to validate")
         return 0
-    uof = refresh.UnifiedObjectFormat()
+    tao = refresh.TagActionsObject()
     for filename in unified:
         try:
-            obj = refresh.get_unified(filename)
+            tao.read_file(filename)
         except OSError as err:
             log.error("Unable to open TagActions file for reading: %s", err)
             return 1
-        uof.update(obj)
     errors = 0
-    for field, implic in uof.implicators():
-        log.debug("Validating implicator for field(s): %s", field)
+    for fields, implic in tao.implicators():
+        log.debug("Validating implicator for field(s): %s", ", ".join(fields))
         # For alias error events, log all in debug output, but log only the
         # first example in error output.
         if ta_events := implic.validate_aliases_not_aliased():
@@ -473,14 +472,11 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
         gardener.set_remove_tags(
             refresh.get_tags_from_file(*removals), *implicating_fields
         )
-    uof = refresh.UnifiedObjectFormat()
+    tao = refresh.TagActionsObject(default_tag_fields=implicating_fields)
     for filename in unified:
-        uof.update(refresh.get_unified(filename))
-    for field, implic in uof.implicators():
-        if field is None:
-            gardener.set_implicator(implic, *implicating_fields)
-        else:
-            gardener.set_implicator(implic, field)
+        tao.read_file(filename)
+    for fields, implic in tao.implicators():
+        gardener.set_implicator(implic, *fields)
     return 0
 
 

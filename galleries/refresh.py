@@ -4,14 +4,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
+import dataclasses
 import itertools
 import json
 import logging
 import os
 import re
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence, Set
 from pathlib import Path
 from typing import Any, Callable, Generic, Hashable, Optional, TypeVar
 
@@ -110,104 +112,208 @@ class Gardener:
         gallery.update_count(self._count_field, folder)
 
 
-class UnifiedObjectFormat:
-    """Extract tag actions from one, unified object format.
+@dataclasses.dataclass
+class _TagActionsContainer:
+    fields: frozenset[str]
+    implications: set[gms.RegularImplication] = set()
+    aliases: dict[str, str] = {}
 
-    Field information is given via top-level key "fieldnames" = <array>.
-    """
 
-    def __init__(self, mapping: Optional[Mapping] = None) -> None:
-        self.field_tables: defaultdict[Optional[str], dict] = defaultdict(dict)
-        if mapping is not None:
-            self.update(mapping)
+class TagActionsObject:
+    """Extract tag actions from one, unified object format."""
 
-    def __bool__(self) -> bool:
-        return bool(self.field_tables)
+    extr: ObjectExtractor
 
-    def update(self, *others: Mapping) -> None:
-        """Update field_tables.
+    def __init__(self, default_tag_fields: Optional[Iterable[str]] = None) -> None:
+        self.default_tag_fields = frozenset(default_tag_fields or [])
+        # A pool is the set of tag actions that apply to a given set of fields
+        self._pools: dict[frozenset[str], _TagActionsContainer] = {}
+        # A field's spec is the set of pools that apply to a given field
+        self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
 
-        Tables under the same fieldname will be overwritten (e.g., an aliases
-        table can be added to an implications table, but new implications can't
-        be added to existing implications.
+    def read_file(
+        self, filename: os.PathLike, file_format: Optional[str] = None
+    ) -> None:
+        """Read *filename* and parse tag actions based on its file extension.
+
+        ``*.toml`` files will be parsed as TOML. Anything else will be parsed
+        as JSON.
+
+        Or, force parsing as JSON if *file_format* == "json".
         """
-        for obj in others:
-            fieldnames = [str(name) for name in get_with_type(obj, "fieldnames", list)]
-            for name in fieldnames:
-                self.field_tables[name].update(get_with_type(obj, name, dict))
-            if not fieldnames:
-                # If no fieldnames, assign to default fieldname None
-                self.field_tables[None].update(obj)
+        path = Path(filename)
+        load = load_from_json
+        if path.match("*.toml") and file_format != "json":
+            load = load_from_toml
+        obj = load(path)
+        self.update(obj, source=path)
 
-    def parse_aliases(self, key: Optional[str]) -> dict[str, str]:
-        alias_table = get_with_type(self.field_tables[key], "aliases", dict).items()
-        return {str(alias): str(tag) for alias, tag in alias_table}
+    def update(self, obj: Any, source: Optional[os.PathLike] = None) -> None:
+        self.extr = ObjectExtractor(source=source)
+        obj = self.extr.dict(obj)
+        if not obj:
+            return
+        dests = self._parse_fields(obj)
+        for dest, table_name in dests.items():
+            if table_name is None:
+                table = contextlib.nullcontext(obj)
+            else:
+                table = self.extr.get(obj, table_name)
+            with table:
+                if not table:
+                    self.extr.warn("Table not found with name: %s", table_name)
+                    continue
+                for field in dest:
+                    self._field_spec[field].add(dest)
+                tac = self._pools.setdefault(dest, _TagActionsContainer(fields=dest))
+                tac.aliases.update(self._parse_aliases(table))
+                tac.implications.update(self._parse_implications(table))
 
-    def get_aliases(self) -> Iterator[tuple[Optional[str], dict[str, str]]]:
-        for field in self.field_tables.keys():
-            yield field, self.parse_aliases(field)
+    def _parse_fields(self, obj: Mapping) -> dict[frozenset[str], Optional[str]]:
+        dests: dict[frozenset[str], Optional[str]] = {}
+        for fieldname in self.extr.get_list(obj, "fieldnames"):
+            field = str(fieldname)
+            dests[frozenset([field])] = field
+        for groupname, fieldnames in self.extr.get_items(obj, "fieldgroups"):
+            table_name = str(groupname)
+            dest = [str(field) for field in self.extr.list(fieldnames)]
+            if not dest:
+                self.extr.warn("Can't use an empty fieldgroup")
+                continue
+            dests[frozenset(dest)] = table_name
+        if not dests:
+            dests[self.default_tag_fields] = None
+        return dests
 
-    def _get_descriptors(self, key: Optional[str]) -> Iterator[gms.RegularImplication]:
-        table = get_with_type(self.field_tables[key], "descriptors", dict)
+    def _parse_aliases(self, obj: Any) -> Iterator[tuple[str, str]]:
+        for key, value in self.extr.get_items(obj, "aliases"):
+            yield str(key), str(value)
+
+    def _parse_implications(self, obj: Any) -> Iterator[gms.RegularImplication]:
+        yield from self._parse_regulars(obj)
+        with self.extr.get_dict(obj, "descriptors") as table:
+            yield from self._parse_descriptors(table)
+
+    def _parse_regulars(self, obj: Any) -> Iterator[gms.RegularImplication]:
+        for key, value in self.extr.get_items(obj, "implications"):
+            yield gms.RegularImplication(antecedent=str(key), consequent=str(value))
+
+    def _parse_descriptors(self, table: Any) -> Iterator[gms.RegularImplication]:
         symbols: WordMultiplier = WordMultiplier()
-        sets_table = get_with_type(table, "sets", dict)
-        for name in sets_table:
-            symbols.add_set(name, get_with_type(sets_table, name, list))
-        unions_table = get_with_type(table, "unions", dict)
-        for name in unions_table:
+        for name, words in self.extr.get_items(table, "sets"):
+            symbols.add_set(name, self.extr.list(words))
+        for name, elements in self.extr.get_items(table, "unions"):
             if name in symbols:
-                fqn = toml_address([key, "descriptors", "unions", name])
-                log.warning("In %s: Over-writing set name with union: %s", fqn, name)
-            elements = get_with_type(unions_table, name, list)
+                self.extr.warn("Over-writing set name with union: %s", name)
+            elements = self.extr.list(elements)
             try:
                 symbols.add_union(name, *elements)
             except KeyError as err:
-                fqn = toml_address([key, "descriptors", "unions", name])
-                log.warning("In %s: Bad set/union name: %s", fqn, err)
-        chains_table = get_with_type(table, "chains", dict)
-        for name in chains_table:
-            chain = get_with_type(chains_table, name, list)
+                self.extr.warn("Bad set/union name: %s", err)
+        for name, elements in self.extr.get_items(table, "chains"):
+            chain = self.extr.list(elements)
             if len(chain) < 2:
-                fqn = toml_address([key, "descriptors", "chains", name])
-                log.warning(
-                    "In %s: Chain has fewer than two names in it: %s", fqn, name
-                )
+                self.extr.warn("Chain has fewer than two names in it: %s", name)
                 continue
             try:
                 yield from symbols.implications_from_chain(chain)
             except KeyError as err:
-                fqn = toml_address([key, "descriptors", "chains", name])
-                log.warning("In %s: Bad set/union name: %s", fqn, err)
+                self.extr.warn("Bad set/union name: %s", err)
 
-    def _get_regulars(self, key: Optional[str]) -> set[gms.RegularImplication]:
-        table = get_with_type(self.field_tables[key], "implications", dict)
-        return {gms.RegularImplication(str(k), str(v)) for k, v in table.items()}
+    def _make_implicator(self, spec: Set[frozenset[str]]) -> gms.Implicator:
+        spec = frozenset(spec)
+        implic = gms.Implicator()
+        for pool in spec:
+            data = self._pools[pool]
+            implic.aliases.update(data.aliases)
+            for impl in data.implications:
+                implic.add(impl)
+        return implic
 
-    def parse_implications(self, key: Optional[str]) -> set[gms.RegularImplication]:
-        impl = self._get_regulars(key)
-        impl.update(self._get_descriptors(key))
-        return impl
+    def get_implicator(self, fieldname: str) -> gms.Implicator:
+        spec = self._field_spec[fieldname]
+        return self._make_implicator(spec)
 
-    def get_implications(
+    def _spec_fields(self) -> defaultdict[frozenset[frozenset[str]], set[str]]:
+        spec_fields: defaultdict[frozenset[frozenset[str]], set[str]] = defaultdict(set)
+        for field, spec in self._field_spec.items():
+            spec_fields[frozenset(spec)].add(field)
+        return spec_fields
+
+    def implicators(self) -> Iterator[tuple[set[str], gms.Implicator]]:
+        for spec, fields in self._spec_fields().items():
+            yield fields, self._make_implicator(spec)
+
+
+class ObjectExtractor:
+    def __init__(
         self,
-    ) -> Iterator[tuple[Optional[str], set[gms.RegularImplication]]]:
-        for field in self.field_tables.keys():
-            yield field, self.parse_implications(field)
+        source: Optional[os.PathLike] = None,
+        logger: Optional[logging.Logger] = None,
+    ) -> None:
+        self.source = source or "<???>"
+        self.logger = logger or logging.getLogger(__name__)
+        self._parse_stack: list[Optional[str]] = []
 
-    def make_implicator(self, *field: Optional[str]) -> gms.Implicator:
-        implications: set[gms.RegularImplication] = set()
-        aliases: dict[str, str] = {}
-        for name in field:
-            implications.update(self.parse_implications(name))
-            aliases.update(self.parse_aliases(name))
-        return gms.Implicator(implications=implications, aliases=aliases)
+    def items(self, mapping: Mapping) -> Iterator[tuple[Any, Any]]:
+        try:
+            mapping_items = mapping.items()
+        except AttributeError:
+            self.warn("Expected a mapping, got a %s", type(mapping))
+            yield from {}
+        else:
+            for key, value in mapping_items:
+                self._parse_stack.append(str(key))
+                yield key, value
+                self._parse_stack.pop()
 
-    def implicators(self) -> Iterator[tuple[Optional[str], gms.Implicator]]:
-        for implications, aliases in zip(self.get_implications(), self.get_aliases()):
-            impl_field, impl = implications
-            alias_field, alias = aliases
-            assert impl_field == alias_field
-            yield impl_field, gms.Implicator(implications=impl, aliases=alias)
+    @contextlib.contextmanager
+    def get(self, mapping: Mapping, key: Hashable, default: Any = None) -> Iterator:
+        self._parse_stack.append(str(key))
+        try:
+            value = mapping.get(key, default=default)
+        except AttributeError:
+            self.warn("Expected a mapping got a %s", type(mapping))
+            yield default
+        else:
+            yield value
+        self._parse_stack.pop()
+
+    def object(self, value: Any, class_or_type: type[T]) -> T:
+        if isinstance(value, class_or_type):
+            return value
+        self.warn(
+            "Key is present but value is wrong type (value is %s but should be %s)",
+            type(value),
+            class_or_type,
+        )
+        return class_or_type()
+
+    def list(self, value: Any) -> list:
+        return self.object(value, list)
+
+    def dict(self, value: Any) -> dict:
+        return self.object(value, dict)
+
+    def get_list(self, mapping: Mapping, key: Hashable) -> list:
+        with self.get(mapping, key, default=[]) as value:
+            if not value:
+                return []
+            return self.list(value)
+
+    @contextlib.contextmanager
+    def get_dict(self, mapping: Mapping, key: Hashable) -> Iterator:
+        with self.get(mapping, key, default={}) as value:
+            yield self.dict(value)
+
+    def get_items(self, mapping: Mapping, key: Hashable) -> Iterator[tuple[Any, Any]]:
+        with self.get(mapping, key, default={}) as value:
+            yield from self.items(value)
+
+    def warn(self, msg: str, *args: Any) -> None:
+        self.logger.warning(
+            "In %s: At %s: %s", self.source, toml_address(self._parse_stack), msg % args
+        )
 
 
 class WordMultiplier(Generic[Symbol]):
@@ -293,22 +399,6 @@ def get_with_type(mapping: Mapping, name: Hashable, class_or_type: type[T]) -> T
         name,
     )
     return class_or_type()
-
-
-def get_unified(filename: os.PathLike, file_format: Optional[str] = None) -> Mapping:
-    """Read *filename* and parse tag actions based on its file extension.
-
-    ``*.toml`` files will be parsed as TOML. Anything else will be parsed as
-    JSON.
-
-    Or, force parsing as JSON if *file_format* == "json".
-    """
-    path = Path(filename)
-    load = load_from_json
-    if path.match("*.toml") and file_format != "json":
-        load = load_from_toml
-    obj = load(path)
-    return check_mapping(obj)
 
 
 def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
