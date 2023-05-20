@@ -200,6 +200,12 @@ class TagActionsObject:
     def _parse_regulars(self, obj: Any) -> Iterator[gms.RegularImplication]:
         for key, value in self.extr.get_items(obj, "implications"):
             yield gms.RegularImplication(antecedent=str(key), consequent=str(value))
+        for key, value in self.extr.get_items(obj, "multi-implications"):
+            antecedent = str(key)
+            for consequent in self.extr.list(value):
+                yield gms.RegularImplication(
+                    antecedent=antecedent, consequent=str(consequent)
+                )
 
     def _parse_descriptors(self, table: Any) -> Iterator[gms.RegularImplication]:
         symbols: WordMultiplier = WordMultiplier()

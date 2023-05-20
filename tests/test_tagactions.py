@@ -23,6 +23,13 @@ class TestTagActionsObject(unittest.TestCase):
             }
         },
     }
+    multi_implications = {
+        "multi-implications": {
+            "ignored": [],
+            "single": ["consequent"],
+            "double": ["1st", "2nd"],
+        }
+    }
     fieldgroups = {
         "fieldgroups": {"TagFields": ["Category A", "Category B"]},
         "TagFields": {"implications": {"ape": "mammal"}},
@@ -60,6 +67,11 @@ class TestTagActionsObject(unittest.TestCase):
         impl = self.tao.get_implicator("Tags").implications
         # impl == {RegularImplication('red_truck', 'truck'), ... }
         self.assertEqual(len(impl), 9)
+
+    def test_multi_implications(self):
+        self.tao.update(self.multi_implications)
+        impl = self.tao.get_implicator().implications
+        self.assertEqual(len(impl), 3)
 
     def test_fieldgroups(self):
         self.tao.update(self.fieldgroups)
