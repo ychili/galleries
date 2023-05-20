@@ -276,17 +276,36 @@ using the ``refresh`` command's ``--validate`` option.
 
 TagActions respect the "ImplicatingFields" key of [refresh]
 and will only be applied to fields named therein.
-For finer control, you can define multiple TagActions files
-("TagActions" accepts a semicolon-separated list).
-If a TagActions file contains a top-level array called "fieldnames"
-then the instructions in that file will be applied only to the fields named in
-that array.
-So, for an example, the line
-``fieldnames = ["ATags", "BTags"]``
-at the top of a TOML-formatted TagActions file will restrict the implications
-and aliases in the rest of the file to the tag fields ATags and BTags.
-If this "fieldnames" key is absent, the file will be applied to the default
-"ImplicatingFields" or, if that is absent, "TagFields".
+For finer control, you can specify which rules apply to which fields or
+groups of fields in the TagActions file itself.
+If either or both of the top-level keys "fieldnames" and "fieldgroups" are
+given, then parsing will ignore ImplicatingFields and assign rules to the
+fields named by these settings. The "fieldnames" key expects an array of field
+names. There should be a correspondingly named top-level table for each field
+name itself containing at least one of the tables for creating rules discussed
+above (i.e. implications, aliases, and descriptors). These rules will only be
+applied to the named field. The "fieldgroups" key should be a table whose
+values are arrays of field names. For each key there should be a
+correspondingly named top-level table, the rules in which will be applied to
+the fields named in that array.
+
+An example in TOML format of defining different rules for different
+fields::
+
+    fieldnames = ["Field A"]
+
+    [fieldgroups]
+    "B + C" = ["Field B", "Field C"]
+
+    ["Field A".implications]
+    # Implications defined in this table will be applied just to Field A.
+
+    ["B + C".implications]
+    # Implications defined in this table will be applied to both Field B
+    # and Field C.
+
+    ["B + C".aliases]
+    # Same with aliases and descriptors tables
 
 Querying the table
 ------------------
