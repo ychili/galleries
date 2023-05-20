@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import re
-from collections import defaultdict
+from collections import ChainMap, defaultdict
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence, Set
 from pathlib import Path
 from typing import Any, Callable, Generic, Hashable, Optional, TypeVar
@@ -231,11 +231,16 @@ class TagActionsObject:
 
     def _make_implicator(self, spec: Set[frozenset[str]]) -> gms.Implicator:
         implic = gms.Implicator()
+        alias_maps: list[dict[str, str]] = []
         for pool in spec:
             data = self._pools[pool]
-            implic.aliases.update(data.aliases)
+            if data.aliases:
+                alias_maps.append(data.aliases)
             for impl in data.implications:
                 implic.add(impl)
+        # Put the larger maps first in the lookup sequence.
+        alias_maps.sort(key=len)
+        implic.aliases = ChainMap(*alias_maps)
         return implic
 
     def get_implicator(self, fieldname: Optional[str] = None) -> gms.Implicator:

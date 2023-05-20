@@ -14,7 +14,7 @@ import operator
 import re
 import warnings
 from abc import ABC, abstractmethod
-from collections import Counter, defaultdict
+from collections import ChainMap, Counter, defaultdict
 from collections.abc import (
     Hashable,
     Iterable,
@@ -147,11 +147,11 @@ class Implicator(ImplicationGraph):
     def __init__(
         self,
         implications: Optional[Iterable[RegularImplication]] = None,
-        aliases: Optional[Mapping[str, str]] = None,
+        aliases: Optional[MutableMapping[str, str]] = None,
     ) -> None:
         super().__init__()
         self.implications = set(implications or [])
-        self.aliases = dict(aliases or {})
+        self.aliases = ChainMap(aliases or {})
         if implications is not None:
             for implication in implications:
                 self.add(implication)

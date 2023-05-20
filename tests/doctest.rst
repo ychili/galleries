@@ -47,7 +47,7 @@ Test the ``refresh.TagActionsObject``.
 {RegularImplication('car', 'vehicle')}
 >>> tao.update({"aliases": {"forest": "tree"}})
 >>> tao.get_implicator().aliases
-{'forest': 'tree'}
+ChainMap({'forest': 'tree'})
 
 Test implication by ``Implicator``.
 
