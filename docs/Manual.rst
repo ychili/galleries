@@ -298,11 +298,12 @@ fields::
     "B + C" = ["Field B", "Field C"]
 
     ["Field A".implications]
-    # Implications defined in this table will be applied just to Field A.
+    # Implications defined in this table will be applied
+    # just to Field A.
 
     ["B + C".implications]
-    # Implications defined in this table will be applied to both Field B
-    # and Field C.
+    # Implications defined in this table will be applied
+    # to both Field B and Field C.
 
     ["B + C".aliases]
     # Same with aliases and descriptors tables
