@@ -492,6 +492,50 @@ def get_tags_from_file(*filepaths: os.PathLike) -> gms.TagSet:
     return tags
 
 
+def validate_tag_actions(implicator: gms.Implicator) -> int:
+    """Validate *implicator*, and return number of errors found."""
+    errors = 0
+    # For alias error events, log all in debug output, but log only the
+    # first example in error output.
+    if ta_events := implicator.validate_aliases_not_aliased():
+        log.debug(ta_events)
+        log.error(
+            "Cannot alias a tag to a tag that is itself aliased: %s",
+            " -> ".join(ta_events[0]),
+        )
+        log.error(
+            "Found %d instance%s of transitive aliases",
+            len(ta_events),
+            "" if len(ta_events) == 1 else "s",
+        )
+        errors += len(ta_events)
+    if ai_events := implicator.validate_implications_not_aliased():
+        log.debug(ai_events)
+        log.error(
+            "Tags in implication must not be aliased to another tag: "
+            "'%s' implies '%s', but '%s' is aliased to '%s'",
+            ai_events[0].implication.antecedent,
+            ai_events[0].implication.consequent,
+            ai_events[0].antecedent,
+            ai_events[0].consequent,
+        )
+        log.error(
+            "Found %d instance%s where tags in implication were aliased",
+            len(ai_events),
+            "" if len(ai_events) == 1 else "s",
+        )
+        errors += len(ai_events)
+    if cycle := implicator.find_cycle():
+        log.error(
+            "Tag implication cannot create a circular relation with "
+            "another tag implication: %s",
+            " -> ".join(cycle),
+        )
+        log.info("More circular relations may exist in the implication graph")
+        errors += 1
+    return errors
+
+
 def traverse_fs(root: Path, leaves_only: bool = False) -> Iterator[tuple[Path, int]]:
     """Yield descendant directories of *root* and their file counts.
 
