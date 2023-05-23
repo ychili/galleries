@@ -49,6 +49,10 @@ class TestTagActionsObject(unittest.TestCase):
             "chains": {"empty": [], "bad_reference": ["colours", "spam"]},
         }
     }
+    multiple_updates = [
+        {"implications": {"red_stapler": "stapler"}},
+        {"implications": {"striped_cat": "cat"}, "aliases": {"kitty": "cat"}},
+    ]
 
     def setUp(self):
         self.tao = galleries.refresh.TagActionsObject()
@@ -130,6 +134,14 @@ class TestTagActionsObject(unittest.TestCase):
             "In <???>: At descriptors.chains.empty: Chain has fewer than two names in it: empty",
             "In <???>: At descriptors.chains.bad_reference: Bad set/union name: 'spam'",
         )
+
+    def test_multiple_updates(self):
+        for obj in self.multiple_updates:
+            self.tao.update(obj)
+        implic = self.tao.get_implicator()
+        self.assertEqual(implic.aliases.get("kitty"), "cat")
+        self.assertEqual(implic.tags_implied_by("red_stapler"), {"stapler"})
+        self.assertEqual(implic.tags_implied_by("striped_cat"), {"cat"})
 
     def _assert_log(self, context_manager, *strings):
         for s in strings:
