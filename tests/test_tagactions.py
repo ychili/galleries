@@ -74,8 +74,9 @@ class TestTagActionsObject(unittest.TestCase):
 
     def test_multi_implications(self):
         self.tao.update(self.multi_implications)
-        impl = self.tao.get_implicator().implications
-        self.assertEqual(len(impl), 3)
+        implic = self.tao.get_implicator()
+        self.assertEqual(len(implic.implications), 3)
+        self.assertEqual(implic.tags_implied_by("double"), {"1st", "2nd"})
 
     def test_fieldgroups(self):
         self.tao.update(self.fieldgroups)
