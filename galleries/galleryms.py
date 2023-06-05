@@ -349,16 +349,25 @@ class SearchTerm(ABC):
             disambiguated.append(candidates[0])
         self.fields = disambiguated
 
+    @staticmethod
+    def _rectify_fields(arg: Optional[Union[str, Iterable[str]]]) -> list[str]:
+        if isinstance(arg, str):
+            arg = [arg]
+        return list(arg) if arg is not None else []
+
 
 class TagSearchTerm(SearchTerm):
     """Base class for a search term that matches tags"""
 
-    def __init__(self, word: str, *fields: str) -> None:
+    def __init__(
+        self, word: str, fields: Optional[Union[str, Iterable[str]]] = None
+    ) -> None:
         self.word = word
-        self.fields = list(fields)
+        self.fields = self._rectify_fields(fields)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.word!r}, *{self.fields!r})"
+        fields = f", fields={self.fields!r}" if self.fields else ""
+        return f"{type(self).__name__}({self.word!r}{fields})"
 
     def tagsets(
         self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
@@ -371,7 +380,7 @@ class TagSearchTerm(SearchTerm):
 class WholeSearchTerm(TagSearchTerm):
     """Search term that matches tags in their entirety
 
-    >>> term = WholeSearchTerm("tok1", "Tags")
+    >>> term = WholeSearchTerm("tok1", ["Tags"])
     >>> bool(term.match(Gallery(Tags="tok2")))
     False
     >>> bool(term.match(Gallery(Tags="tok1 tok2")))
@@ -392,13 +401,15 @@ class WildcardSearchTerm(TagSearchTerm):
 
     Uses :module:`fnmatch`, which supports Unix shell-style wildcards
 
-    >>> term = WildcardSearchTerm("tok*", "Tags")
+    >>> term = WildcardSearchTerm("tok*", ["Tags"])
     >>> bool(term.match(Gallery(Tags="tok1")))
     True
     """
 
-    def __init__(self, word: str, *fields: str) -> None:
-        super().__init__(word, *fields)
+    def __init__(
+        self, word: str, fields: Optional[Union[str, Iterable[str]]] = None
+    ) -> None:
+        super().__init__(word, fields=fields)
         self.regex = re.compile(fnmatch.translate(word))
 
     def match(
@@ -417,23 +428,26 @@ class NumericCondition(SearchTerm):
     If a field value cannot be converted to a ``float``, the gallery will not
     be matched.
 
-    >>> term = NumericCondition(operator.gt, 3, "Count")
+    >>> term = NumericCondition(operator.gt, 3, fields=["Count"])
     >>> term.match(Gallery(Count="4"))
     True
     """
 
     def __init__(
-        self, comp_func: Callable[[_Real, _Real], Any], argument: _Real, *fields: str
+        self,
+        comp_func: Callable[[_Real, _Real], Any],
+        argument: _Real,
+        fields: Optional[Union[str, Iterable[str]]] = None,
     ) -> None:
         self.comp_func = comp_func
         self.argument = argument
-        self.fields = list(fields)
+        self.fields = self._rectify_fields(fields)
 
     def __repr__(self) -> str:
-        return (
-            f"{type(self).__name__}"
-            f"({self.comp_func!r}, {self.argument!r}, *{self.fields!r})"
-        )
+        parameters = [repr(self.comp_func), repr(self.argument)]
+        if self.fields:
+            parameters.append(f"fields={self.fields!r}")
+        return f"{type(self).__name__}({', '.join(parameters)})"
 
     def match(
         self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
@@ -512,7 +526,7 @@ class ArgumentParser:
 
     >>> ap = ArgumentParser(["TagField1"])
     >>> ap.parse_args(["tok1"])
-    Query(conjuncts=[WholeSearchTerm('tok1', *['TagField1'])])
+    Query(conjuncts=[WholeSearchTerm('tok1', fields=['TagField1'])])
     """
 
     fieldname_chars = r"a-z0-9_\-"
@@ -602,8 +616,8 @@ class ArgumentParser:
             fields = [fieldname] if fieldname else self.default_tag_fields
             if self.wildcard in word:
                 word = word.replace(self.wildcard, "*")
-                return WildcardSearchTerm(word, *fields), logical_operator
-            return WholeSearchTerm(word, *fields), logical_operator
+                return WildcardSearchTerm(word, fields=fields), logical_operator
+            return WholeSearchTerm(word, fields=fields), logical_operator
         raise ValueError
 
 
