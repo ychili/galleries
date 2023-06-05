@@ -1,3 +1,5 @@
+"""Gather doctest'ed modules, and test them under unittest."""
+
 import doctest
 import unittest
 
