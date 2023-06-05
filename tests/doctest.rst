@@ -1,4 +1,10 @@
-Test query logic.
+This file contains some interactive examples that, using ``doctest``,
+serve as quick tests for some of this package's core classes.
+They fill the gap between “too long or complex to fit in a docstring”
+and “not yet turned into a unit test case.”
+
+Test query logic
+----------------
 
 >>> from galleries.galleryms import ArgumentParser
 >>> ap = ArgumentParser()
@@ -19,6 +25,9 @@ Query(conjuncts=[WholeSearchTerm('tok1'), WholeSearchTerm('tok2')])
 >>> ap = ArgumentParser(["TagField1", "TagField2"])
 >>> ap.parse_args(["tok1", "~tok2"])
 Query(conjuncts=[WholeSearchTerm('tok1', fields=['TagField1', 'TagField2'])], negations=[WholeSearchTerm('tok2', fields=['TagField1', 'TagField2'])])
+
+Test refresh logic
+------------------
 
 Test the ``refresh.Gardener``.
 
