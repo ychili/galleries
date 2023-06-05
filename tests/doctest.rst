@@ -6,6 +6,8 @@ and “not yet turned into a unit test case.”
 Test query logic
 ----------------
 
+Create a ``Query`` from a series of search terms.
+
 >>> from galleries.galleryms import ArgumentParser
 >>> ap = ArgumentParser()
 >>> ap.parse_argument("tok1")
@@ -25,6 +27,23 @@ Query(conjuncts=[WholeSearchTerm('tok1'), WholeSearchTerm('tok2')])
 >>> ap = ArgumentParser(["TagField1", "TagField2"])
 >>> ap.parse_args(["tok1", "~tok2"])
 Query(conjuncts=[WholeSearchTerm('tok1', fields=['TagField1', 'TagField2'])], negations=[WholeSearchTerm('tok2', fields=['TagField1', 'TagField2'])])
+
+A ``Query`` can then match a ``Gallery``.
+
+>>> ap = ArgumentParser(["Tags"])
+>>> # Match galleries tagged with "scotsman" but not "englishman"
+>>> query = ap.parse_args(["scotsman", "~englishman"])
+>>> from galleries.galleryms import Gallery
+>>> query.match(Gallery(Tags="scotsman englishman"))
+False
+>>> query.match(Gallery(Tags="scotsman welshman"))
+True
+>>> query.match(Gallery(Tags="irishman"))
+False
+>>> # Wildcard match
+>>> query = ap.parse_args(["%man"])
+>>> query.match(Gallery(Tags="human"))
+True
 
 Test refresh logic
 ------------------
