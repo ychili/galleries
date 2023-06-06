@@ -1058,7 +1058,6 @@ class OverlapTable(Collection[H]):
         """
         new_table = cls()
         new_table._n_sets = obj["_n_sets"]
-        new_table._table = defaultdict(Counter)
         for key, counter in obj["_table"].items():
             new_table._table[key].update(counter)
         return new_table
