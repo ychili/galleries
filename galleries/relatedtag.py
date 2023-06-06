@@ -56,7 +56,7 @@ def create_new_json_file(
         math.comb(len(table), 2),
         len(table),
         table.n_sets,
-        sum(table.counter.values()) / table.n_sets,
+        table.counter.total() / table.n_sets,
     )
     if outfile is not None:
         try:
@@ -115,19 +115,18 @@ def print_relatedtags(
         rows.append(
             {"tag": "TAG", "count": "  N ", "overlap": " A∩B", "similarity": "SIMIL"}
         )
-        cardinality = table.counter[tag]
+        cardinality = table.count(tag)
         if not cardinality:
             # Bad tag
             rows.append(_format_row(tag))
             continue
-        sims = most_common(table.similarities(tag), n=limit)
-        for other_tag, similarity in sims:
+        for other_tag, similarity in table.similar_tags(tag, n=limit):
             overlap = table.get(tag, other_tag) / cardinality
             row = _format_row(
                 other_tag,
-                count=table.counter[other_tag],
+                count=table.count(other_tag),
                 overlap=overlap,
-                similarity=similarity,
+                similarity=similarity
             )
             rows.append(row)
     for line in tabulator.tabulate(rows):
