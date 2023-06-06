@@ -956,7 +956,7 @@ class OverlapTable(Collection[H]):
 
     def get(self, x: H, y: H, /) -> int:
         """Get the number of overlaps between *x* and *y*."""
-        return self._table.get(x, Counter())[y]
+        return self._table.get(x, {})[y]
 
     def similarity(self, x: H, y: H, /) -> float:
         """Calculate similarity between two tags *x* and *y*.
@@ -980,7 +980,7 @@ class OverlapTable(Collection[H]):
         """
         Yield the tags that *tag* overlaps with and their number of overlaps.
         """
-        yield from self._table.get(tag, Counter()).items()
+        yield from self._table.get(tag, {}).items()
 
     def similarities(self, tag: H) -> Iterator[tuple[H, float]]:
         """Calculate similarity between *tag* and every other tag."""
