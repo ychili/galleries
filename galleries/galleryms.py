@@ -912,12 +912,11 @@ class OverlapTable(Collection[H]):
     metric. Two tags are similar if they have nearly the same set of
     galleries, and nearly the same size.
 
-    The table can also be accessed directly via the table attribute, like so:
     >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
-    >>> table.table['a']['b']
+    >>> table.get('a', 'b')
     1
 
-    Other attributes:
+    Other properties:
         n_sets: number of input sets
         counter: counts tags in input sets
 
@@ -931,7 +930,6 @@ class OverlapTable(Collection[H]):
     #
     # The table matrix is symmetrical: table[i][j] == table[j][i]. Either
     # returns the number of galleries that tags i and j have in common.
-    # i and j must be different. table[i][i] is not calculated.
     #
     # Similarity is calculated using cosine similarity, which is defined as
     # the number of items two sets A and B have in common, divided by
@@ -940,9 +938,8 @@ class OverlapTable(Collection[H]):
     # galleries in common to a 0.0 - 1.0 range.
 
     def __init__(self, *sets: Iterable[H]) -> None:
-        self.n_sets: int = 0
-        self.counter: Counter[H] = Counter()
-        self.table: defaultdict[H, dict[H, int]] = defaultdict()
+        self._n_sets: int = 0
+        self._table: defaultdict[H, Counter[H]] = defaultdict(Counter)
         self.update(*sets)
 
     def update(self, *sets: Iterable[H]) -> None:
@@ -950,33 +947,16 @@ class OverlapTable(Collection[H]):
 
         This is the only method to edit the table.
         """
-        self.n_sets += len(sets)
-        self.counter.update(itertools.chain.from_iterable(sets))
-        new_tags = frozenset(itertools.chain.from_iterable(sets))
-        # Open the table for creating new entries.
-        self.table.default_factory = dict
-        for tag_x, tag_y in itertools.combinations(new_tags, 2):
-            self.table[tag_x].setdefault(tag_y, 0)
-            self.table[tag_y].setdefault(tag_x, 0)
-            for tag_set in sets:
-                if tag_x in tag_set and tag_y in tag_set:
-                    self.table[tag_x][tag_y] += 1
-                    self.table[tag_y][tag_x] += 1
-        # Lock down the table. Subscript access with a bad tag will now raise
-        # KeyError rather than create a new entry.
-        self.table.default_factory = None
+        for tag_set in sets:
+            self._n_sets += 1
+            for tag_x, tag_y in itertools.product(tag_set, repeat=2):
+                self._table[tag_x][tag_y] += 1
 
     # BINARY METHODS
 
     def get(self, x: H, y: H, /) -> int:
         """Get the number of overlaps between *x* and *y*."""
-        try:
-            return self.table[x][y]
-        except KeyError:
-            if x == y:
-                if diagonal := self.counter.get(x):
-                    return diagonal
-            raise
+        return self._table.get(x, Counter())[y]
 
     def similarity(self, x: H, y: H, /) -> float:
         """Calculate similarity between two tags *x* and *y*.
@@ -986,52 +966,55 @@ class OverlapTable(Collection[H]):
         """
         # cosine similarity(tag1, tag2) =
         #     {{tag1 tag2}} / sqrt({{tag1}} * {{tag2}})
-        return self.get(x, y) / math.sqrt(self.counter[x] * self.counter[y])
+        return self.get(x, y) / math.sqrt(self.count(x) * self.count(y))
 
     # UNARY METHODS
 
+    def count(self, tag: H) -> int:
+        return self.get(tag, tag)
+
     def __contains__(self, tag: object) -> bool:
-        return tag in self.counter
+        return tag in self._table
 
     def overlaps(self, tag: H) -> Iterator[tuple[H, int]]:
         """
         Yield the tags that *tag* overlaps with and their number of overlaps.
         """
-        # Trigger KeyError
-        items = self.table[tag].items()
-        yield (tag, self.counter[tag])
-        yield from ((key, value) for key, value in items if value > 0)
+        yield from self._table.get(tag, Counter()).items()
 
     def similarities(self, tag: H) -> Iterator[tuple[H, float]]:
         """Calculate similarity between *tag* and every other tag."""
-        # Trigger KeyError
-        items = self.table[tag].items()
-        yield (tag, 1.0)
-        for key, value in items:
-            if value > 0.0:
+        for key, value in self.overlaps(tag):
+            if value > 0:
                 yield key, self.similarity(tag, key)
 
     def similar_tags(self, tag: H, n: Optional[int] = None) -> list[tuple[H, float]]:
         """
         List the *n* most similar tags to *tag* and their similarity values
-        from the most similar to the least, not including *tag* itself. If *n*
+        from the most similar to the least (including *tag* itself). If *n*
         is None, then list all tags.
         """
-        # Skip tag itself
-        sim = itertools.islice(self.similarities(tag), 1, None)
-        return most_common(sim, n)
+        return most_common(self.similarities(tag), n)
 
     # NULLARY METHODS
 
+    @property
+    def n_sets(self) -> int:
+        return self._n_sets
+
+    @property
+    def counter(self) -> Counter:
+        return Counter({tag: counter[tag] for tag, counter in self._table.items()})
+
     def __len__(self) -> int:
-        return len(self.counter)
+        return len(self._table)
 
     def __iter__(self) -> Iterator[H]:
-        return iter(self.counter)
+        return iter(self._table.keys())
 
     def pairs(self) -> Iterator[tuple[H, H]]:
         """Iterate over all unique tag combinations."""
-        return itertools.combinations(self.counter, 2)
+        return itertools.combinations(self, 2)
 
     def pairs_overlaps(self) -> Iterator[tuple[tuple[H, H], int]]:
         """Iterate over the table.
@@ -1039,7 +1022,7 @@ class OverlapTable(Collection[H]):
         Yield ((x, y), table[x][y]) for every unique pair.
         """
         for x, y in self.pairs():
-            yield (x, y), self.table[x][y]
+            yield (x, y), self._table[x][y]
 
     def frequent_overlaps(
         self, n: Optional[int] = None
@@ -1057,7 +1040,7 @@ class OverlapTable(Collection[H]):
 
         This form can be easily serialized by ``json.JSONEncoder``.
         """
-        return {attr: getattr(self, attr) for attr in ("n_sets", "counter", "table")}
+        return {attr: getattr(self, attr) for attr in ("_n_sets", "_table")}
 
     def to_json_string(self, **kwds: Any) -> str:
         """Serialize the object to a JSON formatted string."""
@@ -1074,9 +1057,10 @@ class OverlapTable(Collection[H]):
         object's data attributes.
         """
         new_table = cls()
-        new_table.n_sets = obj["n_sets"]
-        new_table.counter = Counter(obj["counter"])
-        new_table.table = defaultdict(None, obj["table"])
+        new_table._n_sets = obj["_n_sets"]
+        new_table._table = defaultdict(Counter)
+        for key, counter in obj["_table"].items():
+            new_table._table[key].update(counter)
         return new_table
 
 
