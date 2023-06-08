@@ -561,3 +561,11 @@ def traverse_fs(root: Path, leaves_only: bool = False) -> Iterator[tuple[Path, i
             yield root, file_count
     for child in child_nodes:
         yield from traverse_fs(child, leaves_only=leaves_only)
+
+
+def traverse_main(
+    root: Path, path_field: str, count_field: str, leaves_only: bool = False
+) -> Iterator[gms.Gallery]:
+    for path, count in traverse_fs(root, leaves_only=leaves_only):
+        path_value = path.relative_to(root)
+        yield gms.Gallery({path_field: path_value, count_field: count})

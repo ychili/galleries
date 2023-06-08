@@ -5,33 +5,26 @@
 from __future__ import annotations
 
 import collections
-import csv
+import itertools
 import logging
 import statistics
 from collections.abc import Iterable
 
 from .galleryms import TagSet
-from .util import check_field_names, tagsets_from_rows
 
 log = logging.getLogger(__name__)
 
 
-def tag_counts(tagsets: Iterable[TagSet]) -> collections.Counter[str]:
-    """Return a counter of unique tags in *tagsets*."""
-    counter: collections.Counter[str] = collections.Counter()
-    for tagset in tagsets:
-        counter.update(tagset)
-    return counter
+def tag_counts(tag_sets: Iterable[TagSet]) -> collections.Counter[str]:
+    """Return a counter of unique tags in *tag_sets*."""
+    return collections.Counter(itertools.chain.from_iterable(tag_sets))
 
 
-def count(reader: csv.DictReader, tag_fields: list[str], reverse: bool = False) -> int:
-    """Print tag counts + tag names from *tag_fields* in *reader*.
+def count(tag_sets: Iterable[TagSet], reverse: bool = False) -> int:
+    """Print tag counts + tag names from *tag_sets*.
 
     If *reverse* is True, print in ascending order.
     """
-    if (status := check_field_names(reader.fieldnames, tag_fields)) is not None:
-        return status
-    tag_sets = tagsets_from_rows(reader, tag_fields)
     by_count = tag_counts(tag_sets).most_common()
     # by_count[0][1] is width of largest number in table
     just = len(str(by_count[0][1])) if by_count else 0
@@ -41,11 +34,9 @@ def count(reader: csv.DictReader, tag_fields: list[str], reverse: bool = False) 
     return 0
 
 
-def summarize(reader: csv.DictReader, tag_fields: list[str]) -> int:
-    """Print statistical summary of *tag_fields* in *reader*."""
-    if (status := check_field_names(reader.fieldnames, tag_fields)) is not None:
-        return status
-    tag_sets = list(tagsets_from_rows(reader, tag_fields))
+def summarize(tag_sets: Iterable[TagSet]) -> int:
+    """Print statistical summary of *tag_sets*."""
+    tag_sets = list(tag_sets)
     print("TOTALS")
     print(f"  galleries   {len(tag_sets)}")
     counts = tag_counts(tag_sets).values()

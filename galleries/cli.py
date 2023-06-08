@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import csv
+import functools
 import logging
 import os
 import shutil
@@ -237,21 +238,19 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     path_field = db_config.get("db", "PathField")
     count_field = db_config.get("db", "CountField")
     tag_fields = db_config.get_list("db", "TagFields")
-    if filename != sys.stdout:
-        try:
-            output_file = open(filename, "w", encoding="utf-8", newline="")
-        except OSError as err:
-            log.error("Unable to open CSV file for writing: %s", err)
-            return 1
-        log.info("Writing CSV to file: %s", output_file.name)
-    else:
-        output_file = nullcontext(sys.stdout)
-    with output_file as file:
-        writer = csv.DictWriter(file, fieldnames=[path_field, count_field, *tag_fields])
-        for path, count in refresh.traverse_fs(collection_path, leaves_only=cla.leaves):
-            path_value = path.relative_to(collection_path)
-            gallery = refresh.gms.Gallery({path_field: path_value, count_field: count})
-            writer.writerow(gallery)
+    fieldnames = [path_field, count_field, *tag_fields]
+    galleries = refresh.traverse_main(
+        collection_path,
+        path_field=path_field,
+        count_field=count_field,
+        leaves_only=cla.leaves,
+    )
+    try:
+        util.write_galleries(galleries, fieldnames=fieldnames, file=filename)
+    except OSError as err:
+        log.error("Unable to open CSV file for writing: %s", err)
+        return 1
+    log.info("Wrote CSV to file: %s", filename)
     return 0
 
 
@@ -265,19 +264,22 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
         filename = filename or db_config.get_path("db", "CSVName")
         tag_fields = tag_fields or db_config.get_list("count", "TagFields")
-    if filename != sys.stdin:
-        try:
-            input_file = open(filename, encoding="utf-8", newline="")
-        except OSError as err:
-            log.error("Unable to open CSV file for reading: %s", err)
-            return 1
+    tag_sets = (
+        gallery.merge_tags(*tag_fields)
+        for gallery in util.read_galleries(tag_fields, file=filename)
+    )
+    if cla.summarize:
+        func = tagcount.summarize
     else:
-        input_file = nullcontext(sys.stdin)
-    with input_file as file:
-        reader = csv.DictReader(file)
-        if cla.summarize:
-            return tagcount.summarize(reader, tag_fields)
-        return tagcount.count(reader, tag_fields, cla.reverse)
+        func = functools.partial(tagcount.count, reverse=cla.reverse)
+    try:
+        return func(tag_sets)
+    except OSError as err:
+        log.error("Unable to open CSV file for reading: %s", err)
+        return 1
+    except util.FieldNotFoundError as err:
+        log.error("Field not in file: %s", err)
+        return 1
 
 
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
