@@ -9,9 +9,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import csv
-import json
 import logging
-import math
 import os
 import shutil
 import sys
@@ -39,6 +37,7 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, str]] = {
     },
     "overlaps": {},
     "freq": {"Limit": "20"},
+    "related": {"SortMetric": "cosine", "Filter": ""},
 }
 
 log = logging.getLogger(__name__)
@@ -419,53 +418,16 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
     return errors
 
 
-def overlaps_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
-    """Overlaps sub-command"""
-    tag_fields = cla.fields
+def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
+    tag_fields = cla.field
     input_file = cla.csvfile
-    output_file = cla.output
-    if not tag_fields or not input_file or not output_file:
-        collection_path = config.find_collection(cla.collection)
-        db_config = acquire_db_config(collection_path)
-        if not db_config:
-            return 1
-        tag_fields = tag_fields or db_config.get_list("overlaps", "TagFields")
-        output_dir = get_db_path(
-            collection_path,
-            "overlaps-" + relatedtag.get_field_directory_name(tag_fields),
-        )
-        if cla.clean:
-            return relatedtag.clean_directory(output_dir)
-
-        input_file = input_file or db_config.get_path("overlaps", "CSVName")
-        if not output_file:
-            output_dir.mkdir(exist_ok=True)
-            output_file = relatedtag.get_new_json_filename(output_dir)
-
-    input_file = None if input_file is sys.stdin else input_file
-    output_file = None if output_file is sys.stdout else output_file
-    return relatedtag.create_new_json_file(
-        tag_fields, infile=input_file, outfile=output_file
-    )
-
-
-def freq_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
-    """Freq sub-command"""
-    input_file = cla.jsonfile
     limit = cla.limit
-    if not input_file:
+    sort_by = cla.sort
+    search_terms = cla.where
+    if not tag_fields or not input_file:
         collection_path = config.find_collection(cla.collection)
         db_config = acquire_db_config(collection_path)
         if not db_config:
-            return 1
-        tag_fields = cla.field or db_config.get_list("overlaps", "TagFields")
-        json_dir = get_db_path(
-            collection_path,
-            "overlaps-" + relatedtag.get_field_directory_name(tag_fields),
-        )
-        input_file = relatedtag.get_current_json_filename(json_dir)
-        if not input_file:
-            log.error("JSON files not found in directory: %s", json_dir)
             return 1
         if limit is None:
             try:
@@ -473,34 +435,25 @@ def freq_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             except ValueError as err:
                 log.error("Invalid configuration setting for Limit: %s", err)
                 return 1
-    if input_file != sys.stdin:
-        try:
-            jsonfile = open(input_file, encoding="utf-8")
-        except OSError as err:
-            log.error("Unable to open JSON file for reading: %s", err)
-            return 1
-    else:
-        jsonfile = nullcontext(sys.stdin)
-    with jsonfile as file:
-        try:
-            table = relatedtag.load_from_json(file)
-        except json.JSONDecodeError as err:
-            log.error("Unable to decode JSON file: %s", err)
-            log.debug(err.doc)
-            return 1
-        except (AttributeError, KeyError, TypeError):
-            log.exception(
-                "Unable to create overlap table from JSON file: %s", file.name
-            )
-            return 1
-        log.info(
-            "Table from %s contains %d 2-combinations of %d elements from %d sets",
-            file.name,
-            math.comb(len(table), 2),
-            len(table),
-            table.n_sets,
-        )
-    relatedtag.print_relatedtags(table, cla.tags, limit=limit)
+        tag_fields = tag_fields or db_config.get_list("related", "TagFields")
+        input_file = input_file or db_config.get_path("related", "CSVName")
+        if sort_by is None:
+            sort_by = db_config.get("related", "SortMetric").lower()
+            if sort_by not in relatedtag.SimilarityResult.choices():
+                log.error("Invalid configuration setting for SortMetric: %s", sort_by)
+                return 1
+        search_terms = cla.where or db_config.get_list("related", "Filter")
+
+    try:
+        galleries = util.read_galleries(tag_fields, input_file)
+        tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
+        overlap_table = relatedtag.overlap_table(tag_sets)
+    except OSError:
+        return 1
+    except util.FieldNotFoundError:
+        return 1
+    log.debug("Read from CSV file %r", input_file)
+    relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
     return 0
 
 
@@ -626,18 +579,12 @@ def build_cla_parser() -> argparse.ArgumentParser:
     )
     refresh_p.set_defaults(func=refresh_sc)
 
-    overlaps_p = subparsers.add_parser(
-        "overlaps",
-        help="create table of tag relationships",
-        description="Analyze co-occurrence of tags, create new overlap table.",
+    related_p = subparsers.add_parser("related", help="list related tags")
+    related_p.add_argument(
+        "tags", nargs="+", metavar="TAG", help="list tags similar to %(metavar)s(s)"
     )
-    overlaps_p.add_argument(
-        "-C",
-        "--clean",
-        action="store_true",
-        help="remove overlap tables except the most recent",
-    )
-    overlaps_p.add_argument(
+    related_p.add_argument("-f", "--field", metavar="NAME", action="append")
+    related_p.add_argument(
         "-i",
         "--input",
         metavar="FILE",
@@ -645,52 +592,15 @@ def build_cla_parser() -> argparse.ArgumentParser:
         type=FileType("r"),
         help="read CSV from %(metavar)s (use '-' for standard input)",
     )
-    overlaps_p.add_argument(
-        "-o",
-        "--output",
-        metavar="FILE",
-        type=FileType("w"),
-        help="write overlap table to %(metavar)s (use '-' for standard output)",
+    related_p.add_argument("-l", "--limit", metavar="N", type=int)
+    related_p.add_argument(
+        "-s",
+        "--sort",
+        choices=relatedtag.SimilarityResult.choices(),
+        help="sort results by ...",
     )
-    overlaps_p.add_argument(
-        "fields",
-        nargs="*",
-        metavar="FIELD",
-        help="use %(metavar)s(s) instead of default TagFields",
-    )
-    overlaps_p.set_defaults(func=overlaps_sc)
-
-    freq_p = subparsers.add_parser(
-        "freq",
-        help="list related tags",
-        description="Print frequently co-occurring tags, reading previously-created overlap table.",
-    )
-    freq_p.add_argument(
-        "tags", nargs="+", metavar="TAG", help="list tags similar to %(metavar)s(s)"
-    )
-    freq_p.add_argument(
-        "-f",
-        "--field",
-        metavar="NAME",
-        action="append",
-        help="open the overlap table for field %(metavar)s(s) instead of default TagFields",
-    )
-    freq_p.add_argument(
-        "-i",
-        "--input",
-        metavar="FILE",
-        dest="jsonfile",
-        type=FileType(),
-        help="read overlap table from %(metavar)s (use '-' for standard input)",
-    )
-    freq_p.add_argument(
-        "-l",
-        "--limit",
-        metavar="N",
-        type=int,
-        help="limit number of results per TAG to %(metavar)s (0 for no limit)",
-    )
-    freq_p.set_defaults(func=freq_sc)
+    related_p.add_argument("-w", "--where", metavar="TERM", action="append")
+    related_p.set_defaults(func=related_sc)
 
     general_opts = top_level.add_argument_group(title="general options")
     general_opts.add_argument(

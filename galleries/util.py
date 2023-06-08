@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import logging
+import os
 import re
 import sys
 from collections.abc import Collection, Iterable, Iterator, Sequence
@@ -12,6 +14,45 @@ from typing import Optional, TextIO, Union
 from .galleryms import Gallery, TagSet
 
 log = logging.getLogger(__name__)
+
+
+class FieldNotFoundError(Exception):
+    pass
+
+
+def read_galleries(
+    fieldnames: Iterable[str], file: Optional[os.PathLike] = None
+) -> Iterator[Gallery]:
+    # TODO: add info/debug logs
+    if file is None:
+        file_cm = contextlib.nullcontext(sys.stdin)
+    else:
+        file_cm = open(file, encoding="utf-8", newline="")
+    with file_cm as infile:
+        reader = csv.DictReader(infile)
+        if not reader.fieldnames:
+            return
+        for field in fieldnames:
+            if field not in reader.fieldnames:
+                raise FieldNotFoundError(field)
+        for row in reader:
+            yield Gallery(row)
+
+
+def write_galleries(
+    rows: Iterable[Gallery],
+    fieldnames: Collection[str],
+    file: Optional[os.PathLike] = None,
+) -> None:
+    # TODO: add info/debug logs
+    if file is None:
+        file_cm = contextlib.nullcontext(sys.stdout)
+    else:
+        file_cm = open(file, "w", encoding="utf-8", newline="")
+    with file_cm as outfile:
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def tagsets_from_rows(

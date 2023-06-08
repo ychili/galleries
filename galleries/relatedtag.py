@@ -4,24 +4,113 @@
 
 from __future__ import annotations
 
-import collections
 import csv
+import dataclasses
 import json
 import logging
 import math
-import os
-import re
+import operator
 import sys
-import time
-from collections.abc import Iterable, Sequence
-from contextlib import nullcontext
-from pathlib import Path
-from typing import IO, Optional
+from collections.abc import Iterable, Iterator, Mapping, MutableMapping
+from typing import IO, Any, Optional
 
-from .galleryms import FieldFormat, OverlapTable, StrPath, Tabulator, most_common
-from .util import check_field_names, tagsets_from_rows
+from .galleryms import (
+    FieldFormat,
+    OverlapTable,
+    SimilarityCalculator,
+    Tabulator,
+    TagSet,
+    most_common,
+)
 
 log = logging.getLogger(__name__)
+
+
+class ResultsTable:
+    def __init__(
+        self,
+        tabulator: Optional[Tabulator] = None,
+        header: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        self.tabulator = tabulator or Tabulator({})
+        self.header: Mapping[str, Any] = header or {}
+        self.formats: dict[str, str] = {}
+
+    def add_column(
+        self, name: str, field_fmt: FieldFormat, format_spec: Optional[str] = None
+    ) -> None:
+        self.tabulator.field_fmts[name] = field_fmt
+        if format_spec is not None:
+            self.formats[name] = format_spec
+
+    def rows(
+        self,
+        data: Iterable[MutableMapping[str, Any]],
+        header: Optional[Mapping[str, Any]] = None,
+    ) -> Iterator[str]:
+        rows: list[Mapping[str, Any]] = []
+        if header is not None:
+            rows.append(header)
+        elif self.header:
+            rows.append(self.header)
+        for row in data:
+            for key in row:
+                if format_spec := self.formats.get(key):
+                    row[key] = format(row[key], format_spec)
+            rows.append(row)
+        yield from self.tabulator.tabulate(rows)
+
+    def write_csv(self, data, file, fieldnames, write_header=True) -> None:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerows(data)
+
+
+@dataclasses.dataclass(frozen=True)
+class SimilarityResult:
+    tag: str
+    count: int
+    cosine: float
+    jaccard: float
+    overlap: float
+    frequency: float
+
+    @classmethod
+    def choices(cls) -> list[str]:
+        return [field.name for field in dataclasses.fields(cls)]
+
+
+def make_row(sim: SimilarityCalculator) -> SimilarityResult:
+    return SimilarityResult(
+        tag=sim.tag_b.tag,
+        count=sim.tag_b.count,
+        cosine=sim.cosine_similarity(),
+        jaccard=sim.jaccard_index(),
+        overlap=sim.overlap_coefficient(),
+        frequency=sim.frequency(),
+    )
+
+
+def sort(
+    calculators: Iterable[SimilarityCalculator], sort_by: str, n: Optional[int] = None
+) -> list[SimilarityResult]:
+    result_rows = (make_row(sim) for sim in calculators)
+    return most_common(result_rows, n=n, key=operator.attrgetter(sort_by))
+
+
+def query(
+    table: OverlapTable, tag: str, sort_by: str, limit: Optional[int] = None
+) -> list[SimilarityResult]:
+    try:
+        return sort(table.similarities(tag), sort_by=sort_by, n=limit)
+    except KeyError:
+        nan = float("NaN")
+        return [
+            SimilarityResult(
+                tag=tag, count=0, cosine=nan, jaccard=nan, overlap=nan, frequency=nan
+            )
+        ]
 
 
 def load_from_json(file_object: IO) -> OverlapTable:
@@ -29,27 +118,8 @@ def load_from_json(file_object: IO) -> OverlapTable:
     return OverlapTable.from_json(json.load(file_object))
 
 
-def create_new_json_file(
-    tag_fields: Sequence[str],
-    infile: Optional[os.PathLike] = None,
-    outfile: Optional[os.PathLike] = None,
-) -> int:
-    log.debug("Create new JSON file using tag field(s) %r", tag_fields)
-    if infile is not None:
-        try:
-            input_file = open(infile, encoding="utf-8", newline="")
-        except OSError as err:
-            log.error("Unable to open file for reading: %s", err)
-            return 1
-    else:
-        input_file = nullcontext(sys.stdin)
-    with input_file as csvfile:
-        reader = csv.DictReader(csvfile)
-        fieldnames = reader.fieldnames
-        if (status := check_field_names(fieldnames, tag_fields)) is not None:
-            return status
-        table = OverlapTable(*tagsets_from_rows(reader, tag_fields))
-        log.debug("Read from CSV file %r", csvfile)
+def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
+    table = OverlapTable(*tag_sets)
     log.info(
         "Counted overlaps of %d 2-combinations of %d elements in %d sets "
         "(average %.2f elements per set)",
@@ -58,139 +128,50 @@ def create_new_json_file(
         table.n_sets,
         table.counter.total() / table.n_sets,
     )
-    if outfile is not None:
-        try:
-            output_file = open(outfile, "x", encoding="utf-8")
-        except FileExistsError:
-            log.exception("Refusing to overwrite file: '%s'", outfile)
-            return 1
-        except OSError as err:
-            log.error("Unable to open file for writing: %s", err)
-            return 1
-    else:
-        output_file = nullcontext(sys.stdout)
-    with output_file as jsonfile:
-        table.to_json_stream(jsonfile)
-        log.debug("Wrote to JSON file %r", jsonfile.name)
-    return 0
+    return table
+
+
+def results_table(effect: bool = False) -> ResultsTable:
+    printer = ResultsTable()
+    printer.header = {
+        field.name: field.name.upper() for field in dataclasses.fields(SimilarityResult)
+    }
+    printer.header["frequency"] = "FREQ"  # shorten
+    floatfmt = (FieldFormat(7), ">7.5f")
+    printer.add_column(
+        "tag", FieldFormat(FieldFormat.REM, effect="bold" if effect else "")
+    )
+    printer.add_column("count", FieldFormat(5), ">5d")
+    printer.add_column("cosine", *floatfmt)
+    printer.add_column("jaccard", *floatfmt)
+    printer.add_column("overlap", *floatfmt)
+    printer.add_column("frequency", FieldFormat(4), ">4.0%")
+    return printer
 
 
 def print_relatedtags(
-    table: OverlapTable,
-    tag_names: Sequence[str],
+    data_table: OverlapTable,
+    tag_names: Iterable[str],
+    sort_by: str = "cosine",
     limit: Optional[int] = None,
     file: Optional[IO] = None,
+    printer: Optional[ResultsTable] = None,
 ) -> None:
-    """
-    For each tag in *tag_names*, get related tag data from *table*,
-    and print to *file* a table of related tag data.
-
-    For each tag *A* (including *A* itself) the output table will contain four
-    columns of info:
-
-        1. The name of related tag *B*
-        2. The total count of *B*
-        3. The percent amount of the intersecting counts of *A* and *B*
-           in proportion to the total count of *A*, i.e. n(*A* ∩ *B*) / n(*A*)
-        4. The similarity metric between *A* and *B*
-
-    The output will be sorted according to similarity (column 4) from highest
-    to lowest, optionally limiting results to the *limit* most similar tags.
-    """
     if file is None:
         file = sys.stdout
-    # Disable text effects if output is not a terminal (e.g. a file or pipe)
-    effect = "bold" if file.isatty() else ""
-    field_formats = {
-        "tag": FieldFormat(FieldFormat.REM, effect=effect),
-        "count": FieldFormat(4),
-        "overlap": FieldFormat(4),
-        "similarity": FieldFormat(6),
-    }
-    tabulator = Tabulator(field_formats, total_width=80)
-    rows: list[dict[str, str]] = []
+    if printer is None:
+        # Disable text effects if output is not a terminal
+        # (e.g. a file or pipe)
+        printer = results_table(effect=True if file.isatty() else False)
+    tag_names = list(tag_names)
+    tags_remaining = len(tag_names)
     for tag in tag_names:
-        # Start with a blank line
-        rows.append(collections.defaultdict(str))
-        rows.append(
-            {"tag": "TAG", "count": "  N ", "overlap": " A∩B", "similarity": "SIMIL"}
-        )
-        cardinality = table.count(tag)
-        if not cardinality:
-            # Bad tag
-            rows.append(_format_row(tag))
-            continue
-        for other_tag, similarity in table.similar_tags(tag, n=limit):
-            overlap = table.get(tag, other_tag) / cardinality
-            row = _format_row(
-                other_tag,
-                count=table.count(other_tag),
-                overlap=overlap,
-                similarity=similarity
-            )
-            rows.append(row)
-    for line in tabulator.tabulate(rows):
-        print(line, file=file)
-
-
-def _format_row(
-    tag: str,
-    count: int = 0,
-    overlap: float = float("NaN"),
-    similarity: float = float("NaN"),
-) -> dict[str, str]:
-    row = {"tag": tag}
-    row["count"] = format(count, ">4d")
-    row["overlap"] = format(overlap, ">4.0%")
-    row["similarity"] = format(similarity, ">4.4f")
-    return row
-
-
-def clean_directory(pathname: StrPath) -> int:
-    """
-    Remove *.json files from directory *pathname* except the one with the
-    greatest filename.
-    """
-    path = Path(pathname)
-    if not path.is_dir():
-        log.error(
-            "Unable to clean directory: Does not exist or is not a directory: %s", path
-        )
-        return 1
-    files = list(path.glob("*.json"))
-    if not files:
-        log.info("Nothing to clean: No files in directory: %s", path)
-        return 0
-    files.remove(max(files))
-    for file in files:
-        file.unlink()
-    return 0
-
-
-def get_field_directory_name(names: Iterable[str]) -> str:
-    """For the set of *names*, return one whitespace-free representation.
-
-    >>> get_field_directory_name(["Column B", "Column A"])
-    'ColumnA-ColumnB'
-    """
-    field_names = sorted(set(names))
-    return "-".join(re.sub("\\s+", "", name) for name in field_names)
-
-
-def get_new_json_filename(dir_path: Path) -> Path:
-    datestring = time.strftime("%Y%m%d")
-    incr = 0
-    while True:
-        full_name = dir_path / f"overlaps-{datestring}.{incr}.json"
-        if not full_name.exists():
-            return full_name
-        incr += 1
-
-
-def get_current_json_filename(dir_path: Path) -> Optional[Path]:
-    if not dir_path.is_dir():
-        return None
-    json_files = list(dir_path.glob("*.json"))
-    if not json_files:
-        return None
-    return max(json_files)
+        results = [
+            dataclasses.asdict(result)
+            for result in query(data_table, tag, sort_by=sort_by, limit=limit)
+        ]
+        for line in printer.rows(results):
+            print(line, file=file)
+        tags_remaining -= 1
+        if tags_remaining:
+            print(file=file)
