@@ -34,6 +34,7 @@ from typing import (
     Callable,
     Collection,
     Dict,
+    Generic,
     NamedTuple,
     NewType,
     Optional,
@@ -905,6 +906,31 @@ class Tabulator:
         return val
 
 
+@dataclasses.dataclass
+class TagCount(Generic[H]):
+    tag: H
+    count: int
+
+
+@dataclasses.dataclass
+class SimilarityCalculator:
+    tag_a: TagCount
+    tag_b: TagCount
+    overlap: int
+
+    def cosine_similarity(self) -> float:
+        return self.overlap / math.sqrt(self.tag_a.count * self.tag_b.count)
+
+    def jaccard_index(self) -> float:
+        return self.overlap / (self.tag_a.count + self.tag_b.count - self.overlap)
+
+    def overlap_coefficient(self) -> float:
+        return self.overlap / min([self.tag_a.count, self.tag_b.count])
+
+    def frequency(self) -> float:
+        return self.overlap / self.tag_a.count
+
+
 class OverlapTable(Collection[H]):
     """2D hash table of overlap between tag pairs
 
@@ -930,12 +956,6 @@ class OverlapTable(Collection[H]):
     #
     # The table matrix is symmetrical: table[i][j] == table[j][i]. Either
     # returns the number of galleries that tags i and j have in common.
-    #
-    # Similarity is calculated using cosine similarity, which is defined as
-    # the number of items two sets A and B have in common, divided by
-    # sqrt(||A|| * ||B||), where ||A|| is the size of A. The sqrt of the sizes
-    # can be thought of as a normalizing factor, to normalize the number of
-    # galleries in common to a 0.0 - 1.0 range.
 
     def __init__(self, *sets: Iterable[H]) -> None:
         self._n_sets: int = 0
@@ -958,15 +978,10 @@ class OverlapTable(Collection[H]):
         """Get the number of overlaps between *x* and *y*."""
         return self._table.get(x, {})[y]
 
-    def similarity(self, x: H, y: H, /) -> float:
-        """Calculate similarity between two tags *x* and *y*.
-
-        Inversely, distance(x,y) is equal to 1 - similarity(x,y).
-        If *x* equals *y*, then result is 1.0.
-        """
-        # cosine similarity(tag1, tag2) =
-        #     {{tag1 tag2}} / sqrt({{tag1}} * {{tag2}})
-        return self.get(x, y) / math.sqrt(self.count(x) * self.count(y))
+    def similarity(self, x: H, y: H, /) -> SimilarityCalculator:
+        tag_x = TagCount(x, self.count(x))
+        tag_y = TagCount(y, self.count(y))
+        return SimilarityCalculator(tag_x, tag_y, self.get(x, y))
 
     # UNARY METHODS
 
@@ -982,19 +997,11 @@ class OverlapTable(Collection[H]):
         """
         yield from self._table.get(tag, {}).items()
 
-    def similarities(self, tag: H) -> Iterator[tuple[H, float]]:
-        """Calculate similarity between *tag* and every other tag."""
-        for key, value in self.overlaps(tag):
-            if value > 0:
-                yield key, self.similarity(tag, key)
-
-    def similar_tags(self, tag: H, n: Optional[int] = None) -> list[tuple[H, float]]:
-        """
-        List the *n* most similar tags to *tag* and their similarity values
-        from the most similar to the least (including *tag* itself). If *n*
-        is None, then list all tags.
-        """
-        return most_common(self.similarities(tag), n)
+    def similarities(self, tag: H) -> Iterator[SimilarityCalculator]:
+        tag_a = TagCount(tag, self.count(tag))
+        for other_tag, overlap in self.overlaps(tag):
+            tag_b = TagCount(other_tag, self._table[other_tag][other_tag])
+            yield SimilarityCalculator(tag_a, tag_b, overlap)
 
     # NULLARY METHODS
 
@@ -1031,7 +1038,7 @@ class OverlapTable(Collection[H]):
         List the *n* most likely different tag pairs to overlap and their
         number of overlaps. If *n* is None, then list all tag pairs.
         """
-        return most_common(self.pairs_overlaps(), n)
+        return most_common(self.pairs_overlaps(), key=itemgetter(1), n=n)
 
     # METHODS FOR JSON SERIALIZATION
 
@@ -1077,14 +1084,13 @@ def distribute(n: int, k: int) -> list[int]:
     return arr
 
 
-# Sort by second item in sequence (index=1)
 def most_common(
-    it: Iterable[tuple[T, _Comparable]], n: Optional[int] = None
-) -> list[tuple[T, _Comparable]]:
+    it: Iterable[T], key: Callable[[T], _Comparable], n: Optional[int] = None
+) -> list[T]:
     n = 0 if n is None else n
     if n <= 0:
-        commons = sorted(it, key=itemgetter(1), reverse=True)
+        commons = sorted(it, key=key, reverse=True)
         if n < 0:
             return commons[:n]
         return commons
-    return heapq.nlargest(n, it, key=itemgetter(1))
+    return heapq.nlargest(n, it, key=key)
