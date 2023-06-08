@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import csv
 import dataclasses
-import json
 import logging
 import math
 import operator
@@ -111,11 +110,6 @@ def query(
                 tag=tag, count=0, cosine=nan, jaccard=nan, overlap=nan, frequency=nan
             )
         ]
-
-
-def load_from_json(file_object: IO) -> OverlapTable:
-    """Recreate an ``OverlapTable`` previously serialized to JSON format."""
-    return OverlapTable.from_json(json.load(file_object))
 
 
 def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
