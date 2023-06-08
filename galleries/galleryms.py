@@ -786,15 +786,19 @@ class Tabulator:
         self.padding = padding
         self.left_margin = left_margin
         self.right_margin = right_margin
-        # Create TextWrapper objects for fields with known max width.
-        # _wrappers is NOT ordered like field_fmts is.
-        self._wrappers = {
+
+    def _wrappers(self) -> dict[str, TextWrapper]:
+        """Create TextWrapper objects for fields with known max width.
+
+        _wrappers is *not* ordered like field_fmts is.
+        """
+        return {
             field: TextWrapper(width=fmt.width)
             for field, fmt in self.field_fmts.items()
             if fmt.width != FieldFormat.REMAINING_SPACE
         }
 
-    def tabulate(self, rows: Iterable[dict[str, Any]]) -> Iterator[str]:
+    def tabulate(self, rows: Iterable[Mapping[str, Any]]) -> Iterator[str]:
         """Yield one line of table at a time.
 
         Parameter:
@@ -807,6 +811,8 @@ class Tabulator:
             One str for each line of resulting table
                 If rows is empty, yield nothing.
         """
+        wrappers = self._wrappers()
+
         # Wrap to max widths
         wrapped_rows: list[dict[str, Union[str, list[str]]]] = []
         for row in rows:
@@ -819,7 +825,7 @@ class Tabulator:
                     # textwrap.TextWrapper returns [] on '',
                     # not [''] as expected (Issue15510)
                 elif max_width != FieldFormat.REMAINING_SPACE:
-                    new_row[field] = self._wrappers[field].wrap(text)
+                    new_row[field] = wrappers[field].wrap(text)
                 else:
                     new_row[field] = text
             # Fields not in field_fmts do not get added
@@ -848,7 +854,7 @@ class Tabulator:
         total_used = whitespace_used + sum(sizes.values())
         if total_used <= self.total_width or n_remaining_cols <= 0:
             for field, field_size in sizes.items():
-                self._wrappers[field] = TextWrapper(width=field_size)
+                wrappers[field] = TextWrapper(width=field_size)
         else:
             # Assign remainder to REM
             remainder = (
@@ -865,14 +871,14 @@ class Tabulator:
                 if self.field_fmts[field].width == FieldFormat.REMAINING_SPACE:
                     width = rems.pop(0)
                     sizes[field] = width
-                    self._wrappers[field] = TextWrapper(width=width)
+                    wrappers[field] = TextWrapper(width=width)
 
         # Wrap REM: Rewrap everything
         for row in wrapped_rows:
             for field in sizes:
                 cell = row[field]
                 if isinstance(cell, str):
-                    row[field] = self._wrappers[field].wrap(cell)
+                    row[field] = wrappers[field].wrap(cell)
 
         # wrapped_rows is now List[Dict[str, List[str]]]
         # sizes contains widths of each column
