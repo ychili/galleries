@@ -24,7 +24,7 @@ def read_galleries(
     fieldnames: Iterable[str], file: Optional[os.PathLike] = None
 ) -> Iterator[Gallery]:
     # TODO: add info/debug logs
-    if file is None:
+    if file is None or file == sys.stdin:
         file_cm = contextlib.nullcontext(sys.stdin)
     else:
         file_cm = open(file, encoding="utf-8", newline="")
@@ -45,7 +45,7 @@ def write_galleries(
     file: Optional[os.PathLike] = None,
 ) -> None:
     # TODO: add info/debug logs
-    if file is None:
+    if file is None or file == sys.stdout:
         file_cm = contextlib.nullcontext(sys.stdout)
     else:
         file_cm = open(file, "w", encoding="utf-8", newline="")
