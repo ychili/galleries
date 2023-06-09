@@ -413,6 +413,7 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
 
 
 def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
+    """Related sub-command"""
     tag_fields = cla.field
     input_file = cla.csvfile
     limit = cla.limit

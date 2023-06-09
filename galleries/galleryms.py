@@ -935,11 +935,18 @@ class TagCount(Generic[H]):
 
 @dataclasses.dataclass
 class SimilarityCalculator:
+    """Provide a variety of similarity metrics between two tags.
+
+    Two tags are considered similar if they have nearly the same set of
+    galleries and nearly the same size.
+    """
+
     tag_a: TagCount
     tag_b: TagCount
     overlap: int
 
     def cosine_similarity(self) -> float:
+        """Known as the Otsuka–Ochiai coefficient"""
         return self.overlap / math.sqrt(self.tag_a.count * self.tag_b.count)
 
     def jaccard_index(self) -> float:
@@ -949,19 +956,21 @@ class SimilarityCalculator:
         return self.overlap / min([self.tag_a.count, self.tag_b.count])
 
     def frequency(self) -> float:
+        """How frequently tag A occurs together with tag B"""
         return self.overlap / self.tag_a.count
 
 
 class OverlapTable(Collection[H]):
     """2D hash table of overlap between tag pairs
 
-    Methods allow accessing overlap values, as well as calculating similarity
-    metric. Two tags are similar if they have nearly the same set of
-    galleries, and nearly the same size.
+    Methods allow accessing overlap values, i.e. the number of sets that two
+    tags occur in together, as well as calculating similarity metrics.
 
     >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
     >>> table.get('a', 'b')
     1
+    >>> table.similarity('a', 'b').jaccard_index()
+    0.5
 
     Other properties:
         n_sets: number of input sets

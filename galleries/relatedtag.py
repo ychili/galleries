@@ -101,6 +101,7 @@ def sort(
 def query(
     table: OverlapTable, tag: str, sort_by: str, limit: Optional[int] = None
 ) -> list[SimilarityResult]:
+    """Get similiarity results for *tag* from *table*."""
     try:
         return sort(table.similarities(tag), sort_by=sort_by, n=limit)
     except KeyError:
@@ -129,6 +130,7 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
 
 
 def results_table(effect: bool = False) -> ResultsTable:
+    """Return the ``ResultsTable`` with default settings."""
     printer = ResultsTable()
     printer.header = {
         field.name: field.name.upper() for field in dataclasses.fields(SimilarityResult)
