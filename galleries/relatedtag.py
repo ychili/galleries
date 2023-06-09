@@ -10,7 +10,7 @@ import logging
 import math
 import operator
 import sys
-from collections.abc import Iterable, Iterator, Mapping, MutableMapping
+from collections.abc import Collection, Iterable, Mapping, MutableMapping
 from typing import IO, Any, Optional
 
 from .galleryms import (
@@ -28,9 +28,11 @@ log = logging.getLogger(__name__)
 class ResultsTable:
     def __init__(
         self,
+        file: IO,
         tabulator: Optional[Tabulator] = None,
         header: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        self.file = file
         self.tabulator = tabulator or Tabulator({})
         self.header: Mapping[str, Any] = header or {}
         self.formats: dict[str, str] = {}
@@ -42,11 +44,11 @@ class ResultsTable:
         if format_spec is not None:
             self.formats[name] = format_spec
 
-    def rows(
+    def write_formatted(
         self,
         data: Iterable[MutableMapping[str, Any]],
         header: Optional[Mapping[str, Any]] = None,
-    ) -> Iterator[str]:
+    ) -> None:
         rows: list[Mapping[str, Any]] = []
         if header is not None:
             rows.append(header)
@@ -57,10 +59,19 @@ class ResultsTable:
                 if format_spec := self.formats.get(key):
                     row[key] = format(row[key], format_spec)
             rows.append(row)
-        yield from self.tabulator.tabulate(rows)
+        for line in self.tabulator.tabulate(rows):
+            print(line, file=self.file)
 
-    def write_csv(self, data, file, fieldnames, write_header=True) -> None:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+    def write_blank(self) -> None:
+        print(file=self.file)
+
+    def write_csv(
+        self,
+        data: Iterable[Mapping[str, Any]],
+        fieldnames: Collection[str],
+        write_header: bool = True,
+    ) -> None:
+        writer = csv.DictWriter(self.file, fieldnames=fieldnames)
         if write_header:
             writer.writeheader()
         writer.writerows(data)
@@ -129,9 +140,9 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
     return table
 
 
-def results_table(effect: bool = False) -> ResultsTable:
+def results_table(file: IO, effect: bool = False) -> ResultsTable:
     """Return the ``ResultsTable`` with default settings."""
-    printer = ResultsTable()
+    printer = ResultsTable(file)
     printer.header = {
         field.name: field.name.upper() for field in dataclasses.fields(SimilarityResult)
     }
@@ -161,7 +172,7 @@ def print_relatedtags(
     if printer is None:
         # Disable text effects if output is not a terminal
         # (e.g. a file or pipe)
-        printer = results_table(effect=True if file.isatty() else False)
+        printer = results_table(file, effect=True if file.isatty() else False)
     tag_names = list(tag_names)
     tags_remaining = len(tag_names)
     for tag in tag_names:
@@ -169,8 +180,7 @@ def print_relatedtags(
             dataclasses.asdict(result)
             for result in query(data_table, tag, sort_by=sort_by, limit=limit)
         ]
-        for line in printer.rows(results):
-            print(line, file=file)
+        printer.write_formatted(results)
         tags_remaining -= 1
         if tags_remaining:
-            print(file=file)
+            printer.write_blank()
