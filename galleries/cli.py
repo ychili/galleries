@@ -580,11 +580,21 @@ def build_cla_parser() -> argparse.ArgumentParser:
     )
     refresh_p.set_defaults(func=refresh_sc)
 
-    related_p = subparsers.add_parser("related", help="list related tags")
+    related_p = subparsers.add_parser(
+        "related",
+        help="list related tags",
+        description="Print frequently co-occurring tags",
+    )
     related_p.add_argument(
         "tags", nargs="+", metavar="TAG", help="list tags similar to %(metavar)s(s)"
     )
-    related_p.add_argument("-f", "--field", metavar="NAME", action="append")
+    related_p.add_argument(
+        "-f",
+        "--field",
+        metavar="NAME",
+        action="append",
+        help="analyze tags from %(metavar)s(s) instead of default TagFields",
+    )
     related_p.add_argument(
         "-i",
         "--input",
@@ -593,14 +603,26 @@ def build_cla_parser() -> argparse.ArgumentParser:
         type=FileType("r"),
         help="read CSV from %(metavar)s (use '-' for standard input)",
     )
-    related_p.add_argument("-l", "--limit", metavar="N", type=int)
+    related_p.add_argument(
+        "-l",
+        "--limit",
+        metavar="N",
+        type=int,
+        help="limit number of results per TAG to %(metavar)s (0 for no limit)",
+    )
     related_p.add_argument(
         "-s",
         "--sort",
         choices=relatedtag.SimilarityResult.choices(),
-        help="sort results by ...",
+        help="sort results by metric",
     )
-    related_p.add_argument("-w", "--where", metavar="TERM", action="append")
+    related_p.add_argument(
+        "-w",
+        "--where",
+        metavar="TERM",
+        action="append",
+        help="filter galleries analyzed by search %(metavar)s(s)",
+    )
     related_p.set_defaults(func=related_sc)
 
     general_opts = top_level.add_argument_group(title="general options")
