@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import csv
 import functools
 import logging
 import os
@@ -348,33 +347,29 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     if cla.validate or error_status:
         return error_status
     try:
-        csvfile = open(filename, encoding="utf-8", newline="")
+        reader = util.read_db(filename, gardener.needed_fields)
     except OSError as err:
         log.error("Unable to open CSV file for reading: %s", err)
         return 1
-    with csvfile:
-        reader = csv.DictReader(csvfile)
-        fieldnames = reader.fieldnames
-        if not fieldnames:
-            return 0
-        try:
-            rows = list(gardener.garden_rows(reader, fieldnames=fieldnames))
-        except KeyError as err:
-            log.error("Field not in file: %s", err)
-            return 1
-        except OSError as err:
-            log.error("With %s value: %s", path_field, err)
-            return 1
+    except util.FieldNotFoundError as err:
+        log.error("Field not in file: %s", err)
+        return 1
+    try:
+        with reader as reader:
+            rows = list(gardener.garden_rows(reader))
+    except OSError as err:
+        log.error("With %s value: %s", path_field, err)
+        return 1
+    if not rows:
+        return 0
     rows.sort(key=lambda row: util.alphanum_key(row[path_field].casefold()))
     backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
     log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
-        csvfile = open(filename, "w", encoding="utf-8", newline="")
+        util.write_galleries(rows, fieldnames=reader.fieldnames, file=filename)
     except OSError as err:
         log.error("Unable to open CSV file for writing: %s", err)
         return 1
-    with csvfile:
-        util.write_rows(rows=rows, fieldnames=fieldnames, file=csvfile)
     log.info("Success: Saved refreshed table to '%s'", filename)
     return 0
 

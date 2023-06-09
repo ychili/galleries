@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Hashable, Optional, TypeVar
 
 from . import galleryms as gms
+from . import util
 
 T = TypeVar("T")
 Symbol = TypeVar("Symbol", bound=Hashable)
@@ -86,8 +87,12 @@ class Gardener:
         for field in fields:
             self._set_tag_action(field, implicator.implicate)
 
+    @property
+    def needed_fields(self) -> set[str]:
+        return self._needed_fields
+
     def garden_rows(
-        self, reader: csv.DictReader, fieldnames: Optional[Collection[str]] = None
+        self, reader: gms.Reader, fieldnames: Optional[Collection[str]] = None
     ) -> Iterator[gms.Gallery]:
         """
         After operation parameters have been set, yield gardened galleries.
@@ -95,9 +100,8 @@ class Gardener:
         if fieldnames is not None:
             for field in self._needed_fields:
                 if field not in fieldnames:
-                    raise KeyError(field)
-        for row in reader:
-            gallery = gms.Gallery(row)
+                    raise util.FieldNotFoundError(field)
+        for gallery in reader:
             self._do_count(gallery)
             for field, actions in self._tag_fields.items():
                 tags = gallery.normalize_tags(field)
