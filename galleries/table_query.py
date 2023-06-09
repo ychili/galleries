@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
-import csv
+import enum
 import locale
 import logging
 import shlex
 import shutil
 import sys
-from enum import Enum
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Iterable, TextIO, TypeVar, Union
+from typing import Optional, TextIO, TypeVar, Union
 
 from . import galleryms as gms
 from . import util
@@ -22,7 +22,11 @@ FmtType = TypeVar("FmtType", bound="Format")
 log = logging.getLogger(__name__)
 
 
-class Format(Enum):
+class SearchTermError(ValueError):
+    pass
+
+
+class Format(enum.Enum):
     NONE = "none"
     FORMAT = "format"
     AUTO = "auto"
@@ -46,21 +50,17 @@ def auto_format(enum: Format) -> bool:
     return enum == Format.FORMAT or enum == Format.AUTO and sys.stdout.isatty()
 
 
-def main(
-    reader: csv.DictReader,
-    args: list[str],
-    tag_fields: list[str],
-    field_formats: dict[str, gms.FieldFormat],
-) -> int:
-    parser = gms.ArgumentParser(default_tag_fields=tag_fields)
+def query_from_args(
+    args: Iterable[str],
+    fieldnames: Sequence[str],
+    default_tag_fields: Optional[Iterable[str]] = None,
+) -> gms.Query:
+    parser = gms.ArgumentParser(default_tag_fields=default_tag_fields)
     try:
         query = parser.parse_args(args)
     except ValueError as err:
         log.error("Invalid search term: '%s'", err)
-        return 1
-    fieldnames = reader.fieldnames
-    if not fieldnames:
-        return 0
+        raise SearchTermError(err) from err
     for search_term in query.all_terms():
         if not search_term.fields:
             log.error(
@@ -68,17 +68,21 @@ def main(
                 "if no --field argument(s) are provided: %s",
                 search_term,
             )
-            return 1
+            raise SearchTermError(search_term)
         try:
             search_term.disambiguate_fields(fieldnames=fieldnames)
         except ValueError as err:
             log.error("Cannot disambiguate field specifier: %s", err)
-            return 1
+            raise SearchTermError(search_term) from err
     log.debug(query)
-    matched_rows = (
-        gallery for row in reader if query.match(gallery := gms.Gallery(row))
-    )
+    return query
 
+
+def main(
+    galleries: Iterable[gms.Gallery],
+    fieldnames: Sequence[str],
+    field_formats: Optional[Mapping[str, gms.FieldFormat]] = None,
+) -> int:
     if field_formats:
         for field in field_formats:
             if field not in fieldnames:
@@ -86,20 +90,20 @@ def main(
                     "Field name from FieldFormats file not found in input: %s", field
                 )
                 return 1
-        galleries = list(matched_rows)
+        galleries = list(galleries)
         gallery_total = len(galleries)
         log.info(
             "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
         )
         print_formatted(galleries, field_formats)
     else:
-        util.write_rows(matched_rows, fieldnames=fieldnames)
+        util.write_galleries(galleries, fieldnames=fieldnames)
     return 0
 
 
 def print_formatted(
     rows: Iterable[gms.Gallery],
-    field_formats: dict[str, gms.FieldFormat],
+    field_formats: Mapping[str, gms.FieldFormat],
     file: TextIO = sys.stdout,
 ) -> None:
     """Write *rows* to *file* in wrapped columns."""

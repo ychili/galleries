@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import fnmatch
 import heapq
@@ -307,6 +308,20 @@ class Gallery(Dict[str, Any]):
         )
 
 
+class Reader(Iterable[Gallery]):
+    def __init__(self, reader: Optional[csv.DictReader] = None) -> None:
+        if reader is None:
+            self._reader = ()
+            self.fieldnames = ()
+        else:
+            self._reader = reader
+            self.fieldnames = reader.fieldnames
+
+    def __iter__(self) -> Iterator[Gallery]:
+        for row in self._reader:
+            yield Gallery(row)
+
+
 class SearchTerm(ABC):
     """Base class for a search term that can match galleries"""
 
@@ -546,7 +561,7 @@ class ArgumentParser:
         "le": operator.le,
     }
 
-    def __init__(self, default_tag_fields: Optional[Sequence[str]] = None) -> None:
+    def __init__(self, default_tag_fields: Optional[Iterable[str]] = None) -> None:
         self.default_tag_fields = tuple(default_tag_fields or ())
         self.compile()
 

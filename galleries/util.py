@@ -11,7 +11,7 @@ import sys
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from typing import Optional, TextIO, Union
 
-from .galleryms import Gallery, TagSet
+from .galleryms import Gallery, Reader, TagSet
 
 log = logging.getLogger(__name__)
 
@@ -20,23 +20,23 @@ class FieldNotFoundError(Exception):
     pass
 
 
-def read_galleries(
-    fieldnames: Iterable[str], file: Optional[os.PathLike] = None
-) -> Iterator[Gallery]:
-    # TODO: add info/debug logs
+@contextlib.contextmanager
+def read_db(
+    file: Optional[os.PathLike] = None, fieldnames: Optional[Iterable[str]] = None
+) -> Iterator[Reader]:
     if file is None or file == sys.stdin:
         file_cm = contextlib.nullcontext(sys.stdin)
     else:
         file_cm = open(file, encoding="utf-8", newline="")
     with file_cm as infile:
         reader = csv.DictReader(infile)
-        if not reader.fieldnames:
-            return
-        for field in fieldnames:
-            if field not in reader.fieldnames:
-                raise FieldNotFoundError(field)
-        for row in reader:
-            yield Gallery(row)
+        if reader.fieldnames:
+            for field in fieldnames or ():
+                if field not in reader.fieldnames:
+                    raise FieldNotFoundError(field)
+            yield Reader(reader)
+        else:
+            yield Reader()
 
 
 def write_galleries(

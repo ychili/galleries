@@ -114,14 +114,17 @@ def query(
 
 def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
     table = OverlapTable(*tag_sets)
-    log.info(
-        "Counted overlaps of %d 2-combinations of %d elements in %d sets "
-        "(average %.2f elements per set)",
-        math.comb(len(table), 2),
-        len(table),
-        table.n_sets,
-        table.counter.total() / table.n_sets,
-    )
+    if table:
+        log.info(
+            "Counted overlaps of %d 2-combinations of %d elements in %d sets "
+            "(average %.2f elements per set)",
+            math.comb(len(table), 2),
+            len(table),
+            table.n_sets,
+            table.counter.total() / table.n_sets,
+        )
+    else:
+        log.info("No elements counted!")
     return table
 
 

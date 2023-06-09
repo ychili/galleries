@@ -15,7 +15,6 @@ import os
 import shutil
 import sys
 from collections.abc import Iterable
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Optional, TextIO, Union
 
@@ -36,9 +35,7 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, str]] = {
         "Format": "none",
         "FieldFormats": "tableformat.conf",
     },
-    "overlaps": {},
-    "freq": {"Limit": "20"},
-    "related": {"SortMetric": "cosine", "Filter": ""},
+    "related": {"SortMetric": "cosine", "Filter": "", "Limit": "20"},
 }
 
 log = logging.getLogger(__name__)
@@ -264,16 +261,14 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
         filename = filename or db_config.get_path("db", "CSVName")
         tag_fields = tag_fields or db_config.get_list("count", "TagFields")
-    tag_sets = (
-        gallery.merge_tags(*tag_fields)
-        for gallery in util.read_galleries(tag_fields, file=filename)
-    )
     if cla.summarize:
         func = tagcount.summarize
     else:
         func = functools.partial(tagcount.count, reverse=cla.reverse)
     try:
-        return func(tag_sets)
+        with util.read_db(filename, tag_fields) as reader:
+            tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
+            return func(tag_sets)
     except OSError as err:
         log.error("Unable to open CSV file for reading: %s", err)
         return 1
@@ -310,24 +305,21 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             except OSError as err:
                 log.error("Unable to open FieldFormats file: %s", err)
                 return 1
-    if filename != sys.stdin:
-        try:
-            input_file = open(filename, encoding="utf-8", newline="")
-        except OSError as err:
-            log.error("Unable to open CSV file for reading: %s", err)
-            return 1
-    else:
-        input_file = nullcontext(sys.stdin)
-    with input_file as file:
-        try:
-            return table_query.main(
-                csv.DictReader(file), cla.term, tag_fields, field_fmts
-            )
-        except BrokenPipeError:
-            # Even though BrokenPipeError was caught, suppress the error
-            # message by closing stderr before exiting.
-            sys.stderr.close()
-            return 0
+    try:
+        with util.read_db(filename) as reader:
+            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
+            galleries = (gallery for gallery in reader if query.match(gallery))
+            return table_query.main(galleries, reader.fieldnames, field_fmts)
+    except BrokenPipeError:
+        # Even though BrokenPipeError was caught, suppress the error
+        # message by closing stderr before exiting.
+        sys.stderr.close()
+        return 0
+    except OSError as err:
+        log.error("Unable to open CSV file for reading: %s", err)
+        return 1
+    except table_query.SearchTermError:
+        return 1
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -433,7 +425,7 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
         if limit is None:
             try:
-                limit = db_config.getint("freq", "Limit")
+                limit = db_config.getint("related", "Limit")
             except ValueError as err:
                 log.error("Invalid configuration setting for Limit: %s", err)
                 return 1
@@ -447,12 +439,23 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         search_terms = cla.where or db_config.get_list("related", "Filter")
 
     try:
-        galleries = util.read_galleries(tag_fields, input_file)
-        tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
-        overlap_table = relatedtag.overlap_table(tag_sets)
-    except OSError:
+        with util.read_db(input_file, tag_fields) as reader:
+            if search_terms:
+                query = table_query.query_from_args(
+                    search_terms, reader.fieldnames, tag_fields
+                )
+                galleries = (gallery for gallery in reader if query.match(gallery))
+            else:
+                galleries = reader
+            tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
+            overlap_table = relatedtag.overlap_table(tag_sets)
+    except OSError as err:
+        log.error("Unable to open CSV file for reading: %s", err)
         return 1
-    except util.FieldNotFoundError:
+    except util.FieldNotFoundError as err:
+        log.error("Field not in file: %s", err)
+        return 1
+    except table_query.SearchTermError:
         return 1
     log.debug("Read from CSV file %r", input_file)
     relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
@@ -701,6 +704,8 @@ def join_semicolon_list(items: Iterable[str]) -> str:
 
 
 def split_semicolon_list(value: str) -> list[str]:
+    if not value:
+        return []
     return [item.strip() for item in value.split(";")]
 
 
