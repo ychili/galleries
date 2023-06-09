@@ -8,10 +8,10 @@ import logging
 import os
 import re
 import sys
-from collections.abc import Collection, Iterable, Iterator, Sequence
-from typing import Optional, TextIO, Union
+from collections.abc import Collection, Iterable, Iterator
+from typing import Optional, Union
 
-from .galleryms import Gallery, Reader, TagSet
+from .galleryms import Gallery, Reader
 
 log = logging.getLogger(__name__)
 
@@ -53,42 +53,6 @@ def write_galleries(
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
-
-
-def tagsets_from_rows(
-    rows: Iterable[dict[str, str]], tag_fields: Sequence[str]
-) -> Iterator[TagSet]:
-    for row in rows:
-        yield Gallery(row).merge_tags(*tag_fields)
-
-
-def write_rows(
-    rows: Iterable[Gallery], fieldnames: Sequence[str], file: TextIO = sys.stdout
-) -> None:
-    """Write *rows* to *file* in unformatted CSV."""
-    dict_writer = csv.DictWriter(file, fieldnames=fieldnames)
-    dict_writer.writeheader()
-    dict_writer.writerows(rows)
-
-
-def check_field_names(
-    fieldnames: Optional[Collection[str]], tag_fields: Sequence[str]
-) -> Optional[int]:
-    """Check that all *tag_fields* are in *fieldnames*.
-
-    Returns:
-        0 if *fieldnames* is empty or None
-        1 if a tag field could not be found in *fieldnames*
-        None if okay
-    """
-    log.debug("fieldnames from file: %r", fieldnames)
-    if not fieldnames:
-        return 0
-    for field in tag_fields:
-        if field not in fieldnames:
-            log.error("Field not in file: %s", field)
-            return 1
-    return None
 
 
 def atoi(s: str) -> Union[int, str]:
