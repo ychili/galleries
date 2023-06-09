@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import abc
 import csv
 import dataclasses
 import fnmatch
@@ -13,8 +14,8 @@ import json
 import math
 import operator
 import re
+import textwrap
 import warnings
-from abc import ABC, abstractmethod
 from collections import ChainMap, Counter, defaultdict
 from collections.abc import (
     Hashable,
@@ -26,9 +27,7 @@ from collections.abc import (
     MutableSet,
     Sequence,
 )
-from operator import itemgetter
 from pathlib import Path
-from textwrap import TextWrapper
 from typing import (
     IO,
     Any,
@@ -322,12 +321,12 @@ class Reader(Iterable[Gallery]):
             yield Gallery(row)
 
 
-class SearchTerm(ABC):
+class SearchTerm(abc.ABC):
     """Base class for a search term that can match galleries"""
 
     fields: list[str] = []
 
-    @abstractmethod
+    @abc.abstractmethod
     def match(
         self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
     ) -> Any:
@@ -637,8 +636,8 @@ class ArgumentParser:
         raise ValueError
 
 
-class BaseImplication(ABC):
-    @abstractmethod
+class BaseImplication(abc.ABC):
+    @abc.abstractmethod
     def match(self, tag: str) -> Optional[str]:
         pass
 
@@ -802,13 +801,13 @@ class Tabulator:
         self.left_margin = left_margin
         self.right_margin = right_margin
 
-    def _wrappers(self) -> dict[str, TextWrapper]:
+    def _wrappers(self) -> dict[str, textwrap.TextWrapper]:
         """Create TextWrapper objects for fields with known max width.
 
         _wrappers is *not* ordered like field_fmts is.
         """
         return {
-            field: TextWrapper(width=fmt.width)
+            field: textwrap.TextWrapper(width=fmt.width)
             for field, fmt in self.field_fmts.items()
             if fmt.width != FieldFormat.REMAINING_SPACE
         }
@@ -869,7 +868,7 @@ class Tabulator:
         total_used = whitespace_used + sum(sizes.values())
         if total_used <= self.total_width or n_remaining_cols <= 0:
             for field, field_size in sizes.items():
-                wrappers[field] = TextWrapper(width=field_size)
+                wrappers[field] = textwrap.TextWrapper(width=field_size)
         else:
             # Assign remainder to REM
             remainder = (
@@ -886,7 +885,7 @@ class Tabulator:
                 if self.field_fmts[field].width == FieldFormat.REMAINING_SPACE:
                     width = rems.pop(0)
                     sizes[field] = width
-                    wrappers[field] = TextWrapper(width=width)
+                    wrappers[field] = textwrap.TextWrapper(width=width)
 
         # Wrap REM: Rewrap everything
         for row in wrapped_rows:
@@ -1068,7 +1067,7 @@ class OverlapTable(Collection[H]):
         List the *n* most likely different tag pairs to overlap and their
         number of overlaps. If *n* is None, then list all tag pairs.
         """
-        return most_common(self.pairs_overlaps(), key=itemgetter(1), n=n)
+        return most_common(self.pairs_overlaps(), key=operator.itemgetter(1), n=n)
 
     # METHODS FOR JSON SERIALIZATION
 
