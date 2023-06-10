@@ -1,3 +1,4 @@
+import operator
 import unittest
 
 import galleries.galleryms
@@ -51,6 +52,62 @@ class TestImplicationGraph(unittest.TestCase):
         self._assert_cycle({1: {2}, 2: {1}, 3: {4}, 4: {5}, 6: {7}, 7: {6}}, [1, 2, 1])
         # Cycle in the middle of the graph
         self._assert_cycle({1: {2}, 2: {3}, 3: {2, 4}, 4: {5}}, [2, 3, 2])
+
+
+class TestSimilarityCalculator(unittest.TestCase):
+    TYPICAL_COUNTS = (
+        galleries.galleryms.TagCount("a", 15),
+        galleries.galleryms.TagCount("b", 20),
+    )
+    B_IS_ZERO = (
+        galleries.galleryms.TagCount("a", 4),
+        galleries.galleryms.TagCount("b", 0),
+    )
+
+    @staticmethod
+    def _make(tag_count_a, tag_count_b, overlap):
+        return galleries.galleryms.SimilarityCalculator(
+            tag_count_a, tag_count_b, overlap
+        )
+
+    def test_no_overlap(self):
+        """Where A and B are disjoint"""
+        no_overlap = self._make(*self.TYPICAL_COUNTS, overlap=0)
+        method_names = [
+            "cosine_similarity",
+            "jaccard_index",
+            "overlap_coefficient",
+            "frequency",
+        ]
+        # All zero
+        for func in map(operator.methodcaller, method_names):
+            self.assertEqual(func(no_overlap), 0.0)
+
+    def test_partial_overlap(self):
+        """Where A and B intersect"""
+        partial = self._make(*self.TYPICAL_COUNTS, overlap=1)
+        self.assertAlmostEqual(partial.cosine_similarity(), 0.05773502691896257)
+        self.assertAlmostEqual(partial.jaccard_index(), 0.029411764705882353)
+        self.assertAlmostEqual(partial.overlap_coefficient(), 0.06666666666666667)
+        self.assertAlmostEqual(partial.frequency(), 0.06666666666666667)
+
+    def test_subset(self):
+        """Where A is a subset of B"""
+        subset = self._make(*self.TYPICAL_COUNTS, overlap=15)
+        self.assertAlmostEqual(subset.cosine_similarity(), 0.8660254037844386)
+        self.assertAlmostEqual(subset.jaccard_index(), 0.75)
+        self.assertEqual(subset.overlap_coefficient(), 1.0)
+        self.assertEqual(subset.frequency(), 1.0)
+
+    def test_empty(self):
+        """Where B is empty"""
+        zero = self._make(*self.B_IS_ZERO, overlap=0)
+        with self.assertRaises(ZeroDivisionError):
+            zero.cosine_similarity()
+        self.assertEqual(zero.jaccard_index(), 0.0)
+        with self.assertRaises(ZeroDivisionError):
+            zero.overlap_coefficient()
+        self.assertEqual(zero.frequency(), 0.0)
 
 
 if __name__ == "__main__":
