@@ -411,15 +411,9 @@ is connected to a terminal (and not, for example, a pipe).
 Analyzing tag relationships
 ---------------------------
 
-The ``overlaps`` and ``freq`` commands are used for analyzing the
+The ``related`` command can be used to analyze the relative
 co-occurrence of different tags.
-First, run ``galleries overlaps`` to generate an overlap table for
-one or more tag fields.
-An overlap table contains the number of times two tags
-co-occur in a gallery, i.e. overlap.
-The overlap table is stored in JSON format.
-Then, run ``galleries freq`` to print a list of tags that frequently
-co-occur with a given tag or tags.
+It prints a list of tags that frequently co-occur with a given tag or tags.
 
 Global configuration
 ====================
