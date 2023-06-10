@@ -91,7 +91,9 @@ class Gardener:
         return self._needed_fields
 
     def garden_rows(
-        self, reader: gms.Reader, fieldnames: Optional[Collection[str]] = None
+        self,
+        reader: Iterable[gms.Gallery],
+        fieldnames: Optional[Collection[str]] = None,
     ) -> Iterator[gms.Gallery]:
         """
         After operation parameters have been set, yield gardened galleries.

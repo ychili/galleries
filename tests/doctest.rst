@@ -53,7 +53,7 @@ Test the ``refresh.Gardener``.
 >>> from galleries.refresh import Gardener
 >>> gard = Gardener()
 >>> gard.set_normalize_tags("Field1", "Field2")
->>> rows = [{"Field1": " tag2 tag1", "Field2": "TAG3 TAG4"}]
+>>> rows = [Gallery(Field1=" tag2 tag1", Field2="TAG3 TAG4")]
 >>> for gallery in gard.garden_rows(rows):
 ...     str(gallery["Field1"]), str(gallery["Field2"])
 ...
