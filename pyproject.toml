@@ -22,3 +22,7 @@ max-line-length = 100
 [tool.pylint.string]
 check-quote-consistency = true
 check-str-concat-over-line-jumps = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
