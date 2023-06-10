@@ -332,7 +332,7 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     filename = db_config.get_path("db", "CSVName")
     tag_fields = db_config.get_list("refresh", "TagFields")
     gardener.set_normalize_tags(*tag_fields)
-    backup_suffix = db_config.get("refresh", "BackupSuffix")
+    backup_suffix = cla.suffix or db_config.get("refresh", "BackupSuffix")
     # Second, acquire values for Update file count, if requested
     path_field = db_config.get("refresh", "PathField")
     count_field = db_config.get("refresh", "CountField")
@@ -568,6 +568,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
         help="update the table",
         description="Update galleries' info, garden tags.",
     )
+    refresh_p.add_argument("--suffix", help="override the usual backup suffix")
     refresh_p.add_argument(
         "--no-check",
         action="store_true",
