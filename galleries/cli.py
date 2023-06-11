@@ -280,7 +280,7 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Query sub-command"""
     filename = cla.csvfile
     tag_fields = cla.field
-    fmt = table_query.auto_format(cla.format)
+    fmt = table_query.auto_format(cla.format) or cla.field_formats
     field_fmts = {}
     if fmt or not filename:
         db_config = acquire_db_config(config.find_collection(cla.collection))
@@ -298,7 +298,7 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 return 1
             fmt = table_query.auto_format(format_from_config)
         if fmt:
-            fmts_file = db_config.get_path("query", "FieldFormats")
+            fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
             try:
                 field_fmts = table_query.parse_field_format_file(fmts_file)
             except OSError as err:
@@ -559,6 +559,9 @@ def build_cla_parser() -> argparse.ArgumentParser:
         dest="csvfile",
         type=FileType(),
         help="read CSV from %(metavar)s (use '-' for standard input)",
+    )
+    query_p.add_argument(
+        "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"
     )
     query_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     query_p.set_defaults(func=query_sc)
