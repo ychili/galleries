@@ -593,7 +593,7 @@ class ArgumentParser:
         """
         self._regex = re.compile(re_pattern, re.VERBOSE | re.IGNORECASE)
 
-    def parse_args(self, args: Sequence[str]) -> Query:
+    def parse_args(self, args: Iterable[str]) -> Query:
         """Parse a series of argument tokens."""
         conjuncts, negations, disjuncts = [], [], []
         for argument in args:
