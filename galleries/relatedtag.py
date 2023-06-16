@@ -172,7 +172,7 @@ def print_relatedtags(
     if printer is None:
         # Disable text effects if output is not a terminal
         # (e.g. a file or pipe)
-        printer = results_table(file, effect=True if file.isatty() else False)
+        printer = results_table(file, effect=file.isatty())
     log.debug("sorting results by: %s", sort_by)
     tag_names = list(tag_names)
     tags_remaining = len(tag_names)
