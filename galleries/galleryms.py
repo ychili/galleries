@@ -314,7 +314,7 @@ class Reader(Iterable[Gallery]):
             self.fieldnames = ()
         else:
             self._reader = reader
-            self.fieldnames = reader.fieldnames
+            self.fieldnames = tuple(reader.fieldnames or ())
 
     def __iter__(self) -> Iterator[Gallery]:
         for row in self._reader:
