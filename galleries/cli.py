@@ -8,19 +8,28 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import contextlib
+import dataclasses
 import functools
 import logging
 import os
 import shutil
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Optional, TextIO, Union
 
 from . import __prog__, __version__, refresh, relatedtag, table_query, tagcount, util
 
+StrPath = Union[str, Path]
+
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
+DEFAULT_PATH_SPEC = {"GalleriesDir": DB_DIR_NAME, "ConfigName": DB_CONFIG_NAME}
+DEFAULT_GLOBAL_CONFIG: dict[str, dict[str, Any]] = {
+    "global": {"Verbose": False},
+    "init": {},
+}
 DEFAULT_CONFIG_STATE: dict[str, dict[str, str]] = {
     "db": {
         "CSVName": "db.csv",
@@ -65,68 +74,86 @@ class FileType:
 class GlobalConfig:
     def __init__(
         self,
-        collections: Optional[dict[str, Path]] = None,
-        default: Optional[str] = None,
-        verbose: Optional[bool] = None,
-        init: Optional[Any] = None,
+        options_p: Optional[configparser.ConfigParser] = None,
+        collections_p: Optional[configparser.ConfigParser] = None,
     ) -> None:
-        self.collections = collections or {}
-        self.default = default
-        self.verbose = verbose
-        self.init = init or {}
+        if options_p is None:
+            self.options = configparser.ConfigParser(
+                interpolation=configparser.ExtendedInterpolation()
+            )
+        else:
+            self.options = options_p
+        if collections_p is None:
+            self.collections = configparser.ConfigParser(
+                defaults=DEFAULT_PATH_SPEC,
+                interpolation=configparser.ExtendedInterpolation(),
+            )
+        else:
+            self.collections = collections_p
 
-    def _disambiguate_collection_name(self, name: str) -> Optional[Path]:
-        name = name.casefold()
-        if exact_match := self.collections.get(name):
-            return exact_match
-        prefix_matches = [
-            coll
-            for coll in sorted(self.collections)
-            if coll.casefold().startswith(name)
-        ]
-        if prefix_matches:
-            return self.collections[prefix_matches[0]]
-        return None
-
-    def find_collection(self, name: Optional[str] = None) -> Path:
-        """
-        If *name* is given, look it up in collections. If missing, return
-        *name* as a ``Path``.
-        If *name* is not given, use default name or, if no default name,
-        return current directory.
-        """
-        name = name or self.default
-        if name:
-            if lookup := self._disambiguate_collection_name(name):
-                return lookup
-            return Path(name)
-        return Path.cwd()
-
-
-class DBConfig(configparser.ConfigParser):
-    """Parse the configuration for the collection rooted at *collection_path*."""
-
-    def __init__(self, collection_path: Path, **kwds: Any) -> None:
-        super().__init__(
-            **kwds,
-            default_section="db",
-            interpolation=configparser.ExtendedInterpolation(),
+    def get_collections(self) -> CollectionFinder:
+        finder = CollectionFinder(
+            default_settings=self.collections[self.collections.default_section]
         )
-        self.collection_path = collection_path
-        self.read_dict(DEFAULT_CONFIG_STATE)
+        try:
+            default_collection = self.options["global"]["Default"]
+        except KeyError:
+            default_collection = None
+        else:
+            if not self.collections.has_section(default_collection.casefold()):
+                log.warning(
+                    "Default collection not found in collections: %s",
+                    default_collection,
+                )
+                default_collection = None
+        finder.default_name = default_collection
+        for section in self.collections.sections():
+            if path_spec := self._spec_from_section(section):
+                finder.add_collection(path_spec)
+        return finder
+
+    def _spec_from_section(self, section: str) -> Optional[CollectionPathSpec]:
+        try:
+            root = self.collections[section]["Root"]
+        except KeyError:
+            log.warning("Each section in collections must have a Root")
+            return None
+        collection_path = Path(root).expanduser()
+        if not collection_path.is_absolute():
+            log.warning("Root is not absolute path: %s", collection_path)
+            return None
+        return collection_path_spec(
+            collection_path=collection_path,
+            subdir_name=self.collections[section]["GalleriesDir"],
+            config_name=self.collections[section]["ConfigName"],
+            name=section,
+        )
+
+
+class DBConfig:
+    def __init__(
+        self,
+        paths: CollectionPathSpec,
+        parser: Optional[configparser.ConfigParser] = None,
+    ) -> None:
+        self.paths = paths
+        if parser is None:
+            self.parser = configparser.ConfigParser(
+                default_section="db", interpolation=configparser.ExtendedInterpolation()
+            )
+        else:
+            self.parser = parser
+        self.parser.read_dict(DEFAULT_CONFIG_STATE)
 
     def get_list(self, section: str, option: str, **kwds: Any) -> list[str]:
-        return split_semicolon_list(self.get(section, option, **kwds))
+        return split_semicolon_list(self.parser.get(section, option, **kwds))
 
     def get_path(self, section: str, option: str, **kwds: Any) -> Path:
-        return get_db_path(self.collection_path, self.get(section, option, **kwds))
+        return self.paths.get_db_path(self.parser.get(section, option, **kwds))
 
     def get_multi_paths(self, section: str, option: str) -> list[Path]:
-        if val := self[section].get(option):
-            return [
-                get_db_path(self.collection_path, name)
-                for name in split_semicolon_list(val)
-            ]
+        if val := self.parser[section].get(option):
+            return [self.paths.get_db_path(name) for name in split_semicolon_list(val)]
         return []
 
     def get_implicating_fields(
@@ -135,36 +162,109 @@ class DBConfig(configparser.ConfigParser):
         if tag_fields is None:
             tag_fields = self.get_list("refresh", "TagFields")
         implicating_fields = set(tag_fields)
-        if val := self["refresh"].get("ImplicatingFields"):
+        if val := self.parser["refresh"].get("ImplicatingFields"):
             arguments = frozenset(split_semicolon_list(val))
             if not arguments.issubset(implicating_fields):
                 log.warning(
-                    "in configuration ImplicatingFields is not a subset of TagFields"
+                    "in %s: ImplicatingFields is not a subset of TagFields",
+                    self.paths.config,
                 )
             implicating_fields &= arguments
         return implicating_fields
 
 
-def acquire_db_config(collection_path: Path) -> Optional[DBConfig]:
-    """
-    If *collection_path* represents a valid collection, construct and return
-    ``DBConfig`` for that collection's configuration, else return ``None``.
-    """
-    config_path = get_db_path(collection_path)
-    if not config_path.is_file():
-        log.error("No valid collection found at path: %s", config_path)
+@dataclasses.dataclass(frozen=True)
+class CollectionPathSpec:
+    name: Optional[str]
+    collection: Path
+    subdir: Path
+    config: Path
+
+    def get_db_path(self, filename: StrPath) -> Path:
+        return self.subdir / filename
+
+    def acquire_db_config(self) -> Optional[DBConfig]:
+        """
+        If this represents a valid collection, construct and return
+        ``DBConfig`` for that collection's configuration, else return ``None``.
+        """
+        if not self.config.is_file():
+            log.error("No valid collection found at path: %s", self.config)
+            return None
+        config = DBConfig(paths=self)
+        if not config.parser.read(self.config):
+            log.error("Unable to read configuration from file: %s", self.config)
+        log.debug("Using collection_path: %r", self.config)
+        return config
+
+
+class CollectionFinder:
+    def __init__(
+        self,
+        collections: Optional[Iterable[CollectionPathSpec]] = None,
+        default_name: Optional[str] = None,
+        default_settings: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        self.default_name = default_name
+        if default_settings is not None:
+            self.default_settings = default_settings
+        else:
+            self.default_settings = DEFAULT_PATH_SPEC
+        self._collection_names: dict[str, CollectionPathSpec] = {}
+        self._collection_paths: dict[Path, CollectionPathSpec] = {}
+        if collections is not None:
+            for spec in collections:
+                self.add_collection(spec)
+
+    def add_collection(self, path_spec: CollectionPathSpec) -> None:
+        if path_spec.name is not None:
+            self._collection_names[path_spec.name] = path_spec
+        self._collection_paths[path_spec.collection] = path_spec
+
+    def _disambiguate_collection_name(self, name: str) -> Optional[CollectionPathSpec]:
+        name = name.casefold()
+        if exact_match := self._collection_names.get(name):
+            return exact_match
+        prefix_matches = [
+            coll
+            for coll in sorted(self._collection_names)
+            if coll.casefold().startswith(name)
+        ]
+        if prefix_matches:
+            return self._collection_names[prefix_matches[0]]
         return None
-    parser = DBConfig(collection_path=collection_path)
-    if not parser.read(config_path):
-        log.error("Unable to read configuration from file: %s", config_path)
-    log.debug("Using collection_path: %r", collection_path)
-    return parser
+
+    def find_collection(self, arg: Optional[str] = None) -> CollectionPathSpec:
+        if arg:
+            return self._lookup_collection(arg)
+        cwd = Path.cwd()
+        if path_lookup := self._collection_paths.get(cwd):
+            return path_lookup
+        if self.default_name:
+            with contextlib.suppress(KeyError):
+                return self._collection_names[self.default_name]
+        return self.anonymous_collection(cwd)
+
+    def _lookup_collection(self, arg: str) -> CollectionPathSpec:
+        if name_lookup := self._disambiguate_collection_name(arg):
+            return name_lookup
+        path = Path(arg).resolve()
+        if path_lookup := self._collection_paths.get(path):
+            return path_lookup
+        return self.anonymous_collection(arg)
+
+    def anonymous_collection(self, collection_path: StrPath) -> CollectionPathSpec:
+        return collection_path_spec(
+            collection_path=collection_path,
+            subdir_name=self.default_settings["GalleriesDir"],
+            config_name=self.default_settings["ConfigName"],
+        )
 
 
 def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Path sub-command"""
-    collection_path = config.find_collection(cla.collection)
-    print(collection_path)
+    collection = config.get_collections().find_collection(cla.collection)
+    print(collection.collection)
     return 0
 
 
@@ -176,53 +276,52 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
         log.error("%s: Not a directory: %s", err_msg, root)
         return 1
     # At a minimum, create an empty config
-    db_dir = root / DB_DIR_NAME
-    config_path = db_dir / DB_CONFIG_NAME
+    paths = global_config.get_collections().anonymous_collection(root)
     # Don't overwrite
-    if config_path.is_file():
+    if paths.config.is_file():
         log.error(
             "%s: Refusing to overwrite existing configuration file: %s",
             err_msg,
-            config_path,
+            paths.config,
         )
         return 1
     if cla.bare:
-        db_dir.mkdir(exist_ok=True)
-        log.info("Created directory: %s", db_dir)
-        config_path.touch()
-        log.info("Created empty configuration file: %s", config_path)
+        paths.subdir.mkdir(exist_ok=True)
+        log.info("Created directory: %s", paths.subdir)
+        paths.config.touch()
+        log.info("Created empty configuration file: %s", paths.config)
         return 0
-    if template_dir := global_config.init.get("TemplateDir"):
+    if template_dir := global_config.options["init"].get("TemplateDir"):
         template_dir = Path(template_dir).expanduser()
         if not template_dir.is_dir():
             log.error("%s: TemplateDir is not a directory: %s", err_msg, template_dir)
             return 1
-        shutil.copytree(template_dir, db_dir, copy_function=shutil.copy)
-        log.info("Copied TemplateDir '%s' to new path '%s'", template_dir, db_dir)
+        shutil.copytree(template_dir, paths.subdir, copy_function=shutil.copy)
+        log.info("Copied TemplateDir '%s' to new path '%s'", template_dir, paths.subdir)
         return 0
-    if template_conf := global_config.init.get("TemplateConf"):
+    if template_conf := global_config.options["init"].get("TemplateConf"):
         template_conf = Path(template_conf).expanduser()
         if not template_conf.is_file():
             log.error("%s: TemplateConf is not a file: %s", err_msg, template_conf)
             return 1
-        shutil.copy(template_conf, config_path)
+        shutil.copy(template_conf, paths.config)
         log.info(
-            "Copied TemplateConf '%s' to new path '%s'", template_conf, config_path
+            "Copied TemplateConf '%s' to new path '%s'", template_conf, paths.config
         )
         return 0
     # Create default config
-    db_dir.mkdir(exist_ok=True)
-    log.info("Created directory: %s", db_dir)
-    with open(config_path, "w", encoding="utf-8") as file:
-        DBConfig(collection_path=root).write(file)
-        log.info("Created default configuration file: %s", config_path)
+    paths.subdir.mkdir(exist_ok=True)
+    log.info("Created directory: %s", paths.subdir)
+    with open(paths.config, "w", encoding="utf-8") as file:
+        DBConfig(paths).parser.write(file)
+        log.info("Created default configuration file: %s", paths.config)
     return 0
 
 
 def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Traverse sub-command"""
-    collection_path = config.find_collection(cla.collection)
-    db_config = acquire_db_config(collection_path)
+    paths = config.get_collections().find_collection(cla.collection)
+    db_config = paths.acquire_db_config()
     if not db_config:
         return 1
     filename = cla.output
@@ -231,12 +330,12 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         if not cla.force and filename.exists():
             log.error("Refusing to overwrite existing CSV file: %s", filename)
             return 1
-    path_field = db_config.get("db", "PathField")
-    count_field = db_config.get("db", "CountField")
+    path_field = db_config.parser.get("db", "PathField")
+    count_field = db_config.parser.get("db", "CountField")
     tag_fields = db_config.get_list("db", "TagFields")
     fieldnames = [path_field, count_field, *tag_fields]
     galleries = refresh.traverse_main(
-        collection_path,
+        paths.collection,
         path_field=path_field,
         count_field=count_field,
         leaves_only=cla.leaves,
@@ -255,7 +354,9 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     filename = cla.csvfile
     tag_fields = cla.fields
     if not cla.csvfile or not cla.fields:
-        db_config = acquire_db_config(config.find_collection(cla.collection))
+        db_config = (
+            config.get_collections().find_collection(cla.collection).acquire_db_config()
+        )
         if not db_config:
             return 1
         filename = filename or db_config.get_path("db", "CSVName")
@@ -283,7 +384,9 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     fmt = table_query.auto_format(cla.format) or cla.field_formats
     field_fmts = {}
     if fmt or not filename:
-        db_config = acquire_db_config(config.find_collection(cla.collection))
+        db_config = (
+            config.get_collections().find_collection(cla.collection).acquire_db_config()
+        )
         if not db_config:
             return 1
         filename = filename or db_config.get_path("db", "CSVName")
@@ -291,7 +394,7 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         if cla.format is None:
             try:
                 format_from_config = table_query.Format(
-                    db_config.get("query", "Format").lower()
+                    db_config.parser.get("query", "Format").lower()
                 )
             except ValueError as err:
                 log.error("Invalid configuration setting: %s", err)
@@ -323,8 +426,8 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Refresh sub-command"""
-    collection_path = config.find_collection(cla.collection)
-    db_config = acquire_db_config(collection_path)
+    paths = config.get_collections().find_collection(cla.collection)
+    db_config = paths.acquire_db_config()
     if not db_config:
         return 1
     gardener = refresh.Gardener()
@@ -332,12 +435,12 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     filename = db_config.get_path("db", "CSVName")
     tag_fields = db_config.get_list("refresh", "TagFields")
     gardener.set_normalize_tags(*tag_fields)
-    backup_suffix = cla.suffix or db_config.get("refresh", "BackupSuffix")
+    backup_suffix = cla.suffix or db_config.parser.get("refresh", "BackupSuffix")
     # Second, acquire values for Update file count, if requested
-    path_field = db_config.get("refresh", "PathField")
-    count_field = db_config.get("refresh", "CountField")
+    path_field = db_config.parser.get("refresh", "PathField")
+    count_field = db_config.parser.get("refresh", "CountField")
     if not cla.no_check:
-        gardener.set_update_count(path_field, count_field, collection_path)
+        gardener.set_update_count(path_field, count_field, paths.collection)
     # Third, see if there are enough values to perform implication
     try:
         error_status = set_tag_actions(gardener, db_config) and 1
@@ -415,20 +518,21 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     sort_by = cla.sort
     search_terms = cla.where
     if not tag_fields or not input_file:
-        collection_path = config.find_collection(cla.collection)
-        db_config = acquire_db_config(collection_path)
+        db_config = (
+            config.get_collections().find_collection(cla.collection).acquire_db_config()
+        )
         if not db_config:
             return 1
         if limit is None:
             try:
-                limit = db_config.getint("related", "Limit")
+                limit = db_config.parser.getint("related", "Limit")
             except ValueError as err:
                 log.error("Invalid configuration setting for Limit: %s", err)
                 return 1
         tag_fields = tag_fields or db_config.get_list("related", "TagFields")
         input_file = input_file or db_config.get_path("related", "CSVName")
         if sort_by is None:
-            sort_by = db_config.get("related", "SortMetric").lower()
+            sort_by = db_config.parser.get("related", "SortMetric").lower()
             if sort_by not in relatedtag.SimilarityResult.choices():
                 log.error("Invalid configuration setting for SortMetric: %s", sort_by)
                 return 1
@@ -659,17 +763,20 @@ def main() -> int:
     logging.basicConfig(
         level=logging.DEBUG, format=f"{__prog__}: %(levelname)s: %(message)s"
     )
-    global_config = parse_global_config()
+    global_config = read_global_configuration()
     args = build_cla_parser().parse_args()
-    set_logging_level(args, global_config.verbose)
+    set_logging_level(args, global_config)
     log.debug(args)
     return args.func(args, global_config)
 
 
-def set_logging_level(
-    args: argparse.Namespace, config_setting: Optional[bool] = None
-) -> None:
+def set_logging_level(args: argparse.Namespace, global_config: GlobalConfig) -> None:
     verbosity = 0
+    try:
+        config_setting = global_config.options["global"].getboolean("Verbose")
+    except ValueError as err:
+        log.warning("Invalid global configuration setting for Verbose: %s", err)
+        config_setting = None
     if config_setting is not None:
         verbosity = 1 if config_setting else 0
     if args.verbose is not None:
@@ -691,34 +798,27 @@ def get_global_config_dir() -> Path:
     return base_dir / __prog__
 
 
-def get_db_path(collection_path: Path, filename: str = DB_CONFIG_NAME) -> Path:
-    return collection_path / DB_DIR_NAME / filename
-
-
-def parse_global_config(filename: str = "config") -> GlobalConfig:
-    config_dir_path = get_global_config_dir()
-    config_path = config_dir_path / filename
-    parser = configparser.ConfigParser(
-        interpolation=configparser.ExtendedInterpolation()
+def collection_path_spec(
+    collection_path: StrPath,
+    subdir_name: StrPath,
+    config_name: StrPath,
+    name: Optional[str] = None,
+) -> CollectionPathSpec:
+    collection_path = Path(collection_path)
+    subdir_path = collection_path / subdir_name
+    config_path = subdir_path / config_name
+    return CollectionPathSpec(
+        name=name, collection=collection_path, subdir=subdir_path, config=config_path
     )
-    parser.read(config_path)
-    global_config = GlobalConfig()
-    if "collections" in parser:
-        collections = parser["collections"]
-        global_config.collections = {
-            option: Path(value).expanduser() for option, value in collections.items()
-        }
-    if "global" in parser:
-        global_section = parser["global"]
-        global_config.default = global_section.get("Default")
-        try:
-            global_config.verbose = global_section.getboolean("Verbose", fallback=None)
-        except ValueError as err:
-            log.warning("Invalid global configuration setting for Verbose: %s", err)
-    if "init" in parser:
-        init_section = parser["init"]
-        global_config.init.update(init_section)
-    return global_config
+
+
+def read_global_configuration() -> GlobalConfig:
+    config_dir_path = get_global_config_dir()
+    parser = GlobalConfig()
+    parser.options.read_dict(DEFAULT_GLOBAL_CONFIG)
+    parser.options.read(config_dir_path / "config")
+    parser.collections.read(config_dir_path / "collections")
+    return parser
 
 
 def join_semicolon_list(items: Iterable[str]) -> str:
