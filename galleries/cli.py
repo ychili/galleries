@@ -10,7 +10,6 @@ import argparse
 import configparser
 import contextlib
 import dataclasses
-import functools
 import logging
 import os
 import shutil
@@ -405,7 +404,7 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     if cla.summarize:
         func = tagcount.summarize
     else:
-        func = functools.partial(tagcount.count, reverse=cla.reverse)
+        func = tagcount.count
     try:
         with util.read_db(filename, tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
@@ -667,7 +666,6 @@ def build_cla_parser() -> argparse.ArgumentParser:
         type=FileType(),
         help="read CSV from %(metavar)s (use '-' for standard input)",
     )
-    count_p.add_argument("-r", "--reverse", action="store_true", help="sort ascending")
     count_p.add_argument(
         "-S",
         "--summarize",
