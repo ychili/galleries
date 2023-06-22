@@ -116,11 +116,15 @@ class GlobalConfig:
         try:
             root = self.collections[section]["Root"]
         except KeyError:
-            log.warning("Each section in collections must have a Root")
+            log.warning("In collection [%s]: Required key is missing: Root", section)
             return None
         collection_path = Path(root).expanduser()
         if not collection_path.is_absolute():
-            log.warning("Root is not absolute path: %s", collection_path)
+            log.warning(
+                "In collection [%s]: Root is not an absolute path: %s",
+                section,
+                collection_path,
+            )
             return None
         return collection_path_spec(
             collection_path=collection_path,
@@ -166,7 +170,7 @@ class DBConfig:
             arguments = frozenset(split_semicolon_list(val))
             if not arguments.issubset(implicating_fields):
                 log.warning(
-                    "in %s: ImplicatingFields is not a subset of TagFields",
+                    "In %s: ImplicatingFields is not a subset of TagFields",
                     self.paths.config,
                 )
             implicating_fields &= arguments
