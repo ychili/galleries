@@ -198,6 +198,7 @@ class CollectionPathSpec:
         config = DBConfig(paths=self)
         if not config.parser.read(self.config):
             log.error("Unable to read configuration from file: %s", self.config)
+            return None
         log.debug("Using collection_path: %r", self.config)
         return config
 
