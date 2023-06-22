@@ -158,6 +158,9 @@ class DBConfig:
             self.parser = parser
         self.parser.read_dict(DEFAULT_CONFIG_STATE)
 
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(paths={self.paths}, parser={self.parser})"
+
     def get_list(self, section: str, option: str, **kwds: Any) -> list[str]:
         return split_semicolon_list(self.parser.get(section, option, **kwds))
 
