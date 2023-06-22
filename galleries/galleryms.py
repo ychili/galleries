@@ -370,6 +370,13 @@ class SearchTerm(abc.ABC):
             arg = [arg]
         return list(arg) if arg is not None else []
 
+    def tagsets(
+        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+    ) -> Iterator[TagSet]:
+        cache = cache or {}
+        for fieldname in self.fields:
+            yield cache.setdefault(fieldname, gallery.normalize_tags(fieldname))
+
 
 class TagSearchTerm(SearchTerm):
     """Base class for a search term that matches tags"""
@@ -383,13 +390,6 @@ class TagSearchTerm(SearchTerm):
     def __repr__(self) -> str:
         fields = f", fields={self.fields!r}" if self.fields else ""
         return f"{type(self).__name__}({self.word!r}{fields})"
-
-    def tagsets(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Iterator[TagSet]:
-        cache = cache or {}
-        for fieldname in self.fields:
-            yield cache.setdefault(fieldname, gallery.normalize_tags(fieldname))
 
 
 class WholeSearchTerm(TagSearchTerm):
@@ -438,7 +438,7 @@ class WildcardSearchTerm(TagSearchTerm):
 
 
 class NumericCondition(SearchTerm):
-    """Search term that can compare numbers
+    """Search term that compares its argument to numbers in fields
 
     If a field value cannot be converted to a ``float``, the gallery will not
     be matched.
@@ -478,6 +478,21 @@ class NumericCondition(SearchTerm):
                 # results
                 return False
         return any(self.comp_func(value, self.argument) for value in values)
+
+
+class CardinalityCondition(NumericCondition):
+    """Search term that compares its argument to the sum of tag set sizes
+
+    >>> term = CardinalityCondition(operator.lt, 8, fields=["Tags"])
+    >>> term.match(Gallery(Tags="a b c"))  # 3 < 8
+    True
+    """
+
+    def match(
+        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+    ) -> Any:
+        value = sum(len(tagset) for tagset in self.tagsets(gallery, cache))
+        return self.comp_func(value, self.argument)
 
 
 class Query:
