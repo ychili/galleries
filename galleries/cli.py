@@ -202,8 +202,14 @@ class CollectionPathSpec:
             log.error("No valid collection found at path: %s", self.config)
             return None
         config = DBConfig(paths=self)
-        if not config.parser.read(self.config):
-            log.error("Unable to read configuration from file: %s", self.config)
+        err_msg = "Unable to read configuration from file: %s"
+        try:
+            successful = config.parser.read(self.config)
+        except configparser.Error as err:
+            log.error(err_msg, err)
+            return None
+        if not successful:
+            log.error(err_msg, self.config)
             return None
         log.debug("Using collection_path: %r", self.config)
         return config
@@ -827,8 +833,15 @@ def read_global_configuration() -> GlobalConfig:
     config_dir_path = get_global_config_dir()
     parser = GlobalConfig()
     parser.options.read_dict(DEFAULT_GLOBAL_CONFIG)
-    parser.options.read(config_dir_path / "config")
-    parser.collections.read(config_dir_path / "collections")
+    err_msg = "Unable to read %s configuration file: %s"
+    try:
+        parser.options.read(config_dir_path / "config")
+    except configparser.Error as err:
+        log.error(err_msg, "global", err)
+    try:
+        parser.collections.read(config_dir_path / "collections")
+    except configparser.Error as err:
+        log.error(err_msg, "collections", err)
     return parser
 
 
