@@ -78,9 +78,7 @@ class GlobalConfig:
         collections_p: Optional[configparser.ConfigParser] = None,
     ) -> None:
         if options_p is None:
-            self.options = configparser.ConfigParser(
-                interpolation=configparser.ExtendedInterpolation()
-            )
+            self.options = configparser.ConfigParser(interpolation=None)
         else:
             self.options = options_p
         if collections_p is None:
@@ -116,22 +114,31 @@ class GlobalConfig:
         try:
             root = self.collections[section]["Root"]
         except KeyError:
-            log.warning("In collection [%s]: Required key is missing: Root", section)
+            log.warning(
+                "Ignoring collection [%s]: Required key is missing: Root", section
+            )
+            return None
+        except configparser.InterpolationError as err:
+            log.warning("Ignoring collection [%s]: %s", section, err)
             return None
         collection_path = Path(root).expanduser()
         if not collection_path.is_absolute():
             log.warning(
-                "In collection [%s]: Root is not an absolute path: %s",
+                "Ignoring collection [%s]: Root is not an absolute path: %s",
                 section,
                 collection_path,
             )
             return None
-        return collection_path_spec(
-            collection_path=collection_path,
-            subdir_name=self.collections[section]["GalleriesDir"],
-            config_name=self.collections[section]["ConfigName"],
-            name=section,
-        )
+        try:
+            return collection_path_spec(
+                collection_path=collection_path,
+                subdir_name=self.collections[section]["GalleriesDir"],
+                config_name=self.collections[section]["ConfigName"],
+                name=section,
+            )
+        except configparser.InterpolationError as err:
+            log.warning("Ignoring collection [%s]: %s", section, err)
+            return None
 
 
 class DBConfig:
@@ -145,7 +152,7 @@ class DBConfig:
         self.paths = paths
         if parser is None:
             self.parser = configparser.ConfigParser(
-                default_section="db", interpolation=configparser.ExtendedInterpolation()
+                default_section="db", interpolation=None
             )
         else:
             self.parser = parser
