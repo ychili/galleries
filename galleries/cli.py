@@ -221,11 +221,12 @@ class CollectionPathSpec:
         if not successful:
             log.error(err_msg, self.config)
             return None
-        log.debug("Using collection_path: %r", self.config)
         return config
 
 
 class CollectionFinder:
+    """Maintain the data needed to create ``CollectionPathSpec``s."""
+
     def __init__(
         self,
         collections: Optional[Iterable[CollectionPathSpec]] = None,
@@ -251,6 +252,7 @@ class CollectionFinder:
     def _disambiguate_collection_name(self, name: str) -> Optional[CollectionPathSpec]:
         name = name.casefold()
         if exact_match := self._collection_names.get(name):
+            log.debug("arg matches name exactly: %s", exact_match)
             return exact_match
         prefix_matches = [
             coll
@@ -258,29 +260,41 @@ class CollectionFinder:
             if coll.casefold().startswith(name)
         ]
         if prefix_matches:
-            return self._collection_names[prefix_matches[0]]
+            prefix_match = self._collection_names[prefix_matches[0]]
+            log.debug("arg matches name prefix: %s", prefix_match)
+            return prefix_match
         return None
 
     def find_collection(self, arg: Optional[str] = None) -> CollectionPathSpec:
+        """Return the path spec determined by *arg*."""
         if arg:
             return self._lookup_collection(arg)
         cwd = Path.cwd()
         if path_lookup := self._collection_paths.get(cwd):
+            log.debug("cwd matches collection path: %s", path_lookup)
             return path_lookup
         if self.default_name:
             with contextlib.suppress(KeyError):
-                return self._collection_names[self.default_name]
-        return self.anonymous_collection(cwd)
+                default_collection = self._collection_names[self.default_name]
+                log.debug("using default collection: %s", default_collection)
+                return default_collection
+        default_collection = self.anonymous_collection(cwd)
+        log.debug("using cwd: %s", default_collection)
+        return default_collection
 
     def _lookup_collection(self, arg: str) -> CollectionPathSpec:
         if name_lookup := self._disambiguate_collection_name(arg):
             return name_lookup
         path = Path(arg).resolve()
         if path_lookup := self._collection_paths.get(path):
+            log.debug("arg matches collection path: %s", path_lookup)
             return path_lookup
-        return self.anonymous_collection(arg)
+        as_path = self.anonymous_collection(arg)
+        log.debug("using path value of arg: %s", as_path)
+        return as_path
 
     def anonymous_collection(self, collection_path: StrPath) -> CollectionPathSpec:
+        """Return the default path spec rooted in *collection_path*."""
         return collection_path_spec(
             collection_path=collection_path,
             subdir_name=self.default_settings["GalleriesDir"],
