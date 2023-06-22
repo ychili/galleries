@@ -135,6 +135,8 @@ class GlobalConfig:
 
 
 class DBConfig:
+    """Helper for parsing the DB configuration"""
+
     def __init__(
         self,
         paths: CollectionPathSpec,
@@ -179,6 +181,8 @@ class DBConfig:
 
 @dataclasses.dataclass(frozen=True)
 class CollectionPathSpec:
+    """The set of paths describing a collection, optionally named"""
+
     name: Optional[str]
     collection: Path
     subdir: Path
@@ -188,9 +192,11 @@ class CollectionPathSpec:
         return self.subdir / filename
 
     def acquire_db_config(self) -> Optional[DBConfig]:
-        """
-        If this represents a valid collection, construct and return
-        ``DBConfig`` for that collection's configuration, else return ``None``.
+        """Check collection's validity, and read its configuration.
+
+        If this path spec represents a valid collection, one with a working
+        config file, read it, construct and return ``DBConfig``, else return
+        ``None``.
         """
         if not self.config.is_file():
             log.error("No valid collection found at path: %s", self.config)
