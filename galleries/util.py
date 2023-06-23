@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import csv
-import logging
 import os
 import re
 import sys
@@ -13,7 +12,8 @@ from typing import Callable, Optional, Union
 
 from .galleryms import Gallery, Reader
 
-log = logging.getLogger(__name__)
+# I/O UTILITIES
+# -------------
 
 
 class FieldNotFoundError(Exception):
@@ -24,6 +24,11 @@ class FieldNotFoundError(Exception):
 def read_db(
     file: Optional[os.PathLike] = None, fieldnames: Optional[Iterable[str]] = None
 ) -> Iterator[Reader]:
+    """Open *file*, and read DB inside a context manager.
+
+    If *fieldnames* is given, ``FieldNotFoundError`` is raised if any field
+    names are missing from the DB.
+    """
     if file is None or file == sys.stdin:
         file_cm = contextlib.nullcontext(sys.stdin)
     else:
@@ -44,7 +49,10 @@ def write_galleries(
     fieldnames: Collection[str],
     file: Optional[os.PathLike] = None,
 ) -> None:
-    # TODO: add info/debug logs
+    """Write *rows* with field names *fieldnames* in unformatted CSV.
+
+    Writes to standard output or to *file*, if given.
+    """
     if file is None or file == sys.stdout:
         file_cm = contextlib.nullcontext(sys.stdout)
     else:
@@ -53,6 +61,10 @@ def write_galleries(
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+# SORTING FUNCTIONS
+# -----------------
 
 
 def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
