@@ -49,7 +49,7 @@ H = TypeVar("H", bound=Hashable)
 _Comparable = TypeVar("_Comparable", int, float)
 StrPath = Union[str, Path]
 _Real = Union[float, int]
-TS = TypeVar("TS", bound="TagSet")
+TagSetT = TypeVar("TagSetT", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
 TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
 
@@ -213,14 +213,14 @@ class TagSet(Set[str]):
     """
 
     @classmethod
-    def from_tagstring(cls: type[TS], tagstring: str) -> TS:
+    def from_tagstring(cls: type[TagSetT], tagstring: str) -> TagSetT:
         """Construct from string with whitespace-separated tags"""
         return cls(tagstring.lower().split())
 
     def __str__(self) -> str:
         return " ".join(sorted(self))
 
-    def implied_tags(self: TS, implications: Iterable[BaseImplication]) -> TS:
+    def implied_tags(self: TagSetT, implications: Iterable[BaseImplication]) -> TagSetT:
         consequents = type(self)()
         for implication in implications:
             for tag in self:
@@ -229,7 +229,7 @@ class TagSet(Set[str]):
                     break
         return consequents
 
-    def aliased_tags(self: TS, aliases: Mapping[str, str]) -> TS:
+    def aliased_tags(self: TagSetT, aliases: Mapping[str, str]) -> TagSetT:
         """Return a new set with aliased tags replaced by real tags."""
         tagset = type(self)(self.copy())
         tagset.apply_aliases(aliases)

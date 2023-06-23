@@ -17,7 +17,7 @@ from typing import Optional, TextIO, TypeVar, Union
 from . import galleryms as gms
 from . import util
 
-FmtType = TypeVar("FmtType", bound="Format")
+FormatT = TypeVar("FormatT", bound="Format")
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class Format(enum.Enum):
         return str(self)
 
     @classmethod
-    def argparse(cls: type[FmtType], s: str) -> Union[FmtType, str]:
+    def argparse(cls: type[FormatT], s: str) -> Union[FormatT, str]:
         try:
             return cls[s.upper()]
         except KeyError:
