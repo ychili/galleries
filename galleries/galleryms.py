@@ -268,9 +268,10 @@ class Gallery(Dict[str, Any]):
 
     def normalize_tags(self, field: str) -> TagSet:
         """Return the ``TagSet`` from *field*."""
-        if not isinstance(self[field], TagSet):
-            return TagSet.from_tagstring(self[field])
-        return self[field]
+        value = self[field]
+        if not isinstance(value, TagSet):
+            return TagSet.from_tagstring(value)
+        return value
 
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
