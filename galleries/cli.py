@@ -815,9 +815,8 @@ def set_logging_level(args: argparse.Namespace, global_config: GlobalConfig) -> 
         config_setting = global_config.options["global"].getboolean("Verbose")
     except ValueError as err:
         log.warning("Invalid global configuration setting for Verbose: %s", err)
-        config_setting = None
-    if config_setting is not None:
-        verbosity = 1 if config_setting else 0
+        config_setting = False
+    verbosity = 1 if config_setting else 0
     if args.verbose is not None:
         verbosity = args.verbose
     if args.quiet or verbosity == 0:
