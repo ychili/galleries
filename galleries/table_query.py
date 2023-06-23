@@ -45,9 +45,9 @@ class Format(enum.Enum):
             return s
 
 
-def auto_format(enum: Format) -> bool:
-    """Should output be formatted, according to *enum*?"""
-    return enum == Format.FORMAT or enum == Format.AUTO and sys.stdout.isatty()
+def auto_format(fmt: Format) -> bool:
+    """Should output be formatted, according to *fmt*?"""
+    return fmt == Format.FORMAT or fmt == Format.AUTO and sys.stdout.isatty()
 
 
 def query_from_args(
