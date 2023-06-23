@@ -29,20 +29,20 @@ DEFAULT_GLOBAL_CONFIG: dict[str, dict[str, Any]] = {
     "global": {"Verbose": False},
     "init": {},
 }
-DEFAULT_CONFIG_STATE: dict[str, dict[str, str]] = {
+DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "db": {
         "CSVName": "db.csv",
         "TagFields": "Tags",
         "PathField": "Path",
         "CountField": "Count",
     },
-    "refresh": {"BackupSuffix": ".bak"},
+    "refresh": {"BackupSuffix": ".bak", "ReverseSort": False},
     "count": {},
     "query": {
         "Format": "none",
         "FieldFormats": "tableformat.conf",
     },
-    "related": {"SortMetric": "cosine", "Filter": "", "Limit": "20"},
+    "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
 
 log = logging.getLogger(__name__)
@@ -451,7 +451,13 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         with util.read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
             galleries = (gallery for gallery in reader if query.match(gallery))
-            return table_query.main(galleries, reader.fieldnames, field_fmts)
+            return table_query.main(
+                galleries,
+                reader.fieldnames,
+                field_fmts,
+                sort_field=cla.sort,
+                reverse_sort=cla.reverse,
+            )
     except BrokenPipeError:
         # Even though BrokenPipeError was caught, suppress the error
         # message by closing stderr before exiting.
@@ -479,6 +485,8 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     # Second, acquire values for Update file count, if requested
     path_field = db_config.parser.get("refresh", "PathField")
     count_field = db_config.parser.get("refresh", "CountField")
+    sort_field = db_config.parser["refresh"].get("SortField", path_field)
+    gardener.needed_fields.add(sort_field)
     if not cla.no_check:
         gardener.set_update_count(path_field, count_field, paths.collection)
     # Third, see if there are enough values to perform implication
@@ -505,7 +513,16 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         return 1
     if not rows:
         return 0
-    rows.sort(key=lambda row: util.alphanum_key(row[path_field].casefold()))
+    try:
+        reverse = db_config.parser["refresh"].getboolean("ReverseSort")
+    except ValueError as err:
+        log.warning(
+            "Invalid configuration setting for ReverseSort (defaulting to False): %s",
+            err,
+        )
+        reverse = False
+    log.debug("Sorting by field: %s", sort_field)
+    rows.sort(key=util.alphanum_getter(sort_field), reverse=reverse)
     backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
     log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
@@ -702,6 +719,12 @@ def build_cla_parser() -> argparse.ArgumentParser:
         dest="csvfile",
         type=FileType(),
         help="read CSV from %(metavar)s (use '-' for standard input)",
+    )
+    query_p.add_argument(
+        "-r", "--reverse", action="store_true", help="reverse order while sorting"
+    )
+    query_p.add_argument(
+        "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
     query_p.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"

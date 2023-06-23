@@ -20,6 +20,8 @@ Create a ``Query`` from a series of search terms.
 (NumericCondition(<built-in function eq>, 1, fields=['rating']), None)
 >>> ap.parse_argument("c=lt4")
 (NumericCondition(<built-in function lt>, 4, fields=['c']), None)
+>>> ap.parse_argument("n[field]=le8")
+(CardinalityCondition(<built-in function le>, 8, fields=['field']), None)
 >>> ap.parse_argument("g:tok%")
 (WildcardSearchTerm('tok*', fields=['g']), None)
 >>> ap.parse_args(["tok1", "tok2"])

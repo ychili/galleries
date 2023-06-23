@@ -29,7 +29,7 @@ class Gardener:
     """Garden galleries."""
 
     def __init__(self) -> None:
-        self._needed_fields: set[str] = set()
+        self.needed_fields: set[str] = set()
         self._tag_fields: dict[str, list[Callable[[gms.TagSet], None]]] = {}
         self._do_count: Callable[[gms.Gallery], None] = lambda *args, **kwds: None
         self._path_field: str = str()
@@ -39,7 +39,7 @@ class Gardener:
     def set_update_count(
         self, path_field: str, count_field: str, root_path: Optional[gms.StrPath] = None
     ) -> None:
-        self._needed_fields.update([path_field, count_field])
+        self.needed_fields.update([path_field, count_field])
         self._do_count = self._update_count
         self._path_field = path_field
         self._count_field = count_field
@@ -54,41 +54,37 @@ class Gardener:
         actions.append(func)
 
     def set_normalize_tags(self, *fields: str) -> None:
-        self._needed_fields.update(fields)
+        self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(field)
 
     def set_imply_tags(
         self, implications: Collection[gms.BaseImplication], *fields: str
     ) -> None:
-        self._needed_fields.update(fields)
+        self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(
                 field, lambda ts: gms.TagSet.apply_implications(ts, implications)
             )
 
     def set_remove_tags(self, mask: gms.TagSet, *fields: str) -> None:
-        self._needed_fields.update(fields)
+        self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(
                 field, lambda ts: gms.TagSet.difference_update(ts, mask)
             )
 
     def set_alias_tags(self, aliases: Mapping[str, str], *fields: str) -> None:
-        self._needed_fields.update(fields)
+        self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(
                 field, lambda ts: gms.TagSet.apply_aliases(ts, aliases)
             )
 
     def set_implicator(self, implicator: gms.Implicator, *fields: str) -> None:
-        self._needed_fields.update(fields)
+        self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(field, implicator.implicate)
-
-    @property
-    def needed_fields(self) -> set[str]:
-        return self._needed_fields
 
     def garden_rows(
         self,
@@ -99,7 +95,7 @@ class Gardener:
         After operation parameters have been set, yield gardened galleries.
         """
         if fieldnames is not None:
-            for field in self._needed_fields:
+            for field in self.needed_fields:
                 if field not in fieldnames:
                     raise util.FieldNotFoundError(field)
         for gallery in reader:

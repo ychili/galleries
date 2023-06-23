@@ -371,6 +371,13 @@ class SearchTerm(abc.ABC):
             arg = [arg]
         return list(arg) if arg is not None else []
 
+    def tagsets(
+        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+    ) -> Iterator[TagSet]:
+        cache = cache or {}
+        for fieldname in self.fields:
+            yield cache.setdefault(fieldname, gallery.normalize_tags(fieldname))
+
 
 class TagSearchTerm(SearchTerm):
     """Base class for a search term that matches tags"""
@@ -384,13 +391,6 @@ class TagSearchTerm(SearchTerm):
     def __repr__(self) -> str:
         fields = f", fields={self.fields!r}" if self.fields else ""
         return f"{type(self).__name__}({self.word!r}{fields})"
-
-    def tagsets(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Iterator[TagSet]:
-        cache = cache or {}
-        for fieldname in self.fields:
-            yield cache.setdefault(fieldname, gallery.normalize_tags(fieldname))
 
 
 class WholeSearchTerm(TagSearchTerm):
@@ -439,7 +439,7 @@ class WildcardSearchTerm(TagSearchTerm):
 
 
 class NumericCondition(SearchTerm):
-    """Search term that can compare numbers
+    """Search term that compares its argument to numbers in fields
 
     If a field value cannot be converted to a ``float``, the gallery will not
     be matched.
@@ -479,6 +479,21 @@ class NumericCondition(SearchTerm):
                 # results
                 return False
         return any(self.comp_func(value, self.argument) for value in values)
+
+
+class CardinalityCondition(NumericCondition):
+    """Search term that compares its argument to the sum of tag set sizes
+
+    >>> term = CardinalityCondition(operator.lt, 8, fields=["Tags"])
+    >>> term.match(Gallery(Tags="a b c"))  # 3 < 8
+    True
+    """
+
+    def match(
+        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+    ) -> Any:
+        value = sum(len(tagset) for tagset in self.tagsets(gallery, cache))
+        return self.comp_func(value, self.argument)
 
 
 class Query:
@@ -574,13 +589,19 @@ class ArgumentParser:
         or_operator = re.escape(self.or_operator)
         field_tag_sep = re.escape(self.field_tag_sep)
         field_number_sep = re.escape(self.field_number_sep)
-        re_pattern = f"""
+        re_pattern = rf"""
                 (?P<logical_group> {not_operator}|{or_operator}) ?
                                                 # logical operator
             (?: (?:
             # NUMERIC SPECIFIER
-            (?P<num_field> [{self.fieldname_chars}]+){field_number_sep}
+            (?: (?P<set_branch>
+            n \[
+            (?P<set_field> [{self.fieldname_chars}]+) ?
+                \]                              # field specifier, optional
+            ) | (?P<num_branch>
+            (?P<num_field> [{self.fieldname_chars}]+)
                                                 # field specifier, mandatory
+            ) ) {field_number_sep}
                 (?P<relation> {relationals}) ?  # relational operator
             (?P<num> -?[0-9]+)                  # constant
             ) | (?:
@@ -621,12 +642,24 @@ class ArgumentParser:
 
     def _parse_match_object(self, match: re.Match) -> tuple[SearchTerm, Optional[str]]:
         logical_operator = match.group("logical_group")
-        if (fieldname := match.group("num_field")) is not None:
+        if (num := match.group("num")) is not None:
             if (relation := match.group("relation")) is not None:
                 relation = relation.casefold()
             comp_func = self.relationals[relation]
-            constant = int(match.group("num"))
-            return (NumericCondition(comp_func, constant, fieldname), logical_operator)
+            constant = int(num)
+            if match.group("set_branch") is not None:
+                fieldname = match.group("set_field")
+                fields = [fieldname] if fieldname else self.default_tag_fields
+                return (
+                    CardinalityCondition(comp_func, constant, fields),
+                    logical_operator,
+                )
+            if match.group("num_branch") is not None:
+                fieldname = match.group("num_field")
+                return (
+                    NumericCondition(comp_func, constant, fieldname),
+                    logical_operator,
+                )
         if (word := match.group("tag")) is not None:
             fieldname = match.group("tag_field")
             fields = [fieldname] if fieldname else self.default_tag_fields

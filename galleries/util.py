@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from collections.abc import Collection, Iterable, Iterator
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from .galleryms import Gallery, Reader
 
@@ -53,6 +53,16 @@ def write_galleries(
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
+    def getter(gallery: Gallery) -> list[Union[int, str]]:
+        # As it stands, values should already be str, but convert anyway
+        # to be safe.
+        value = str(gallery[field]).casefold()
+        return alphanum_key(value)
+
+    return getter
 
 
 def atoi(s: str) -> Union[int, str]:

@@ -82,7 +82,16 @@ def main(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
     field_formats: Optional[Mapping[str, gms.FieldFormat]] = None,
+    sort_field: Optional[str] = None,
+    reverse_sort: bool = False,
 ) -> int:
+    if sort_field:
+        if sort_field not in fieldnames:
+            log.error("Sort field not found in input: %s", sort_field)
+            return 1
+        sort_key = util.alphanum_getter(sort_field)
+    else:
+        sort_key = None
     if field_formats:
         for field in field_formats:
             if field not in fieldnames:
@@ -95,8 +104,12 @@ def main(
         log.info(
             "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
         )
+        if sort_key:
+            galleries.sort(key=sort_key, reverse=reverse_sort)
         print_formatted(galleries, field_formats)
     else:
+        if sort_key:
+            galleries = sorted(galleries, key=sort_key, reverse=reverse_sort)
         util.write_galleries(galleries, fieldnames=fieldnames)
     return 0
 
