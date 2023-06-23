@@ -451,7 +451,13 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         with util.read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
             galleries = (gallery for gallery in reader if query.match(gallery))
-            return table_query.main(galleries, reader.fieldnames, field_fmts)
+            return table_query.main(
+                galleries,
+                reader.fieldnames,
+                field_fmts,
+                sort_field=cla.sort,
+                reverse_sort=cla.reverse,
+            )
     except BrokenPipeError:
         # Even though BrokenPipeError was caught, suppress the error
         # message by closing stderr before exiting.
@@ -702,6 +708,12 @@ def build_cla_parser() -> argparse.ArgumentParser:
         dest="csvfile",
         type=FileType(),
         help="read CSV from %(metavar)s (use '-' for standard input)",
+    )
+    query_p.add_argument(
+        "-r", "--reverse", action="store_true", help="reverse order while sorting"
+    )
+    query_p.add_argument(
+        "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
     query_p.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"
