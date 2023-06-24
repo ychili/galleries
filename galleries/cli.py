@@ -16,7 +16,7 @@ import shutil
 import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, Optional, TextIO, Union
+from typing import Any, Callable, Optional, TextIO, Union
 
 from . import __prog__, __version__, refresh, relatedtag, table_query, tagcount, util
 
@@ -313,12 +313,14 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
     err_msg = "Unable to init"
     root = Path(cla.directory or cla.collection or Path.cwd())
     if not root.is_dir():
-        log.error("%s: Not a directory: %s", err_msg, root)
-        return 1
-    # At a minimum, create an empty config
+        try:
+            root.mkdir(parents=True, exist_ok=False)
+        except OSError as err:
+            log.error("%s: Failed to create root directory: %s", err_msg, err)
+            return 1
+        log.info("Created root directory: %s", root)
     paths = global_config.get_collections().anonymous_collection(root)
-    # Don't overwrite
-    if paths.config.is_file():
+    if paths.config.exists():
         log.error(
             "%s: Refusing to overwrite existing configuration file: %s",
             err_msg,
@@ -327,31 +329,36 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
         return 1
     if cla.bare:
         paths.subdir.mkdir(exist_ok=True)
-        log.info("Created directory: %s", paths.subdir)
-        paths.config.touch()
+        paths.config.touch(exist_ok=False)
         log.info("Created empty configuration file: %s", paths.config)
         return 0
-    if template_dir := global_config.options["init"].get("TemplateDir"):
+    if template_dir := cla.template or global_config.options["init"].get("TemplateDir"):
         template_dir = Path(template_dir).expanduser()
         if not template_dir.is_dir():
             log.error("%s: TemplateDir is not a directory: %s", err_msg, template_dir)
             return 1
-        shutil.copytree(template_dir, paths.subdir, copy_function=shutil.copy)
-        log.info("Copied TemplateDir '%s' to new path '%s'", template_dir, paths.subdir)
-        return 0
-    if template_conf := global_config.options["init"].get("TemplateConf"):
-        template_conf = Path(template_conf).expanduser()
-        if not template_conf.is_file():
-            log.error("%s: TemplateConf is not a file: %s", err_msg, template_conf)
+        ignore = ignore_patterns(".*")
+        try:
+            shutil.copytree(
+                template_dir, paths.subdir, ignore=ignore, copy_function=shutil.copy
+            )
+        except shutil.Error as err:
+            log.error(
+                "While copying files from TemplateDir '%s' to '%s':",
+                template_dir,
+                paths.subdir,
+            )
+            for src, dst, why in err.args[0]:
+                log.error("Copying file '%s' to '%s': %s", src, dst, why)
             return 1
-        shutil.copy(template_conf, paths.config)
+        except FileExistsError as err:
+            log.error("%s: Refusing to overwrite existing directory: %s", err_msg, err)
+            return 1
         log.info(
-            "Copied TemplateConf '%s' to new path '%s'", template_conf, paths.config
+            "Copied files from TemplateDir '%s' to '%s'", template_dir, paths.subdir
         )
         return 0
-    # Create default config
     paths.subdir.mkdir(exist_ok=True)
-    log.info("Created directory: %s", paths.subdir)
     with open(paths.config, "w", encoding="utf-8") as file:
         DBConfig(paths).parser.write(file)
         log.info("Created default configuration file: %s", paths.config)
@@ -639,7 +646,12 @@ def build_cla_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="path to root directory of collection (default is current directory)",
     )
-    init_p.add_argument("--bare", action="store_true", help="create empty config file")
+    init_p.add_argument(
+        "--bare", action="store_true", help="create an empty config file"
+    )
+    init_p.add_argument(
+        "--template", metavar="DIRECTORY", help="copy files from %(metavar)s"
+    )
     init_p.set_defaults(func=init_sc)
 
     traverse_p = subparsers.add_parser(
@@ -887,6 +899,23 @@ def read_global_configuration() -> GlobalConfig:
     except configparser.Error as err:
         log.error(err_msg, "collections", err)
     return parser
+
+
+def ignore_patterns(*patterns: StrPath) -> Callable[[Any, list[str]], set[str]]:
+    """
+    Return a function that wraps ``shutil.ignore_patterns`` with a layer of
+    debug logging.
+    """
+    ignore_func = shutil.ignore_patterns(*patterns)
+
+    def _inner_func(path: Any, names: list[str]) -> set[str]:
+        names_in = set(names)
+        names_ignored = ignore_func(path, names)
+        log.debug("Copying files: %s", names_in - names_ignored)
+        log.debug("Filenames ignored: %s", names_ignored)
+        return names_ignored
+
+    return _inner_func
 
 
 def join_semicolon_list(items: Iterable[str]) -> str:
