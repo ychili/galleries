@@ -319,7 +319,7 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
             log.error("%s: Failed to create root directory: %s", err_msg, err)
             return 1
         log.info("Created root directory: %s", root)
-    paths = global_config.get_collections().anonymous_collection(root)
+    paths = global_config.get_collections().find_collection(str(root))
     if paths.config.exists():
         log.error(
             "%s: Refusing to overwrite existing configuration file: %s",
