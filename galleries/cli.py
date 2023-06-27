@@ -211,16 +211,26 @@ class CollectionPathSpec:
             log.error("No valid collection found at path: %s", self.config)
             return None
         config = DBConfig(paths=self)
-        err_msg = "Unable to read configuration from file: %s"
         try:
             successful = config.parser.read(self.config)
         except configparser.Error as err:
-            log.error(err_msg, err)
+            self._log_bad_read(err)
             return None
         if not successful:
-            log.error(err_msg, self.config)
+            self._log_bad_read(self.config)
             return None
         return config
+
+    def get_db_config(self) -> DBConfig:
+        config = DBConfig(paths=self)
+        try:
+            config.parser.read(self.config)
+        except configparser.Error as err:
+            self._log_bad_read(err)
+        return config
+
+    def _log_bad_read(self, error: Any) -> None:
+        return log.error("Unable to read configuration from file: %s", error)
 
 
 class CollectionFinder:
@@ -398,20 +408,10 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Count sub-command"""
-    filename = cla.csvfile
-    tag_fields = cla.fields
-    if not cla.csvfile or not cla.fields:
-        db_config = (
-            config.get_collections().find_collection(cla.collection).acquire_db_config()
-        )
-        if not db_config:
-            return 1
-        filename = filename or db_config.get_path("db", "CSVName")
-        tag_fields = tag_fields or db_config.get_list("count", "TagFields")
-    if cla.summarize:
-        func = tagcount.summarize
-    else:
-        func = tagcount.count
+    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
+    filename = cla.csvfile or db_config.get_path("db", "CSVName")
+    tag_fields = cla.fields or db_config.get_list("count", "TagFields")
+    func = tagcount.summarize if cla.summarize else tagcount.count
     try:
         with util.read_db(filename, tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
@@ -426,34 +426,26 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Query sub-command"""
-    filename = cla.csvfile
-    tag_fields = cla.field
-    fmt = table_query.auto_format(cla.format) or cla.field_formats
-    field_fmts = {}
-    if fmt or not filename:
-        db_config = (
-            config.get_collections().find_collection(cla.collection).acquire_db_config()
-        )
-        if not db_config:
+    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
+    filename = cla.csvfile or db_config.get_path("db", "CSVName")
+    tag_fields = cla.field or db_config.get_list("query", "TagFields")
+    if cla.format is None:
+        try:
+            fmt = table_query.Format(db_config.parser.get("query", "Format").lower())
+        except ValueError as err:
+            log.error("Invalid configuration setting: %s", err)
             return 1
-        filename = filename or db_config.get_path("db", "CSVName")
-        tag_fields = tag_fields or db_config.get_list("query", "TagFields")
-        if cla.format is None:
-            try:
-                format_from_config = table_query.Format(
-                    db_config.parser.get("query", "Format").lower()
-                )
-            except ValueError as err:
-                log.error("Invalid configuration setting: %s", err)
-                return 1
-            fmt = table_query.auto_format(format_from_config)
-        if fmt:
-            fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
-            try:
-                field_fmts = table_query.parse_field_format_file(fmts_file)
-            except OSError as err:
-                log.error("Unable to open FieldFormats file: %s", err)
-                return 1
+    else:
+        fmt = cla.format
+    field_fmts = {}
+    if table_query.auto_format(fmt) or cla.field_formats:
+        fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
+        try:
+            field_fmts = table_query.parse_field_format_file(fmts_file)
+        except OSError as err:
+            log.error("Unable to open FieldFormats file: %s", err)
+            return 1
+
     try:
         with util.read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
@@ -576,31 +568,23 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
 
 def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Related sub-command"""
-    tag_fields = cla.field
-    input_file = cla.csvfile
+    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
+    tag_fields = cla.field or db_config.get_list("related", "TagFields")
+    input_file = cla.csvfile or db_config.get_path("related", "CSVName")
     limit = cla.limit
     sort_by = cla.sort
-    search_terms = cla.where
-    if not tag_fields or not input_file:
-        db_config = (
-            config.get_collections().find_collection(cla.collection).acquire_db_config()
-        )
-        if not db_config:
+    search_terms = cla.where or db_config.get_list("related", "Filter")
+    if limit is None:
+        try:
+            limit = db_config.parser.getint("related", "Limit")
+        except ValueError as err:
+            log.error("Invalid configuration setting for Limit: %s", err)
             return 1
-        if limit is None:
-            try:
-                limit = db_config.parser.getint("related", "Limit")
-            except ValueError as err:
-                log.error("Invalid configuration setting for Limit: %s", err)
-                return 1
-        tag_fields = tag_fields or db_config.get_list("related", "TagFields")
-        input_file = input_file or db_config.get_path("related", "CSVName")
-        if sort_by is None:
-            sort_by = db_config.parser.get("related", "SortMetric").lower()
-            if sort_by not in relatedtag.SimilarityResult.choices():
-                log.error("Invalid configuration setting for SortMetric: %s", sort_by)
-                return 1
-        search_terms = cla.where or db_config.get_list("related", "Filter")
+    if sort_by is None:
+        sort_by = db_config.parser.get("related", "SortMetric").lower()
+        if sort_by not in relatedtag.SimilarityResult.choices():
+            log.error("Invalid configuration setting for SortMetric: %s", sort_by)
+            return 1
 
     try:
         with util.read_db(input_file, tag_fields) as reader:
