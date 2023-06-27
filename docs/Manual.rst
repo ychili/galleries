@@ -326,6 +326,13 @@ Here is a summary of search term syntax:
 Field names in search terms can be abbreviated as long as
 the abbreviation is unambiguous.
 
+Note that tags in tag searches can only contain the letters from A-Z,
+numbers, hyphens, and underscores.
+So, while the tags in your tagging system or field names in your data
+table may contain characters outside of this character set, you will not
+be able to search for them using the query command.
+So, avoid doing that.
+
 By default, galleries are printed as CSV rows with no extra formatting
 (``--format=none``).
 To print query results with each field as a wrapped column,
@@ -337,6 +344,11 @@ in the query results, one per line,
 followed by its formatting parameters.
 Each argument is separated by tabs or spaces.
 Therefore, tabs or spaces within arguments must be quoted.
+
+From left to right, the arguments in a field formats file are:
+1) field name, 2) maximum width, 3) foreground color,
+4) background color, and 5) effect.
+See the section `Field formats file`_ for more details.
 
 Here is an example field formats file::
 
@@ -351,40 +363,6 @@ and make the text bright blue and bold (with default background color),
 dedicate at most 3 columns to the Count field,
 and dedicate the remaining available terminal columns to the Tags field.
 The formatter will use all available columns in your terminal window.
-
-Here is what each field in the field formats file does
-(in left-to-right order):
-
-(1) The *field name* is required.
-    Fields whose names aren't listed in the field formats file or whose
-    arguments are invalid won't appear in `query`_'s formatted output.
-
-(2) A *maximum width* argument is required.
-    Wrap the contents of this field to a column no wider
-    than *maximum width*.
-    Note the resulting column width may be less than this maximum
-    if the contents don't need it.
-    The special value ``REM`` can be given here to indicate
-    "use remaining space for this column".
-
-(3) A *foreground color* argument is optional.
-    Color the text *foreground color*.
-    Choices include:
-    black, red, green, yellow, blue,
-    magenta, cyan, white, bright black,
-    grey, bright red, bright green,
-    bright yellow, bright blue, bright magenta,
-    bright cyan, bright white, or ``""`` for default color.
-
-(4) A *background color* argument is optional.
-    Color the background *background color*.
-    Choices are the same as for (3).
-
-(5) An *effect* argument is optional.
-    Use the *effect* terminal text effect.
-    Choices include:
-    bold, faint, dim, italic, underline,
-    reverse video, invert, or ``""`` for none.
 
 Once the field formats file is set up, enable formatted output
 by setting the value of the ``--format`` option
@@ -493,6 +471,7 @@ Options
     Recursively copy files from *DIRECTORY* into the galleries
     sub-directory.
     Files with names that start with a dot are not copied.
+
     Default: value of init.\ `TemplateDir`_.
 
 Configuration
@@ -542,6 +521,7 @@ Options
 -o FILE, --output=FILE
     Write CSV to *FILE*.
     If specified, this option will always overwrite existing files.
+
     Default: value of db.\ `CSVName`_.
 
 Configuration
@@ -579,6 +559,7 @@ Options
 
 -i FILE, --input=FILE
     Read CSV from *FILE*.
+
     Default: value of db.\ `CSVName`_.
 
 -S, --summarize
@@ -597,6 +578,18 @@ Usage
     **galleries** [*general_options* ...] **query**
         [*query_options* ...] [*search_term* ...]
 
+The **query** command prints galleries that match *search_term*.
+If *search_term* is not given then all galleries in the input are
+printed.
+
+**query** supports either unformatted or formatted output.
+Unformatted output mode prints galleries as the CSV rows appear in the
+input, plus fieldname headers.
+Formatted output mode prints galleries in a table-like format.
+It requires a "`field formats file`_" so it knows which fields to
+include, how wide each column in the table should be, and optionally
+which terminal effects to apply.
+
 Options
 -------
 
@@ -608,6 +601,7 @@ Options
     have their own field specifiers.
     This option can be passed more than once to build up a list of
     tag fields.
+
     Default: value of query.\ `TagFields`_.
 
 -F WHEN, --format=WHEN
@@ -623,23 +617,159 @@ Options
     a terminal, otherwise unformatted output.
     The ``--format`` option with no argument is the same as
     ``--format=auto``.
+
     Default: value of query.\ `Format`_.
 
 -i FILE, --input=FILE
     Read CSV from *FILE*.
+
     Default: value of db.\ `CSVName`_.
 
 -r, --reverse
     Sort results in descending order.
+
     Default: ascending sort.
 
 -s FIELD, --sort=FIELD
     Sort results by *FIELD*.
+
     Default: don't sort.
 
 --field-formats=FILE
     Parse field formats from *FILE*.
+    See "`Field formats file`_" below for the syntax of this file.
+
     Default: value of query.\ `FieldFormats`_.
+
+Search term syntax
+------------------
+
+Search terms are case-insenstive and cannot contain whitespace.
+They can take three basic forms:
+
+.. parsed-literal::
+
+    [**~** | **+**] [*field* **:**] *tag*
+    [**~** | **+**] *field* **=** *expr*
+    [**~** | **+**] **n[** [*field*] **]=** *expr*
+
+In the first form, the search term matches galleries with tag sets
+containing *tag*, optionally restricted to tag sets from *field*.
+The characters in *tag* are restricted to the set ``[a-z0-9-_]``
+and the wildcard character, '%'.
+The wildcard character supports partial tag matches.
+
+In the second form, the search term matches galleries whose *field*
+value compares true to *expr*.
+*expr* can be:
+
+.. parsed-literal::
+
+    [**ne** | **gt** | **ge** | **lt** | **le**] *integer*
+
+If *expr* is just an *integer*, it compared to the value for equality.
+If *integer* is preceded by a relation function, that function is used
+for comparison.
+If the value from the field cannot be converted to a number for
+comparison or if the field is empty, then that gallery will not be
+matched by the search term.
+
+In the third form, the search term matches galleries where the number of
+tags in *field* compares true to *expr*.
+If *field* is omitted then tags from all tag fields are counted.
+
+Each of these forms can be optionally preceded by a logical operator
+'~' or '+'.
+'~' is the negation operator and negates the rest of the search term.
+In other words, galleries must *not* match to appear in the results.
+'+' is the disjunction operator (logical or).
+If *any* of a a series of disjunctive search terms match a gallery, that
+gallery will appear in the results.
+
+A *field* specifier can also be abbreviated.
+That is, if "LongTagFieldName" is a field in the input, then the first
+letter or letters in that field name will be expanded to
+"LongTagFieldName" in the field specifier, as long as no other fields
+begin with the same letter or letters.
+
+Field formats file
+------------------
+
+The field formats file contains instructions for **query**\ 's
+formatted output mode.
+
+Each field's format is described on a separate line.
+Lines starting with '#' are comments. Blank lines are ignored.
+Values on each line are separated by tabs or spaces.
+
+The meaning of each value or argument is listed below in order of
+position.
+
+(1) The *field name* is required.
+    Fields whose names aren't listed in the field formats file or whose
+    arguments are invalid won't appear in **query**\ 's formatted
+    output.
+
+(2) A *maximum width* argument is required.
+    Wrap the contents of this field to a column no wider
+    than a positive integer *maximum width*.
+    Note the resulting column width may be less than this maximum
+    if the contents don't need it.
+    The special value ``REM`` can be given here to indicate
+    "use remaining space for this column".
+
+(3) A *foreground color* argument is optional.
+    Color the text *foreground color*.
+    Choices include:
+    black, red, green, yellow, blue,
+    magenta, cyan, white, bright black,
+    grey, bright red, bright green,
+    bright yellow, bright blue, bright magenta,
+    bright cyan, bright white, or ``""`` for default color.
+
+(4) A *background color* argument is optional.
+    Color the background *background color*.
+    Choices are the same as for (3).
+
+(5) An *effect* argument is optional.
+    Use the *effect* terminal text effect.
+    Choices include:
+    bold, faint, dim, italic, underline,
+    reverse video, invert, or ``""`` for none.
+    None is the default.
+
+Optional arguments can be omitted if there are no more optional
+arguments following.
+
+If a line cannot be parsed or if any of a field name's formatting
+arguments are of incorrect type, then that line will be ignored and a
+warning emitted.
+
+Examples
+--------
+
+::
+
+    # Print rows with tags a, b, and c
+    galleries query a b c
+
+    # Print rows with a and either b or c
+    galleries query a +b +c
+
+    # Print rows with either b or c, but not a
+    galleries query ~a +b +c
+
+    # Search for a in Field
+    galleries query Field:a
+
+    # Find Counts >= 100 and sort by Count
+    galleries query -s Count Count=ge100
+
+    # Print rows that have zero tags
+    galleries query n[]=0
+
+The section "`Querying the table`_" contains more examples of search
+terms.
 
 refresh
 =======
@@ -676,6 +806,7 @@ Options
 
 --suffix=SUFFIX
     Back up the old file with *SUFFIX* appended.
+
     Default: value of refresh.\ `BackupSuffix`_.
 
 --validate
@@ -709,8 +840,8 @@ refresh.\ `SortField`_.
 If refresh.\ `ReverseSort`_ is set to true, galleries will be sorted in
 descending sort order (Z to A instead of A to Z).
 
-If refresh.\ `ImplicatingFields`_ is set, implications and aliases will
-only be applied to tag sets in those fields.
+If refresh.\ `ImplicatingFields`_ is set, implications and aliases will,
+by default, only be applied to tag sets in those fields.
 
 related
 =======
@@ -728,7 +859,7 @@ Usage
 The **related** command prints a table of other tags that are similar to
 *tag*.
 The table includes the tags' names, their total count, and a selection
-of similarity metrics.
+of `similarity metrics`_.
 This can be used for finding related tags that frequently appear in the
 same tag sets together.
 
@@ -742,20 +873,24 @@ Options
     Search for *tag*\ (s) in *FIELD*.
     This option can be passed more than once to build up a list of
     tag fields.
+
     Default: value of related.\ `TagFields`_.
 
 -i FILE, --input=FILE
     Read CSV from *FILE*.
+
     Default: value of related.\ `CSVName`_.
 
 -l N, --limit=N
     Limit the number of results per *tag* to a number *N*.
     *N* can be **0** for no limit on the number of results.
+
     Default: value of related.\ `Limit`_.
 
 -s NAME, --sort=NAME
     Sort results by *NAME*, where *NAME* is one the field names in the
     table of results (tag name, tag count, or similarity metric).
+
     Default: value of related.\ `SortMetric`_.
 
 -w TERM, --where=TERM
@@ -763,7 +898,63 @@ Options
     a search term with the same syntax as used by the `query`_ command.
     This option can be passed more than once to build up a list of
     search terms.
+
     Default: value of related.\ `Filter`_.
+
+Similarity metrics
+------------------
+
+Tags that are similar to *tag* are ranked by a selection of metrics,
+presented as a real number from 0.0 to 1.0 or the equivalent percent.
+The higher the number, the more similar the tag is to *tag*.
+A tag's similarity to itself is always 1.0 or 100%.
+
+In the definitions below, :math:`|A \cap B|` stands for the size of the 
+intersection between set of tag sets that A appears in and the set of
+tag sets that B appears in, i.e. the overlap between tags A and B.
+
+COSINE
+    Cosine similarity or `Otsuka–Ochiai coefficient`_.
+    It is defined as the overlap between A and B divided by the square
+    root of the count of A times the count of B:
+
+    .. math::
+
+        \frac{|A \cap B|}{\sqrt{|A| \times |B|}}
+
+JACCARD
+    `Jaccard index`_.
+    It is defined as the number of tag sets that A and B appear in
+    together divided by the number of all tag sets in which A and B
+    appear---the ratio of intersection over union:
+
+    .. math::
+
+        \frac{|A \cap B|}{|A \cup B|} =
+        \frac{|A \cap B|}{|A| + |B| - |A \cap B|}
+
+OVERLAP
+    `Overlap coefficient`_.
+    It is defined as the overlap between A and B divided by the smaller
+    of A's and B's counts:
+
+    .. math::
+
+        \frac{|A \cap B|}{\min(|A|,|B|)}
+
+FREQ
+    Frequency, how frequently tag A occurs together with tag B:
+
+    .. math::
+        
+        \frac{|A \cap B|}{|A|}
+
+.. _Otsuka–Ochiai coefficient:
+   https://en.wikipedia.org/wiki/Cosine_similarity#Otsuka%E2%80%93Ochiai_coefficient
+.. _Jaccard index:
+   https://en.wikipedia.org/wiki/Jaccard_index
+.. _Overlap coefficient:
+   https://en.wikipedia.org/wiki/Overlap_coefficient
 
 -----------------------
 Configuration Reference
