@@ -779,6 +779,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     related_p.add_argument(
         "-s",
         "--sort",
+        type=str.lower,
         choices=relatedtag.SimilarityResult.choices(),
         help="sort results by metric",
     )
