@@ -418,6 +418,8 @@ The following example sets "pics" as the default collection::
     [global]
     Default: pics
 
+Consult the section "`Selecting a collection`_" for how the selection
+process works.
 Consult the sections for the `global configuration file`_ and
 the `global collection paths file`_ for the other configuration options
 they enable.
@@ -426,12 +428,60 @@ they enable.
 Command Reference
 -----------------
 
-Many commands' arguments have defaults that can be configured via
-configuration file.
-
+It is recommended to set up a working `collection configuration file`_
+for a collection before working on it, by using the `init`_ command or
+creating one manually.
+"Read-only" commands like `count`_, `query`_, and `related`_ that do not
+modify the data table do not require a working configuration file.
+It is possible to pass them all the info they need via command-line
+arguments.
+If they cannot find a working configuration file, they will fall back to
+built-in defaults.
 
 General options
 ===============
+
+-h, --help
+    Show help message for general options and available commands.
+
+-V, --version
+    Show **galleries**’s version number.
+
+-c COLLECTION, --collection=COLLECTION
+    Select *COLLECTION*, either by collection name or by path to the
+    collection's root directory.
+
+    Default: value of global.\ `Default`_.
+
+-q, --quiet
+    Turn off verbose output.
+
+-v, --verbose
+    Turn on verbose output.
+    Pass this option twice to turn on debug output.
+
+    Default: value of global.\ `Verbose`_.
+
+Selecting a collection
+----------------------
+
+If a *COLLECTION* argument to ``--collection`` is given,
+the selected collection will be one of the following (in order):
+
+- a section name in the `Global collection paths file`_ that starts
+  with *COLLECTION*;
+- a `Root`_ path in the `Global collection paths file`_ the matches
+  the absolute path value of *COLLECTION*; or
+- whatever the path value of *COLLECTION* is.
+
+If ``--collection`` is omitted,
+the selected collection will be one of the following (in order):
+
+- the current working directory if it matches a `Root`_ path in the
+  `Global collection paths file`_;
+- the value of global.\ `Default`_ if it is set and it is a valid
+  section name in the `Global collection paths file`_; or
+- the current working directory.
 
 init
 ====
@@ -641,8 +691,8 @@ Options
 
     Default: value of query.\ `FieldFormats`_.
 
-Search term syntax
-------------------
+Search terms
+------------
 
 Search terms are case-insenstive and cannot contain whitespace.
 They can take three basic forms:
@@ -695,7 +745,7 @@ begin with the same letter or letters.
 Field formats file
 ------------------
 
-The field formats file contains instructions for **query**\ 's
+The field formats file contains instructions for **query**’s
 formatted output mode.
 
 Each field's format is described on a separate line.
@@ -707,7 +757,7 @@ position.
 
 (1) The *field name* is required.
     Fields whose names aren't listed in the field formats file or whose
-    arguments are invalid won't appear in **query**\ 's formatted
+    arguments are invalid won't appear in **query**’s formatted
     output.
 
 (2) A *maximum width* argument is required.
@@ -960,6 +1010,33 @@ FREQ
 Configuration Reference
 -----------------------
 
+This program uses INI files for its primary configuration files.
+For the structure and syntax of such files, please refer to the
+following:
+
+- `INI file`_ on Wikipedia
+- Configparser's `Supported INI File Structure`
+
+.. _INI file: https://en.wikipedia.org/wiki/INI_file
+.. _Supported INI File Structure:
+   https://docs.python.org/3/library/configparser.html#supported-ini-file-structure
+
+However, here is an example of a generic INI file::
+
+    [section]
+    ConfigKey = value
+
+Note that section names are case-sensitive, but key names are not.
+Either '=' or ':' can be used as key–value separators.
+
+The above `Command Reference`_ refers to configuration settings as
+<section>.<ConfigKey>, where <section> is the [section] in the
+configuration file where the setting is read from and <ConfigKey> is the
+setting name.
+However, because of default sections, if a setting is not found in
+<section> it will be looked for in the default section.
+See below for what the default section names for each file.
+
 File locations
 ==============
 
@@ -971,46 +1048,113 @@ following sequence of directories:
 (2) ``${XDG_CONFIG_HOME}/galleries/config``
 (3) ``${HOME}/.config/galleries/config`` if ``$XDG_CONFIG_HOME`` is unset
 
-Argument types
-==============
+Value types
+===========
+
+The configuration parser treats some values specially.
+
+Semicolon list
+--------------
+
+A semicolon-separated list of values.
+Long lists can be broken across multiple lines as long as lines are
+indented deeper than the first line of a value.
+Example::
+
+    TagFields = TagField1;
+        TagField2;
+        TagField3
+
+DB-relative path
+----------------
+
+Used by the `collection configuration file`_ to find files within the
+galleries sub-directory (i.e. the value of `GalleriesDir`_).
+A DB-relative path is thus computed relative to the collection
+configuration file.
+
+Field name
+----------
+
+The name of a field in the input data table.
+They should be specified with the same upper/lower casing as in the
+input.
+The program will fail with an error if a needed field is not found in
+the table being used as input.
+
+Boolean
+-------
+
+Several Boolean arguments are recognized:
+yes/no, on/off, true/false, and 1/0.
+Case is ignored.
 
 Collection configuration file
 =============================
+
+The collection configuration file enables **galleries** to understand
+the data table for that collection, storing the names and types of its
+fields as well as the locations of auxiliary config files and program
+settings custom to the collection.
+The name of the collection configuration file can be configured with
+the `ConfigName`_ setting, either as a new per-user default or
+per-collection.
+
+The default section for collection configuration files is `[db]`_,
+meaning settings in this section will be inherited by every other
+section.
+As an example use, the usual value of `TagFields`_ can be set in [db]
+for most commands but overridden in [count] so that `count`_ will
+default to counting tags from a subset of tag fields.
 
 [db]
 ----
 
 CSVName
 ```````
-:Type: Path
-:Default value:
+The name of the collection data table.
+
+:Type: `DB-relative path`_
+:Default value: db.csv
 
 PathField
 `````````
-:Type:
-:Default value:
+The name of the field being used to store galleries' paths.
+Paths should be relative to the collection's root directory.
+
+:Type: `Field name`_
+:Default value: Path
 
 CountField
 ``````````
-:Type:
-:Default value:
+The name of the field being used to store galleries' file counts.
+
+:Type: `Field name`_
+:Default value: Count
 
 TagFields
 `````````
-:Type:
-:Default value:
+The name(s) of the field(s) being used to store tags.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: Tags
 
 [query]
 -------
 
 FieldFormats
 ````````````
-:Type: Path
+The default argument to `query`_’s ``--field-formats`` option.
+
+:Type: `DB-relative path`_
 :Default value: tableformat.conf
 
 Format
 ``````
-:Type:
+The default argument to `query`_’s ``--format`` option.
+The values it takes are the same.
+
+:Type: One of {none, format, auto}
 :Default value: None
 
 [refresh]
@@ -1018,74 +1162,192 @@ Format
 
 BackupSuffix
 ````````````
+The default argument to `refresh`_’s ``--suffix`` option.
+
 :Type: String
 :Default value: .bak
 
 ImplicatingFields
 `````````````````
-:Type:
-:Default value:
+If the implications and aliases given in a file specified by
+`TagActions`_ should apply only to a subset of tag fields, this setting
+can be used to specify that subset.
+However, if the implications and aliases carry their own field
+information (via "fieldnames" or "fieldgroups"), then they can ignore
+this setting.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `TagFields`_
 
 ReverseSort
 ```````````
-:Type: Boolean
+If set to false, sort ascending---A to Z or smaller to greater.
+If set to true, sort descending---Z to A or greater to smaller.
+
+:Type: `Boolean`_
 :Default value: False
 
 SortField
 `````````
-:Type:
-:Default value:
+Table rows written by `refresh`_ will be sorted by this field.
+
+:Type: `Field name`_
+:Default value: set by `PathField`_
 
 TagActions
 ``````````
-:Type: Path
-:Default value:
+If this option is set, parse listed values as paths to TagActions files.
+
+:Type: `Semicolon list`_ of `DB-relative path`_\ s
+:Default value: None
 
 [related]
 ---------
 
 Filter
 ``````
-:Type:
-:Default value:
+The default argument to `related`_’s ``--where`` option.
+
+:Type: `Semicolon list`_ of `search terms`_
+:Default value: None
 
 Limit
 `````
+The default argument to `related`_’s ``--limit`` option.
+
 :Type: Integer
 :Default value: 20
 
 SortMetric
 ``````````
-:Type:
+The default argument to `related`_’s ``--sort`` option.
+
+:Type: Metric name
 :Default value: cosine
 
 Global configuration file
 =========================
 
+The global configuration file should be a file named ``config``.
+See `File locations`_ for what directory it should go in.
+
+The default section for the global configuration file is named
+[DEFAULT], meaning settings in this section, if it exists, will be
+inherited by every other section.
+
 [global]
 --------
 
+This section allows specifying some default arguments to
+`general options`_.
+
 Default
 ```````
+The default argument to the general option ``--collection``.
+It must be a valid section in the `Global collection paths file`_.
+If not, it will be ignored and a warning emitted.
+See the section "`Selecting a collection`_".
+
 :Type: Collection name
-:Default value: None
+:Default value: None (falls back to current working directory)
+
+Verbose
+```````
+Sets the default verbosity.
+A setting of false is the same as ``--quiet``, and a setting of true is
+the same as ``--verbose``.
+This setting can be overridden by those options.
+
+:Type: Boolean
+:Default value: False
 
 [init]
 ------
 
 TemplateDir
 ```````````
-:Type: Path
+The default argument to `init`_’s ``--template`` option.
+If this is set, it can only be overridden by the ``--bare`` option.
+
+:Type: Any path
 :Default value: None
 
 Global collection paths file
 ============================
 
+The global collection paths file should be a file named ``collections``.
+See `File locations`_ for what directory it should go in.
+It can be used to make selecting collections easier, regardless of one's
+current working directory.
+
+Each section in this file should be a unique name for a collection.
+At a minimum, each section should contain a setting for `Root`_, which
+is how the program will find the full path to the collection from its
+name.
+As described in "`Selecting a collection`_", the argument to the general
+option ``--collection`` is searched for in this file by section name and
+by `Root`_ path.
+If ``--collection`` is omitted, then the user's current working
+directory is still searched for in all `Root`_ paths.
+
+Once a root path has been selected, most commands will attempt to read a
+`collection configuration file`_ from the path:
+<`Root`_> / <`GalleriesDir`_> / <`ConfigName`_>.
+
+The following is an example of a global collection paths file that
+customizes some path components::
+
+    [DEFAULT]
+    GalleriesDir = DB
+
+    [pics]
+    Root = ~/Pictures/Galleries
+    ConfigName = Galleries.cfg
+
+    [oldpics]
+    Root = /mnt/exports/Galleries
+    GalleriesDir = .
+
+In this example, the default GalleriesDir is changed to a non-hidden
+directory name ``DB``.
+This setting will be picked up by the `init`_ command when initializing
+new collections.
+The collection [oldpics] changes GalleriesDir to be the same directory
+as the root directory.
+Based on these settings, the [pics] collection's configuration file will
+be read from ``~/Pictures/Galleries/DB/Galleries.cfg`` and the [oldpics]
+collections's from ``/mnt/exports/Galleries/./db.conf``.
+
+Finally, `Extended Interpolation`_ is enabled for the global collection
+paths file.
+Extended Interpolation is using ``${section:key}`` to denote a value
+from a foreign section.
+One side-effect of this is that, in values, the $ sign needs to be
+escaped with '$$'.
+
+.. _Extended Interpolation:
+   https://docs.python.org/3/library/configparser.html#configparser.ExtendedInterpolation
+
 Root
 ----
+Path to the root directory of this collection.
+It should be an absolute path.
+Tilde expansion is performed, meaning a leading '~' is expanded to the
+current user's home directory.
+
+:Type: Absolute path
+:Default value: None
 
 GalleriesDir
 ------------
+Name of the galleries sub-directory of this collection.
+
+:Type: Directory name
+:Default value: .galleries
 
 ConfigName
 ----------
+Name of the `collection configuration file`_ for this collection.
+
+:Type: File name
+:Default value: db.conf
