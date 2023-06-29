@@ -28,7 +28,7 @@ this::
     │   └── db.csv
     ├── [galleries...]
 
-Each line of the CSV file (i.e. each row of the CSV table), contains the
+Each line of the CSV file (i.e., each row of the CSV table), contains the
 metadata for one gallery.
 A minimum CSV table contains a path field, a count field,
 and one tag field.
@@ -259,27 +259,27 @@ given, then parsing will ignore ImplicatingFields and assign rules to the
 fields named by these settings. The "fieldnames" key expects an array of field
 names. There should be a correspondingly named top-level table for each field
 name itself containing at least one of the tables for creating rules discussed
-above (i.e. implications, aliases, and descriptors). These rules will only be
-applied to the named field. The "fieldgroups" key should be a table whose
-values are arrays of field names. For each key there should be a
+above (implications, multi-implications, aliases, and descriptors). These
+rules will only be applied to the named field. The "fieldgroups" key should be
+a table whose values are arrays of field names. For each key there should be a
 correspondingly named top-level table, the rules in which will be applied to
 the fields named in that array.
 
 An example in TOML format of defining different rules for different
 fields::
 
-    fieldnames = ["Field A"]
+    fieldnames = ["FieldA"]
 
     [fieldgroups]
-    "B + C" = ["Field B", "Field C"]
+    "B + C" = ["FieldB", "FieldC"]
 
-    ["Field A".implications]
+    [FieldA.implications]
     # Implications defined in this table will be applied
-    # just to Field A.
+    # just to FieldA.
 
     ["B + C".implications]
     # Implications defined in this table will be applied
-    # to both Field B and Field C.
+    # to both FieldB and FieldC.
 
     ["B + C".aliases]
     # Same with aliases and descriptors tables
@@ -1015,7 +1015,7 @@ For the structure and syntax of such files, please refer to the
 following:
 
 - `INI file`_ on Wikipedia
-- Configparser's `Supported INI File Structure`
+- Configparser's `Supported INI File Structure`_
 
 .. _INI file: https://en.wikipedia.org/wiki/INI_file
 .. _Supported INI File Structure:
@@ -1069,7 +1069,7 @@ DB-relative path
 ----------------
 
 Used by the `collection configuration file`_ to find files within the
-galleries sub-directory (i.e. the value of `GalleriesDir`_).
+galleries sub-directory (i.e., the value of `GalleriesDir`_).
 A DB-relative path is thus computed relative to the collection
 configuration file.
 
@@ -1246,7 +1246,7 @@ Default
 The default argument to the general option ``--collection``.
 It must be a valid section in the `Global collection paths file`_.
 If not, it will be ignored and a warning emitted.
-See the section "`Selecting a collection`_".
+See the section "`Selecting a collection`_."
 
 :Type: Collection name
 :Default value: None (falls back to current working directory)
@@ -1258,7 +1258,7 @@ A setting of false is the same as ``--quiet``, and a setting of true is
 the same as ``--verbose``.
 This setting can be overridden by those options.
 
-:Type: Boolean
+:Type: `Boolean`_
 :Default value: False
 
 [init]
@@ -1284,7 +1284,7 @@ Each section in this file should be a unique name for a collection.
 At a minimum, each section should contain a setting for `Root`_, which
 is how the program will find the full path to the collection from its
 name.
-As described in "`Selecting a collection`_", the argument to the general
+As described in "`Selecting a collection`_," the argument to the general
 option ``--collection`` is searched for in this file by section name and
 by `Root`_ path.
 If ``--collection`` is omitted, then the user's current working
