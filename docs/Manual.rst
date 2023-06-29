@@ -1294,6 +1294,10 @@ Once a root path has been selected, most commands will attempt to read a
 `collection configuration file`_ from the path:
 <`Root`_> / <`GalleriesDir`_> / <`ConfigName`_>.
 
+The default section for the global collection paths file is named
+[DEFAULT], meaning settings in this section, if it exists, will be
+inherited by every other section.
+
 The following is an example of a global collection paths file that
 customizes some path components::
 
