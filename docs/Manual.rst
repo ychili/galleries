@@ -558,7 +558,7 @@ All tag fields are left empty.
 Options
 -------
 
---h, --help
+-h, --help
     Show help message for **traverse**.
 
 --force
@@ -604,7 +604,7 @@ If *field* is omitted it defaults to the value of count.\ `TagFields`_.
 Options
 -------
 
---h, --help
+-h, --help
     Show help message for **traverse**.
 
 -i FILE, --input=FILE
