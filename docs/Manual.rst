@@ -28,7 +28,7 @@ this::
     │   └── db.csv
     ├── [galleries...]
 
-Each line of the CSV file (i.e., each row of the CSV table), contains the
+Each line of the CSV file (i.e., each row of the CSV table) contains the
 metadata for one gallery.
 A minimum CSV table contains a path field, a count field,
 and one tag field.
