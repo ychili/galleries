@@ -89,21 +89,21 @@ class GlobalConfig:
             self.collections = collections_p
 
     def get_collections(self) -> CollectionFinder:
-        finder = CollectionFinder(
-            default_settings=self.collections[self.collections.default_section]
-        )
         try:
             default_collection = self.options["global"]["Default"]
         except KeyError:
             default_collection = None
         else:
-            if not self.collections.has_section(default_collection.casefold()):
+            if not self.collections.has_section(default_collection):
                 log.warning(
                     "Default collection not found in collections: %s",
                     default_collection,
                 )
                 default_collection = None
-        finder.default_name = default_collection
+        finder = CollectionFinder(
+            default_settings=self.collections[self.collections.default_section],
+            default_name=default_collection,
+        )
         for section in self.collections.sections():
             if path_spec := self._spec_from_section(section):
                 finder.add_collection(path_spec)
