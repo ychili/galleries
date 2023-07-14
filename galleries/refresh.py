@@ -319,8 +319,6 @@ class ObjectExtractor:
 
     def get_list(self, mapping: Mapping, key: Hashable) -> list:
         with self.get(mapping, key, default=[]) as value:
-            if not value:
-                return []
             return self.list(value)
 
     @contextlib.contextmanager
