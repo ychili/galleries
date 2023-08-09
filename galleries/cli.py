@@ -402,7 +402,9 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     except OSError as err:
         log.error("Unable to open CSV file for writing: %s", err)
         return 1
-    log.info("Wrote CSV to file: %s", filename)
+    log.info(
+        "Wrote CSV to file: %s", filename.name if filename == sys.stdout else filename
+    )
     return 0
 
 
