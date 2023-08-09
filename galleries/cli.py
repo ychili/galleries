@@ -391,6 +391,12 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     count_field = db_config.parser.get("db", "CountField")
     tag_fields = db_config.get_list("db", "TagFields")
     fieldnames = [path_field, count_field, *tag_fields]
+    log.debug(
+        "path field: %r; count field: %r; tag fields: %r",
+        path_field,
+        count_field,
+        tag_fields,
+    )
     galleries = refresh.traverse_main(
         paths.collection,
         path_field=path_field,
