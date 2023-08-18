@@ -124,7 +124,11 @@ class _TagActionsContainer:
 
 
 class TagActionsObject:
-    """Extract tag actions from one, unified object format."""
+    """Extract tag actions from one, unified object format.
+
+    Tag actions without field information are assigned to the default tag
+    fields.
+    """
 
     extr: ObjectExtractor
 
@@ -245,6 +249,11 @@ class TagActionsObject:
         return implic
 
     def get_implicator(self, fieldname: Optional[str] = None) -> gms.Implicator:
+        """Return the Implicator for a single field *fieldname*.
+
+        If *fieldname* is ``None`` then return the Implicator for the default
+        tag fields.
+        """
         if fieldname is None:
             return self._pools[self.default_tag_fields].to_implicator()
         spec = self._field_spec[fieldname]
