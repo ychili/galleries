@@ -66,6 +66,10 @@ class MultipleCandidatesError(DisambiguationError):
     """Too many candidates for disambiguation"""
 
 
+class ArgumentParsingError(ValueError):
+    pass
+
+
 class AliasedImplication(NamedTuple):
     implication: RegularImplication
     antecedent: str
@@ -648,11 +652,11 @@ class ArgumentParser:
         Return a ``SearchTerm`` and the string value of the token's logical
         operator if there is one.
 
-        ``ValueError`` is raised if the token cannot be parsed.
+        ``ArgumentParsingError`` is raised if the token cannot be parsed.
         """
         if match := self._regex.fullmatch(argument):
             return self._parse_match_object(match)
-        raise ValueError(argument)
+        raise ArgumentParsingError(argument)
 
     def _parse_match_object(self, match: re.Match) -> tuple[SearchTerm, Optional[str]]:
         logical_operator = match.group("logical_group")
@@ -681,7 +685,7 @@ class ArgumentParser:
                 word = word.replace(self.wildcard, "*")
                 return WildcardSearchTerm(word, fields=fields), logical_operator
             return WholeSearchTerm(word, fields=fields), logical_operator
-        raise ValueError
+        raise ArgumentParsingError
 
 
 class BaseImplication(abc.ABC):

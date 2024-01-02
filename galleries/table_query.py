@@ -58,7 +58,7 @@ def query_from_args(
     parser = gms.ArgumentParser(default_tag_fields=default_tag_fields)
     try:
         query = parser.parse_args(args)
-    except ValueError as err:
+    except gms.ArgumentParsingError as err:
         log.error("Invalid search term: '%s'", err)
         raise SearchTermError(err) from err
     for search_term in query.all_terms():
