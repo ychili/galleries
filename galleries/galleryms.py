@@ -658,7 +658,9 @@ class ArgumentParser:
             return self._parse_match_object(match)
         raise ArgumentParsingError(argument)
 
-    def _parse_match_object(self, match: re.Match) -> tuple[SearchTerm, Optional[str]]:
+    def _parse_match_object(
+        self, match: re.Match[str]
+    ) -> tuple[SearchTerm, Optional[str]]:
         logical_operator = match.group("logical_group")
         if (num := match.group("num")) is not None:
             if (relation := match.group("relation")) is not None:
