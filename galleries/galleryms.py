@@ -54,6 +54,18 @@ Table = TypeVar("Table", bound="OverlapTable")
 TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
 
 
+class DisambiguationError(ValueError):
+    pass
+
+
+class NoCandidatesError(DisambiguationError):
+    """No candidates for disambiguation"""
+
+
+class MultipleCandidatesError(DisambiguationError):
+    """Too many candidates for disambiguation"""
+
+
 class AliasedImplication(NamedTuple):
     implication: RegularImplication
     antecedent: str
@@ -345,10 +357,10 @@ class SearchTerm(abc.ABC):
         name in *fieldnames*, change this term so it refers unambiguously to
         that name.
 
-        Raise ``ValueError`` if this term does not refer to any of the field
+        Raise ``NoCandidatesError`` if this term does not refer to any of the
+        field names in *fieldnames*.
+        Raise ``MultipleCandidatesError`` if there are multiple possible field
         names in *fieldnames*.
-        Raise ``ValueError`` if there are multiple possible field names in
-        *fieldnames*.
         """
         disambiguated = []
         for field in self.fields:
@@ -359,9 +371,11 @@ class SearchTerm(abc.ABC):
                 if fieldname.casefold().startswith(specifier)
             ]
             if len(candidates) < 1:
-                raise ValueError(f"No field names starting with '{field}'")
+                msg = f"No field names starting with '{field}'"
+                raise NoCandidatesError(msg)
             if len(candidates) > 1:
-                raise ValueError(f"Field '{field}' is ambiguous between {candidates}")
+                msg = f"Field '{field}' is ambiguous between {candidates}"
+                raise MultipleCandidatesError(msg)
             disambiguated.append(candidates[0])
         self.fields = disambiguated
 

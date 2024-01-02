@@ -71,7 +71,7 @@ def query_from_args(
             raise SearchTermError(search_term)
         try:
             search_term.disambiguate_fields(fieldnames=fieldnames)
-        except ValueError as err:
+        except gms.DisambiguationError as err:
             log.error("Cannot disambiguate field specifier: %s", err)
             raise SearchTermError(search_term) from err
     log.debug(query)
