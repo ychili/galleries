@@ -63,7 +63,8 @@ class FileType:
                 return sys.stdin
             if "w" in self.mode:
                 return sys.stdout
-            raise ValueError(f"argument '-' with mode {self.mode}")
+            msg = f"argument '-' with mode {self.mode}"
+            raise ValueError(msg)
         return string
 
     def __repr__(self) -> str:
