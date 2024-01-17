@@ -325,7 +325,7 @@ class Gallery(Dict[str, Any]):
 
 
 class Reader(Iterable[Gallery]):
-    def __init__(self, reader: Optional[csv.DictReader] = None) -> None:
+    def __init__(self, reader: Optional[csv.DictReader[str]] = None) -> None:
         if reader is None:
             self._reader = ()
             self.fieldnames = ()
