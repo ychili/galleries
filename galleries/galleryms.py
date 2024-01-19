@@ -272,7 +272,7 @@ class TagSet(Set[str]):
                 self.add(tag)
 
 
-class Gallery(Dict[str, Any]):
+class Gallery(Dict[str, object]):
     """Represent one row of the database."""
 
     def merge_tags(self, *fields: str) -> TagSet:
@@ -285,14 +285,18 @@ class Gallery(Dict[str, Any]):
     def normalize_tags(self, field: str) -> TagSet:
         """Return the ``TagSet`` from *field*."""
         value = self[field]
-        if not isinstance(value, TagSet):
+        if isinstance(value, str):
             return TagSet.from_tagstring(value)
-        return value
+        if isinstance(value, TagSet):
+            return value
+        raise TypeError(value)
 
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
         name = self[field]
-        return Path(cwd, name)
+        if isinstance(name, StrPath):
+            return Path(cwd, name)
+        raise TypeError(name)
 
     def check_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Check if *field* contains the name of a folder that exists.
