@@ -3,6 +3,27 @@ serve as quick tests for some of this package's core classes.
 They fill the gap between “too long or complex to fit in a docstring”
 and “not yet turned into a unit test case.”
 
+Test CSV parsing
+----------------
+
+Use ``StrictReader`` which checks for field mismatches from short or
+long rows.
+
+>>> from galleries.util import StrictReader
+>>> fieldnames = "field1,field2"
+>>> file = [fieldnames, "data1,data2"]
+>>> r = StrictReader(file)
+>>> r.fieldnames
+['field1', 'field2']
+>>> list(r)
+[{'field1': 'data1', 'field2': 'data2'}]
+>>> short_row = "data1 but not data2"
+>>> r = StrictReader([fieldnames, short_row])
+>>> list(r)
+Traceback (most recent call last):
+    ...
+galleries.util.MissingFieldError: line 2: 1 missing field(s) in row: ['data1 but not data2']
+
 Test query logic
 ----------------
 
