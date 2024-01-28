@@ -7,10 +7,10 @@ import csv
 import os
 import re
 import sys
-from collections.abc import Collection, Iterable, Iterator
-from typing import Callable, Optional, Union
+from collections.abc import Collection, Iterator, Sequence
+from typing import Callable, Iterable, Optional, Union
 
-from .galleryms import Gallery, Reader
+from .galleryms import Gallery
 
 # I/O UTILITIES
 # -------------
@@ -18,6 +18,63 @@ from .galleryms import Gallery, Reader
 
 class FieldNotFoundError(Exception):
     pass
+
+
+class FieldMismatchError(Exception):
+    def __init__(
+        self, row: list[str], fieldnames: Sequence[str], line_num: int
+    ) -> None:
+        self.row = row
+        self.fieldnames = fieldnames
+        self.line_num = line_num
+        self.args = (row, fieldnames, line_num)
+
+
+class ExtraFieldError(FieldMismatchError):
+    def __str__(self) -> str:
+        n_extra = len(self.row) - len(self.fieldnames)
+        return f"line {self.line_num}: {n_extra} extra field(s) in row: {self.row}"
+
+
+class MissingFieldError(FieldMismatchError):
+    def __str__(self) -> str:
+        n_missing = len(self.fieldnames) - len(self.row)
+        return f"line {self.line_num}: {n_missing} missing field(s) in row: {self.row}"
+
+
+class Reader(Iterable[Gallery]):
+    def __init__(self, reader: StrictReader) -> None:
+        self._reader = reader
+        self.fieldnames = reader.fieldnames
+
+    def __iter__(self) -> Iterator[Gallery]:
+        yield from self._reader
+
+
+class StrictReader(csv.DictReader):
+    """A DictReader that doesn't allow short or long rows"""
+
+    def __next__(self) -> Gallery:
+        if self.line_num == 0:
+            # Used only for its side effect.
+            self.fieldnames  # pylint: disable=pointless-statement
+            # If self.fieldnames is None then StopIteration will be raised on
+            # the next line.
+        row = next(self.reader)
+        self.line_num = self.reader.line_num
+
+        while row == []:
+            row = next(self.reader)
+        self.fieldnames: Sequence[str]  # Assert type
+        l_fn = len(self.fieldnames)
+        l_row = len(row)
+        if l_fn < l_row:
+            # Extra fields
+            raise ExtraFieldError(row, self.fieldnames, self.line_num)
+        if l_fn > l_row:
+            # Missing fields
+            raise MissingFieldError(row, self.fieldnames, self.line_num)
+        return Gallery(zip(self.fieldnames, row))
 
 
 @contextlib.contextmanager
@@ -34,14 +91,12 @@ def read_db(
     else:
         file_cm = open(file, encoding="utf-8", newline="")
     with file_cm as infile:
-        reader = csv.DictReader(infile)
+        reader = Reader(StrictReader(infile))
         if reader.fieldnames:
             for field in fieldnames or ():
                 if field not in reader.fieldnames:
                     raise FieldNotFoundError(field)
-            yield Reader(reader)
-        else:
-            yield Reader()
+        yield reader
 
 
 def write_galleries(

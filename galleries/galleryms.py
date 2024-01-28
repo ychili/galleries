@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import abc
-import csv
 import dataclasses
 import fnmatch
 import heapq
@@ -326,20 +325,6 @@ class Gallery(Dict[str, object]):
             for file in folder_path.iterdir()
             if not file.is_dir() and not file.name.startswith(".")
         )
-
-
-class Reader(Iterable[Gallery]):
-    def __init__(self, reader: Optional[csv.DictReader[str]] = None) -> None:
-        if reader is None:
-            self._reader = ()
-            self.fieldnames = ()
-        else:
-            self._reader = reader
-            self.fieldnames = tuple(reader.fieldnames or ())
-
-    def __iter__(self) -> Iterator[Gallery]:
-        for row in self._reader:
-            yield Gallery(row)
 
 
 class SearchTerm(abc.ABC):
