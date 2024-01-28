@@ -293,7 +293,8 @@ class Gallery(Dict[str, object]):
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
         name = self[field]
-        if isinstance(name, StrPath):
+        # 3.10: use StrPath
+        if isinstance(name, (str, Path)):
             return Path(cwd, name)
         raise TypeError(name)
 
