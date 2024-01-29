@@ -13,6 +13,7 @@ import sys
 from collections.abc import Collection, Iterable, Mapping, MutableMapping
 from typing import IO, Any, Optional
 
+from . import PROG
 from .galleryms import (
     FieldFormat,
     OverlapTable,
@@ -22,7 +23,7 @@ from .galleryms import (
     most_common,
 )
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(PROG)
 
 
 class ResultsTable:

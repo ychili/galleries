@@ -10,9 +10,10 @@ import logging
 import statistics
 from collections.abc import Iterable
 
+from . import PROG
 from .galleryms import TagSet
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(PROG)
 
 
 def tag_counts(tag_sets: Iterable[TagSet]) -> collections.Counter[str]:

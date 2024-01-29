@@ -14,15 +14,16 @@ import re
 from collections import ChainMap, defaultdict
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence, Set
 from pathlib import Path
-from typing import Any, Callable, Generic, Hashable, Optional, TypeVar
+from typing import Any, Callable, Generic, Hashable, Optional, TypeVar, Union
 
+from . import PROG
 from . import galleryms as gms
 from . import util
 
 T = TypeVar("T")
 Symbol = TypeVar("Symbol", bound=Hashable)
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(PROG)
 
 
 class Gardener:
@@ -280,10 +281,10 @@ class ObjectExtractor:
     def __init__(
         self,
         source: Optional[os.PathLike] = None,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Union[logging.Logger, logging.LoggerAdapter]] = None,
     ) -> None:
         self.source = source or "<???>"
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(PROG)
         self._parse_stack: list[Optional[str]] = []
 
     def items(self, mapping: Mapping) -> Iterator[tuple[Any, Any]]:

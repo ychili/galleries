@@ -18,7 +18,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Callable, Optional, TextIO, Union
 
-from . import __prog__, __version__, refresh, relatedtag, table_query, tagcount, util
+from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
 StrPath = Union[str, Path]
 
@@ -45,7 +45,7 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(PROG)
 
 
 class FileType:
@@ -806,7 +806,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "-h", "--help", action="help", help="show this help message and exit"
     )
     general_opts.add_argument(
-        "-V", "--version", action="version", version=f"{__prog__} {__version__}"
+        "-V", "--version", action="version", version=f"{PROG} {__version__}"
     )
     general_opts.add_argument(
         "-c",
@@ -829,7 +829,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     logging.basicConfig(
-        level=logging.DEBUG, format=f"{__prog__}: %(levelname)s: %(message)s"
+        level=logging.DEBUG, format=f"{PROG}: %(levelname)s: %(message)s"
     )
     global_config = read_global_configuration()
     args = build_cla_parser().parse_args()
@@ -862,7 +862,7 @@ def get_global_config_dir() -> Path:
         base_dir = Path(xdg_config_home)
     else:
         base_dir = Path.home() / ".config"
-    return base_dir / __prog__
+    return base_dir / PROG
 
 
 def collection_path_spec(

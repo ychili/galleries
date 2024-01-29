@@ -14,12 +14,13 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional, TextIO, TypeVar, Union
 
+from . import PROG
 from . import galleryms as gms
 from . import util
 
 FormatT = TypeVar("FormatT", bound="Format")
 
-log = logging.getLogger(__name__)
+log = logging.getLogger(PROG)
 
 
 class SearchTermError(ValueError):
