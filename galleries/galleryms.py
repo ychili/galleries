@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import abc
-import csv
 import dataclasses
 import fnmatch
 import heapq
@@ -272,7 +271,7 @@ class TagSet(Set[str]):
                 self.add(tag)
 
 
-class Gallery(Dict[str, Any]):
+class Gallery(Dict[str, object]):
     """Represent one row of the database."""
 
     def merge_tags(self, *fields: str) -> TagSet:
@@ -285,14 +284,19 @@ class Gallery(Dict[str, Any]):
     def normalize_tags(self, field: str) -> TagSet:
         """Return the ``TagSet`` from *field*."""
         value = self[field]
-        if not isinstance(value, TagSet):
+        if isinstance(value, str):
             return TagSet.from_tagstring(value)
-        return value
+        if isinstance(value, TagSet):
+            return value
+        raise TypeError(value)
 
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
         name = self[field]
-        return Path(cwd, name)
+        # 3.10: use StrPath
+        if isinstance(name, (str, Path)):
+            return Path(cwd, name)
+        raise TypeError(name)
 
     def check_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Check if *field* contains the name of a folder that exists.
@@ -322,20 +326,6 @@ class Gallery(Dict[str, Any]):
             for file in folder_path.iterdir()
             if not file.is_dir() and not file.name.startswith(".")
         )
-
-
-class Reader(Iterable[Gallery]):
-    def __init__(self, reader: Optional[csv.DictReader[str]] = None) -> None:
-        if reader is None:
-            self._reader = ()
-            self.fieldnames = ()
-        else:
-            self._reader = reader
-            self.fieldnames = tuple(reader.fieldnames or ())
-
-    def __iter__(self) -> Iterator[Gallery]:
-        for row in self._reader:
-            yield Gallery(row)
 
 
 class SearchTerm(abc.ABC):

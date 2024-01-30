@@ -431,6 +431,9 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
         return 1
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
+        return 1
 
 
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -476,6 +479,9 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         return 1
     except table_query.SearchTermError:
         return 1
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
+        return 1
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -512,6 +518,9 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         return 1
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
+        return 1
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
         return 1
     try:
         with reader as reader:
@@ -613,6 +622,9 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         log.error("Field not in file: %s", err)
         return 1
     except table_query.SearchTermError:
+        return 1
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
         return 1
     log.debug("Read from CSV file %r", input_file)
     relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
@@ -893,6 +905,11 @@ def read_global_configuration() -> GlobalConfig:
     except configparser.Error as err:
         log.error(err_msg, "collections", err)
     return parser
+
+
+def log_field_mismatch(error: util.FieldMismatchError) -> None:
+    log.error("Error in CSV file: %s", error)
+    log.debug("Fieldnames from file: %s", error.fieldnames)
 
 
 def ignore_patterns(*patterns: StrPath) -> Callable[[Any, list[str]], set[str]]:
