@@ -157,7 +157,7 @@ class TagActionsObject:
         obj = load(path)
         self.update(obj, source=path)
 
-    def update(self, obj: Any, source: Optional[os.PathLike] = None) -> None:
+    def update(self, obj: object, source: Optional[os.PathLike] = None) -> None:
         self.extr = ObjectExtractor(source=source)
         obj = self.extr.dict(obj)
         if not obj:
@@ -340,7 +340,7 @@ class ObjectExtractor:
         with self.get(mapping, key, default={}) as value:
             yield from self.items(value)
 
-    def warn(self, msg: str, *args: Any) -> None:
+    def warn(self, msg: str, *args: object) -> None:
         self.logger.warning(
             "In %s: At %s: %s", self.source, toml_address(self._parse_stack), msg % args
         )
@@ -409,7 +409,7 @@ def set_chains(
             yield consequent, tuple(result_stack)
 
 
-def check_mapping(obj: Any, default: type[Mapping] = dict) -> Mapping:
+def check_mapping(obj: object, default: type[Mapping] = dict) -> Mapping:
     """
     Return *obj* if it is a mapping. Otherwise return an empty instance of
     *default*.
