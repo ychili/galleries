@@ -21,6 +21,8 @@ from . import galleryms as gms
 from . import util
 
 T = TypeVar("T")
+KT = TypeVar("KT")
+VT = TypeVar("VT")
 Symbol = TypeVar("Symbol", bound=Hashable)
 
 log = logging.getLogger(PROG)
@@ -167,7 +169,7 @@ class TagActionsObject:
             if table_name is None:
                 cm = contextlib.nullcontext(obj)
             else:
-                cm = self.extr.get(obj, table_name)
+                cm = self.extr.get(obj, table_name, default=None)
             with cm as table:
                 if not table:
                     self.extr.warn("Table not found with name: %s", table_name)
@@ -194,16 +196,16 @@ class TagActionsObject:
             dests[self.default_tag_fields] = None
         return dests
 
-    def _parse_aliases(self, obj: Any) -> Iterator[tuple[str, str]]:
+    def _parse_aliases(self, obj: Mapping) -> Iterator[tuple[str, str]]:
         for key, value in self.extr.get_items(obj, "aliases"):
             yield str(key), str(value)
 
-    def _parse_implications(self, obj: Any) -> Iterator[gms.RegularImplication]:
+    def _parse_implications(self, obj: Mapping) -> Iterator[gms.RegularImplication]:
         yield from self._parse_regulars(obj)
         with self.extr.get_dict(obj, "descriptors") as table:
             yield from self._parse_descriptors(table)
 
-    def _parse_regulars(self, obj: Any) -> Iterator[gms.RegularImplication]:
+    def _parse_regulars(self, obj: Mapping) -> Iterator[gms.RegularImplication]:
         for key, value in self.extr.get_items(obj, "implications"):
             yield gms.RegularImplication(antecedent=str(key), consequent=str(value))
         for key, value in self.extr.get_items(obj, "multi-implications"):
@@ -213,7 +215,7 @@ class TagActionsObject:
                     antecedent=antecedent, consequent=str(consequent)
                 )
 
-    def _parse_descriptors(self, table: Any) -> Iterator[gms.RegularImplication]:
+    def _parse_descriptors(self, table: Mapping) -> Iterator[gms.RegularImplication]:
         symbols: WordMultiplier = WordMultiplier()
         for name, words in self.extr.get_items(table, "sets"):
             symbols.add_set(name, self.extr.list(words))
@@ -287,7 +289,7 @@ class ObjectExtractor:
         self.logger = logger or logging.getLogger(PROG)
         self._parse_stack: list[Optional[str]] = []
 
-    def items(self, mapping: Mapping) -> Iterator[tuple[Any, Any]]:
+    def items(self, mapping: Mapping[T, VT]) -> Iterator[tuple[T, VT]]:
         try:
             mapping_items = mapping.items()
         except AttributeError:
@@ -300,7 +302,7 @@ class ObjectExtractor:
                 self._parse_stack.pop()
 
     @contextlib.contextmanager
-    def get(self, mapping: Mapping, key: Hashable, default: Any = None) -> Iterator:
+    def get(self, mapping: Mapping[KT, VT], key: KT, default: VT) -> Iterator[VT]:
         self._parse_stack.append(str(key))
         try:
             value = mapping.get(key, default)
@@ -311,7 +313,7 @@ class ObjectExtractor:
             yield value
         self._parse_stack.pop()
 
-    def object(self, value: Any, class_or_type: type[T]) -> T:
+    def object(self, value: object, class_or_type: type[T]) -> T:
         if isinstance(value, class_or_type):
             return value
         self.warn(
@@ -321,22 +323,24 @@ class ObjectExtractor:
         )
         return class_or_type()
 
-    def list(self, value: Any) -> list:
+    def list(self, value: object) -> list:
         return self.object(value, list)
 
-    def dict(self, value: Any) -> dict:
+    def dict(self, value: object) -> dict:
         return self.object(value, dict)
 
-    def get_list(self, mapping: Mapping, key: Hashable) -> list:
+    def get_list(self, mapping: Mapping[KT, list], key: KT) -> list:
         with self.get(mapping, key, default=[]) as value:
             return self.list(value)
 
     @contextlib.contextmanager
-    def get_dict(self, mapping: Mapping, key: Hashable) -> Iterator:
+    def get_dict(self, mapping: Mapping[KT, dict], key: KT) -> Iterator[dict]:
         with self.get(mapping, key, default={}) as value:
             yield self.dict(value)
 
-    def get_items(self, mapping: Mapping, key: Hashable) -> Iterator[tuple[Any, Any]]:
+    def get_items(
+        self, mapping: Mapping[KT, Mapping[T, VT]], key: KT
+    ) -> Iterator[tuple[T, VT]]:
         with self.get(mapping, key, default={}) as value:
             yield from self.items(value)
 
