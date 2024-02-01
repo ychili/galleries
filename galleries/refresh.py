@@ -220,9 +220,9 @@ class TagActionsObject:
         for name, elements in self.extr.get_items(table, "unions"):
             if name in symbols:
                 self.extr.warn("Over-writing set name with union: %s", name)
-            elements = self.extr.list(elements)
+            union_elements = self.extr.list(elements)
             try:
-                symbols.add_union(name, *elements)
+                symbols.add_union(name, *union_elements)
             except KeyError as err:
                 self.extr.warn("Bad set/union name: %s", err)
         for name, elements in self.extr.get_items(table, "chains"):
