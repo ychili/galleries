@@ -23,6 +23,9 @@ FormatT = TypeVar("FormatT", bound="Format")
 log = logging.getLogger(PROG)
 
 
+ArgumentParser = gms.ArgumentParser
+
+
 class SearchTermError(ValueError):
     pass
 
@@ -56,7 +59,7 @@ def query_from_args(
     fieldnames: Sequence[str],
     default_tag_fields: Optional[Iterable[str]] = None,
 ) -> gms.Query:
-    parser = gms.ArgumentParser(default_tag_fields=default_tag_fields)
+    parser = ArgumentParser(default_tag_fields=default_tag_fields)
     try:
         query = parser.parse_args(args)
     except gms.ArgumentParsingError as err:

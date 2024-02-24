@@ -711,7 +711,12 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p = subparsers.add_parser(
         "query",
         help="query the table",
-        description="Print galleries matching search term(s).",
+        description=(
+            "Print galleries matching search term(s)."
+            f" Wildcard is '{table_query.ArgumentParser.wildcard}',"
+            f" NOT prefix is '{table_query.ArgumentParser.not_operator}',"
+            f" OR prefix is '{table_query.ArgumentParser.or_operator}'."
+        ),
     )
     query_p.add_argument(
         "-f",
