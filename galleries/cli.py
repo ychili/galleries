@@ -201,6 +201,10 @@ class CollectionPathSpec:
     def get_db_path(self, filename: StrPath) -> Path:
         return self.subdir / filename
 
+    # In acquire_db_config and get_db_config, don't try to handle and recover
+    # from configparser errors. The parser will not be in a readable state.
+    # Log the error and re-raise the exception.
+
     def acquire_db_config(self) -> Optional[DBConfig]:
         """Check collection's validity, and read its configuration.
 
@@ -216,7 +220,7 @@ class CollectionPathSpec:
             successful = config.parser.read(self.config)
         except configparser.Error as err:
             self._log_bad_read(err)
-            return None
+            raise
         if not successful:
             self._log_bad_read(self.config)
             return None
@@ -228,9 +232,10 @@ class CollectionPathSpec:
             config.parser.read(self.config)
         except configparser.Error as err:
             self._log_bad_read(err)
+            raise
         return config
 
-    def _log_bad_read(self, error: Any) -> None:
+    def _log_bad_read(self, error: object) -> None:
         return log.error("Unable to read configuration from file: %s", error)
 
 
@@ -848,11 +853,17 @@ def main() -> int:
     logging.basicConfig(
         level=logging.DEBUG, format=f"{PROG}: %(levelname)s: %(message)s"
     )
-    global_config = read_global_configuration()
+    try:
+        global_config = read_global_configuration()
+    except configparser.Error:
+        return 1
     args = build_cla_parser().parse_args()
     set_logging_level(args, global_config)
     log.debug(args)
-    return args.func(args, global_config)
+    try:
+        return args.func(args, global_config)
+    except configparser.Error:
+        return 1
 
 
 def set_logging_level(args: argparse.Namespace, global_config: GlobalConfig) -> None:
@@ -900,15 +911,20 @@ def read_global_configuration() -> GlobalConfig:
     config_dir_path = get_global_config_dir()
     parser = GlobalConfig()
     parser.options.read_dict(DEFAULT_GLOBAL_CONFIG)
+    # Don't try to recover from configparser.Error. The parser will not be in
+    # a readable state.
+    # Log the error and re-raise.
     err_msg = "Unable to read %s configuration file: %s"
     try:
         parser.options.read(config_dir_path / "config")
     except configparser.Error as err:
         log.error(err_msg, "global", err)
+        raise
     try:
         parser.collections.read(config_dir_path / "collections")
     except configparser.Error as err:
         log.error(err_msg, "collections", err)
+        raise
     return parser
 
 
