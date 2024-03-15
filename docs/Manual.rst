@@ -371,6 +371,13 @@ A value of **format** means always format.
 A value of **auto** will format if it detects that standard output
 is connected to a terminal (and not, for example, a pipe).
 
+Calling the query command without any search term arguments will cause
+every gallery to be printed.
+Because of this, you can quickly pipe the output of ``galleries query``
+to any program that can filter by row—like **grep**\ (1).
+This is useful for searching the table by data not in a tag field,
+such as the content of the path field.
+
 Analyzing tag relationships
 ===========================
 
@@ -618,7 +625,7 @@ Options
 query
 =====
 
-Print galleries search term(s).
+Print galleries matching search term(s).
 
 Usage
 -----
