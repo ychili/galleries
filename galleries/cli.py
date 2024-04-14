@@ -517,7 +517,11 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     if cla.validate or error_status:
         return error_status
     try:
-        reader = util.read_db(filename, gardener.needed_fields)
+        with util.read_db(filename, gardener.needed_fields) as reader:
+            rows = list(gardener.garden_rows(reader))
+    except refresh.FolderPathError as err:
+        log.error("With %s value: %s", path_field, err)
+        return 1
     except OSError as err:
         log.error("Unable to open CSV file for reading: %s", err)
         return 1
@@ -526,12 +530,6 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         return 1
     except util.FieldMismatchError as err:
         log_field_mismatch(err)
-        return 1
-    try:
-        with reader as reader:
-            rows = list(gardener.garden_rows(reader))
-    except refresh.FolderPathError as err:
-        log.error("With %s value: %s", path_field, err)
         return 1
     if not rows:
         return 0
