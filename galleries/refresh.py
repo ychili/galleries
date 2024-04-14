@@ -28,6 +28,10 @@ Symbol = TypeVar("Symbol", bound=Hashable)
 log = logging.getLogger(PROG)
 
 
+class FolderPathError(OSError):
+    """Error with a path value"""
+
+
 class Gardener:
     """Garden galleries."""
 
@@ -113,7 +117,10 @@ class Gardener:
     def _update_count(self, gallery: gms.Gallery) -> None:
         log.info("Checking folder: %s", gallery[self._path_field])
         folder = gallery.get_folder(self._path_field, cwd=self._root_path)
-        gallery.update_count(self._count_field, folder)
+        try:
+            gallery.update_count(self._count_field, folder)
+        except (FileNotFoundError, NotADirectoryError) as err:
+            raise FolderPathError(err) from err
 
 
 @dataclasses.dataclass

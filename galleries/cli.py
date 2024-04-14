@@ -530,7 +530,7 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     try:
         with reader as reader:
             rows = list(gardener.garden_rows(reader))
-    except OSError as err:
+    except refresh.FolderPathError as err:
         log.error("With %s value: %s", path_field, err)
         return 1
     if not rows:
