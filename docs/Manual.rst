@@ -1052,8 +1052,8 @@ collection paths file`_, ``collections``, will be searched for in the
 following sequence of directories:
 
 (1) ``${GALLERIES_CONF}`` if it is set
-(2) ``${XDG_CONFIG_HOME}/galleries/config``
-(3) ``${HOME}/.config/galleries/config`` if ``$XDG_CONFIG_HOME`` is unset
+(2) ``${XDG_CONFIG_HOME}/galleries``
+(3) ``${HOME}/.config/galleries`` if ``XDG_CONFIG_HOME`` is unset
 
 Value types
 ===========
