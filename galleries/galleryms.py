@@ -12,6 +12,7 @@ import itertools
 import json
 import math
 import operator
+import os
 import re
 import textwrap
 import warnings
@@ -318,14 +319,15 @@ class Gallery(Dict[str, object]):
     def update_count(self, field: str, folder_path: Path) -> None:
         """Update *field* with number of files in *folder_path*.
 
-        The count does not include directories and hidden files (files with
-        names that start with '.').
+        The count does not include files with names that start with a dot.
         """
-        self[field] = sum(
-            1
-            for file in folder_path.iterdir()
-            if not file.is_dir() and not file.name.startswith(".")
-        )
+        with os.scandir(folder_path) as scandir_it:
+            count = sum(
+                1
+                for entry in scandir_it
+                if not entry.name.startswith(".") and entry.is_file()
+            )
+        self[field] = count
 
 
 class SearchTerm(abc.ABC):
