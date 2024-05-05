@@ -979,15 +979,15 @@ class TagCount(Generic[H]):
 
 
 @dataclasses.dataclass
-class SimilarityCalculator:
+class SimilarityCalculator(Generic[H]):
     """Provide a variety of similarity metrics between two tags.
 
     Two tags are considered similar if they have nearly the same set of
     galleries and nearly the same size.
     """
 
-    tag_a: TagCount
-    tag_b: TagCount
+    tag_a: TagCount[H]
+    tag_b: TagCount[H]
     overlap: int
 
     def cosine_similarity(self) -> float:
@@ -1053,7 +1053,7 @@ class OverlapTable(Collection[H]):
         """Get the number of overlaps between *x* and *y*."""
         return self._table.get(x, {})[y]
 
-    def similarity(self, x: H, y: H, /) -> SimilarityCalculator:
+    def similarity(self, x: H, y: H, /) -> SimilarityCalculator[H]:
         tag_x = TagCount(x, self.count(x))
         tag_y = TagCount(y, self.count(y))
         return SimilarityCalculator(tag_x, tag_y, self.get(x, y))
@@ -1072,7 +1072,7 @@ class OverlapTable(Collection[H]):
         """
         yield from self._table.get(tag, {}).items()
 
-    def similarities(self, tag: H) -> Iterator[SimilarityCalculator]:
+    def similarities(self, tag: H) -> Iterator[SimilarityCalculator[H]]:
         tag_a = TagCount(tag, self.count(tag))
         for other_tag, overlap in self.overlaps(tag):
             tag_b = TagCount(other_tag, self._table[other_tag][other_tag])

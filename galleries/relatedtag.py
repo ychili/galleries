@@ -92,7 +92,7 @@ class SimilarityResult:
         return [field.name for field in dataclasses.fields(cls)]
 
 
-def make_row(sim: SimilarityCalculator) -> SimilarityResult:
+def make_row(sim: SimilarityCalculator[str]) -> SimilarityResult:
     return SimilarityResult(
         tag=sim.tag_b.tag,
         count=sim.tag_b.count,
@@ -104,7 +104,9 @@ def make_row(sim: SimilarityCalculator) -> SimilarityResult:
 
 
 def sort(
-    calculators: Iterable[SimilarityCalculator], sort_by: str, n: Optional[int] = None
+    calculators: Iterable[SimilarityCalculator[str]],
+    sort_by: str,
+    n: Optional[int] = None,
 ) -> list[SimilarityResult]:
     result_rows = (make_row(sim) for sim in calculators)
     return most_common(result_rows, n=n, key=operator.attrgetter(sort_by))
