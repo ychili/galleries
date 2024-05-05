@@ -29,7 +29,7 @@ log = logging.getLogger(PROG)
 class ResultsTable:
     def __init__(
         self,
-        file: IO,
+        file: IO[str],
         tabulator: Optional[Tabulator] = None,
         header: Optional[Mapping[str, Any]] = None,
     ) -> None:
@@ -143,7 +143,7 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable[str]:
     return table
 
 
-def results_table(file: IO, effect: bool = False) -> ResultsTable:
+def results_table(file: IO[str], effect: bool = False) -> ResultsTable:
     """Return the ``ResultsTable`` with default settings."""
     printer = ResultsTable(file)
     printer.header = {
@@ -167,7 +167,7 @@ def print_relatedtags(
     tag_names: Iterable[str],
     sort_by: str = "cosine",
     limit: Optional[int] = None,
-    file: Optional[IO] = None,
+    file: Optional[IO[str]] = None,
     printer: Optional[ResultsTable] = None,
 ) -> None:
     if file is None:
