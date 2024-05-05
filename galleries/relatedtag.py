@@ -111,7 +111,7 @@ def sort(
 
 
 def query(
-    table: OverlapTable, tag: str, sort_by: str, limit: Optional[int] = None
+    table: OverlapTable[str], tag: str, sort_by: str, limit: Optional[int] = None
 ) -> list[SimilarityResult]:
     """Get similiarity results for *tag* from *table*."""
     try:
@@ -125,7 +125,7 @@ def query(
         ]
 
 
-def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
+def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable[str]:
     table = OverlapTable(*tag_sets)
     if table:
         log.info(
@@ -161,7 +161,7 @@ def results_table(file: IO, effect: bool = False) -> ResultsTable:
 
 
 def print_relatedtags(
-    data_table: OverlapTable,
+    data_table: OverlapTable[str],
     tag_names: Iterable[str],
     sort_by: str = "cosine",
     limit: Optional[int] = None,
