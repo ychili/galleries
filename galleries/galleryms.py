@@ -483,7 +483,7 @@ class NumericCondition(SearchTerm):
         for fieldname in self.fields:
             try:
                 value = cache.setdefault(fieldname, gallery[fieldname])
-                values.append(float(value))  # type: ignore
+                values.append(float(value))
             except (ValueError, TypeError):
                 # Rows with null or invalid values _will_ be excluded from
                 # results
