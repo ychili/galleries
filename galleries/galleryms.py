@@ -1085,7 +1085,7 @@ class OverlapTable(Collection[H]):
         return self._n_sets
 
     @property
-    def counter(self) -> Counter:
+    def counter(self) -> Counter[H]:
         return Counter({tag: counter[tag] for tag, counter in self._table.items()})
 
     def __len__(self) -> int:
