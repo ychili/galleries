@@ -1,6 +1,6 @@
 # refresh.py
 #
-"""Use the management functionality to galleryms to refresh the table data."""
+"""Use the management functionality of galleryms to refresh the table data."""
 
 from __future__ import annotations
 
