@@ -430,6 +430,11 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         with util.read_db(filename, tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
             return func(tag_sets)
+    except BrokenPipeError:
+        # Even though BrokenPipeError was caught, suppress the error
+        # message by closing stderr before exiting.
+        sys.stderr.close()
+        return 0
     except OSError as err:
         log.error("Unable to open CSV file for reading: %s", err)
         return 1
