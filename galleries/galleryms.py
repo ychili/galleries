@@ -998,7 +998,7 @@ class SimilarityCalculator(Generic[H]):
         return self.overlap / (self.tag_a.count + self.tag_b.count - self.overlap)
 
     def overlap_coefficient(self) -> float:
-        return self.overlap / min([self.tag_a.count, self.tag_b.count])
+        return self.overlap / min(self.tag_a.count, self.tag_b.count)
 
     def frequency(self) -> float:
         """How frequently tag A occurs together with tag B"""
