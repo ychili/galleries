@@ -415,7 +415,7 @@ class WholeSearchTerm(TagSearchTerm):
 
     def match(
         self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Any:
+    ) -> Optional[str]:
         for tagset in self.tagsets(gallery, cache):
             if self.word in tagset:
                 return self.word
@@ -440,7 +440,7 @@ class WildcardSearchTerm(TagSearchTerm):
 
     def match(
         self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Any:
+    ) -> Optional[re.Match[str]]:
         for tagset in self.tagsets(gallery, cache):
             for tag in tagset:
                 if match := self.regex.match(tag):
