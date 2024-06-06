@@ -701,7 +701,7 @@ class DescriptorImplication(BaseImplication):
     """
 
     word: str
-    pattern: re.Pattern = dataclasses.field(init=False, compare=False)
+    pattern: re.Pattern[str] = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "pattern", re.compile(f"\\A{self.word}_(.+)"))
