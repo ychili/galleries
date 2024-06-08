@@ -12,9 +12,18 @@ import logging
 import os
 import re
 from collections import ChainMap, defaultdict
-from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence, Set
+from collections.abc import (
+    Callable,
+    Collection,
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+    Set,
+)
 from pathlib import Path
-from typing import Any, Callable, Generic, Hashable, Optional, TypeVar, Union
+from typing import Any, Generic, Optional, TypeVar, Union
 
 from . import PROG
 from . import galleryms as gms

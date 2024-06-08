@@ -14,9 +14,9 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any, Callable, Optional, TextIO, Union
+from typing import Any, Optional, TextIO, Union
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 

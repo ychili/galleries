@@ -7,8 +7,8 @@ import csv
 import os
 import re
 import sys
-from collections.abc import Collection, Iterator, Sequence
-from typing import Callable, Iterable, Optional, Union
+from collections.abc import Callable, Collection, Iterator, Sequence
+from typing import Iterable, Optional, Union
 
 from .galleryms import Gallery
 

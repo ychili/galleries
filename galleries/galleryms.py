@@ -18,6 +18,7 @@ import textwrap
 import warnings
 from collections import ChainMap, Counter, defaultdict
 from collections.abc import (
+    Callable,
     Hashable,
     Iterable,
     Iterator,
@@ -31,7 +32,6 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
-    Callable,
     Collection,
     Dict,
     Generic,
