@@ -1,4 +1,5 @@
 import operator
+import string
 import unittest
 
 import galleries.galleryms
@@ -150,6 +151,42 @@ class TestSimilarityCalculator(unittest.TestCase):
         with self.assertRaises(ZeroDivisionError):
             zero.overlap_coefficient()
         self.assertEqual(zero.frequency(), 0.0)
+
+
+class TestOverlapTable(unittest.TestCase):
+    @staticmethod
+    def _make_nontrivial():
+        return galleries.galleryms.OverlapTable({"a"}, {"b", "c"}, {"b", "d"})
+
+    def test_require_hashable(self):
+        self.assertRaises(TypeError, galleries.galleryms.OverlapTable, [{}])
+
+    def test_containership(self):
+        table = galleries.galleryms.OverlapTable()
+        self.assertTrue("a" not in table)
+        table = self._make_nontrivial()
+        self.assertTrue("a" in table)
+
+    def test_iteration(self):
+        table = galleries.galleryms.OverlapTable()
+        self.assertEqual(list(table), [])
+        table = galleries.galleryms.OverlapTable({"a"})
+        self.assertEqual(list(table), ["a"])
+        table.update({"a", "b"})
+        self.assertEqual(list(table), ["a", "b"])
+
+    def test_length(self):
+        table = galleries.galleryms.OverlapTable()
+        self.assertEqual(len(table), 0)
+        table.update(set(string.ascii_lowercase))
+        self.assertEqual(len(table), 26)
+
+    def test_frequent_overlaps(self):
+        table = self._make_nontrivial()
+        sorted_overlaps = table.frequent_overlaps()
+        frequent_overlaps = table.frequent_overlaps(n=2)
+        self.assertEqual(len(sorted_overlaps), 6)
+        self.assertEqual(sorted_overlaps[:2], frequent_overlaps)
 
 
 if __name__ == "__main__":
