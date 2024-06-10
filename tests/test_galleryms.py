@@ -54,6 +54,48 @@ class TestImplicationGraph(unittest.TestCase):
         self._assert_cycle({1: {2}, 2: {3}, 3: {2, 4}, 4: {5}}, [2, 3, 2])
 
 
+class TestSearchTerm(unittest.TestCase):
+    @staticmethod
+    def basic_term():
+        """Basic search term with one field argument"""
+        return galleries.galleryms.WholeSearchTerm("tok1", fields=["Tags"])
+
+    def test_disambiguate_fields_valid(self):
+        term = self.basic_term()
+        identity = ["Tags"]
+        valid_prefix = ["Tags A"]
+        for known_fieldnames in (identity, valid_prefix):
+            term.disambiguate_fields(known_fieldnames)
+            self.assertEqual(term.fields, known_fieldnames)
+
+    def test_disambiguate_fields_invalid(self):
+        term = self.basic_term()
+        no_candidates = ["General Tags", "Local Tags", "Technical Tags"]
+        with self.assertRaises(galleries.galleryms.NoCandidatesError):
+            term.disambiguate_fields(no_candidates)
+
+    def test_disambiguate_fields_ambiguous(self):
+        term = self.basic_term()
+        ambiguous = ["Tags A", "Tags B"]
+        with self.assertRaises(galleries.galleryms.MultipleCandidatesError):
+            term.disambiguate_fields(ambiguous)
+
+
+class TestQuery(unittest.TestCase):
+    def test_truthiness(self):
+        query = galleries.galleryms.Query()
+        self.assertFalse(query)
+        query = galleries.galleryms.Query([TestSearchTerm.basic_term()])
+        self.assertTrue(query)
+
+    def test_all_terms(self):
+        term = TestSearchTerm.basic_term()
+        query = galleries.galleryms.Query(conjuncts=[term])
+        self.assertEqual(list(query.all_terms()), [term])
+        query = galleries.galleryms.Query(conjuncts=[term], negations=[term])
+        self.assertEqual(list(query.all_terms()), [term, term])
+
+
 class TestSimilarityCalculator(unittest.TestCase):
     TYPICAL_COUNTS = (
         galleries.galleryms.TagCount("a", 15),
