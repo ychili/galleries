@@ -123,6 +123,8 @@ def write_galleries(
 
 
 def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
+    """Return a key function that sorts galleries on *field*."""
+
     def getter(gallery: Gallery) -> list[Union[int, str]]:
         # As it stands, values should already be str, but convert anyway
         # to be safe.
