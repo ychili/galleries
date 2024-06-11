@@ -81,6 +81,23 @@ class TestImplicator(unittest.TestCase):
 
 
 class TestSearchTerm(unittest.TestCase):
+    def test_fields(self):
+        # A search term with no fields will never match anything
+        term = galleries.galleryms.WildcardSearchTerm("*tok*")
+        gallery_1 = galleries.galleryms.Gallery({"tags": "tok1 tak2"})
+        self.assertEqual(term.fields, [])
+        self.assertEqual(list(term.tagsets(gallery_1)), [])
+        term.fields.append("tags")
+        self.assertEqual(
+            list(term.tagsets(gallery_1)),
+            [galleries.galleryms.TagSet({"tok1", "tak2"})],
+        )
+        # gallery_1 matches
+        self.assertTrue(term.match(gallery_1))
+        gallery_2 = galleries.galleryms.Gallery({"tags": "tak2"})
+        # gallery_2 does not match
+        self.assertIs(term.match(gallery_2), None)
+
     @staticmethod
     def basic_term():
         """Basic search term with one field argument"""
@@ -105,6 +122,13 @@ class TestSearchTerm(unittest.TestCase):
         ambiguous = ["Tags A", "Tags B"]
         with self.assertRaises(galleries.galleryms.MultipleCandidatesError):
             term.disambiguate_fields(ambiguous)
+
+    def test_numeric_condition(self):
+        term = galleries.galleryms.NumericCondition(operator.eq, 15, fields="area")
+        normal_gallery = galleries.galleryms.Gallery(area="15.159")
+        self.assertFalse(term.match(normal_gallery))
+        invalid_gallery = galleries.galleryms.Gallery(area="alphanum")
+        self.assertFalse(term.match(invalid_gallery))
 
 
 class TestQuery(unittest.TestCase):
