@@ -808,6 +808,11 @@ class FieldFormat:
             else:
                 yield f"\033[{self.sgr}m{line}\033[0m"
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        return NotImplemented
+
     def __repr__(self) -> str:
         kwargs = {"fg": self._fg, "bg": self._bg, "effect": self._effect}
         args_str = ", ".join(
