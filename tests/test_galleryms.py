@@ -55,6 +55,31 @@ class TestImplicationGraph(unittest.TestCase):
         self._assert_cycle({1: {2}, 2: {3}, 3: {2, 4}, 4: {5}}, [2, 3, 2])
 
 
+class TestImplicator(unittest.TestCase):
+    def test_aliased_implication(self):
+        implicator = galleries.galleryms.Implicator()
+        self.assertEqual(implicator.validate_implications_not_aliased(), [])
+        implication = galleries.galleryms.RegularImplication("a", "b")
+        implicator.add(implication)
+        self.assertEqual(implicator.validate_implications_not_aliased(), [])
+        implicator.aliases["a"] = "c"
+        self.assertEqual(
+            implicator.validate_implications_not_aliased(),
+            [galleries.galleryms.AliasedImplication(implication, "a", "c")],
+        )
+
+    def test_transitive_aliases(self):
+        implicator = galleries.galleryms.Implicator()
+        self.assertEqual(implicator.validate_aliases_not_aliased(), [])
+        implicator.aliases["a"] = "c"
+        self.assertEqual(implicator.validate_aliases_not_aliased(), [])
+        implicator.aliases["d"] = "a"
+        self.assertEqual(
+            implicator.validate_aliases_not_aliased(),
+            [("d", "a", "c")],
+        )
+
+
 class TestSearchTerm(unittest.TestCase):
     @staticmethod
     def basic_term():
