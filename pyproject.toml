@@ -6,6 +6,10 @@ build-backend = "setuptools.build_meta"
 profile = "black"
 skip_gitignore = true
 
+[tool.pytest.ini_options]
+minversion= "6.0"
+addopts = "--import-mode=importlib --doctest-modules --doctest-glob='tests/*.rst'"
+
 [tool.mypy]
 python_version = "3.8"
 implicit_optional = false
