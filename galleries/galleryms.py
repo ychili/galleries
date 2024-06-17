@@ -334,7 +334,7 @@ class Gallery(Dict[str, object]):
 class SearchTerm(abc.ABC):
     """Base class for a search term that can match galleries"""
 
-    fields: list[str] = []
+    fields: list[str]
 
     @abc.abstractmethod
     def match(
