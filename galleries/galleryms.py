@@ -130,9 +130,10 @@ class ImplicationGraph:
         nodes_seen = TagSet()
         recursion_stack: list[str] = []
         for node in list(self.graph):
-            if node not in nodes_seen:
-                if cycle_0 := self._traverse(node, recursion_stack, nodes_seen):
-                    return [*recursion_stack[recursion_stack.index(cycle_0) :], cycle_0]
+            if node not in nodes_seen and (
+                cycle_0 := self._traverse(node, recursion_stack, nodes_seen)
+            ):
+                return [*recursion_stack[recursion_stack.index(cycle_0) :], cycle_0]
         return None
 
     def tags_implied_by(self, tag: str) -> TagSet:
