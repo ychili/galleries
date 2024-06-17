@@ -235,7 +235,8 @@ class CollectionPathSpec:
             raise
         return config
 
-    def _log_bad_read(self, error: object) -> None:
+    @staticmethod
+    def _log_bad_read(error: object) -> None:
         return log.error("Unable to read configuration from file: %s", error)
 
 
