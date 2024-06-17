@@ -1,3 +1,5 @@
+"""Unit tests for galleryms"""
+
 import operator
 import string
 import unittest

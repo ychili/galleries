@@ -1,3 +1,5 @@
+"""Unit tests for refresh"""
+
 import unittest
 
 import galleries.galleryms

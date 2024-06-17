@@ -1,5 +1,7 @@
 # util.py
 
+"""Utility functions, used and shared by all modules"""
+
 from __future__ import annotations
 
 import contextlib

@@ -1,3 +1,5 @@
+"""Unit tests for table_query, using pytest"""
+
 import pytest
 
 import galleries.galleryms

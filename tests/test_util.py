@@ -1,3 +1,5 @@
+"""Unit tests for util"""
+
 import unittest
 
 import galleries.galleryms
