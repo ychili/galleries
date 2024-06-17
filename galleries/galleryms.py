@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import (
     IO,
     Any,
+    ClassVar,
     Collection,
     Dict,
     Generic,
@@ -577,7 +578,7 @@ class ArgumentParser:
     or_operator = "+"
     field_tag_sep = ":"
     field_number_sep = "="
-    relationals = {
+    relationals: ClassVar[dict[Optional[str], Callable[[_Real, _Real], Any]]] = {
         None: operator.eq,
         "ne": operator.ne,
         "gt": operator.gt,
@@ -754,7 +755,7 @@ class FieldFormat:
 
     REMAINING_SPACE = REM = -1
 
-    COLORS = {
+    COLORS: ClassVar[dict[str, tuple[str, str]]] = {
         "": ("", ""),
         "black": ("30", "40"),
         "red": ("31", "41"),
@@ -774,7 +775,7 @@ class FieldFormat:
         "bright cyan": ("96", "106"),
         "bright white": ("97", "107"),
     }
-    EFFECTS = {
+    EFFECTS: ClassVar[dict[str, str]] = {
         "": "",
         "bold": "1",
         "faint": "2",
