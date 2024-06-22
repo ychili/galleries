@@ -31,6 +31,7 @@ from collections.abc import (
 from pathlib import Path
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Collection,
@@ -45,11 +46,17 @@ from typing import (
     Union,
 )
 
+if TYPE_CHECKING:
+    from typing import TypeAlias
+
+    from _typeshed import SupportsRichComparison
+
 T = TypeVar("T")
 H = TypeVar("H", bound=Hashable)
-_Comparable = TypeVar("_Comparable", int, float)
+BinaryCompFunc: TypeAlias = (
+    "Callable[[SupportsRichComparison, SupportsRichComparison], Any]"
+)
 StrPath = Union[str, Path]
-_Real = Union[float, int]
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
 TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
@@ -462,8 +469,8 @@ class NumericCondition(SearchTerm):
 
     def __init__(
         self,
-        comp_func: Callable[[_Real, _Real], Any],
-        argument: _Real,
+        comp_func: BinaryCompFunc,
+        argument: SupportsRichComparison,
         fields: Optional[Union[str, Iterable[str]]] = None,
     ) -> None:
         self.comp_func = comp_func
@@ -578,7 +585,7 @@ class ArgumentParser:
     or_operator = "+"
     field_tag_sep = ":"
     field_number_sep = "="
-    relationals: ClassVar[dict[Optional[str], Callable[[_Real, _Real], Any]]] = {
+    relationals: ClassVar[dict[Optional[str], BinaryCompFunc]] = {
         None: operator.eq,
         "ne": operator.ne,
         "gt": operator.gt,
@@ -1166,7 +1173,7 @@ def distribute(n: int, k: int) -> list[int]:
 
 
 def most_common(
-    it: Iterable[T], key: Callable[[T], _Comparable], n: Optional[int] = None
+    it: Iterable[T], key: Callable[[T], SupportsRichComparison], n: Optional[int] = None
 ) -> list[T]:
     n = 0 if n is None else n
     if n <= 0:
