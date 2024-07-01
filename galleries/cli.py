@@ -14,7 +14,7 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Optional, TextIO, Union
 
@@ -853,7 +853,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     return top_level
 
 
-def main() -> int:
+def main(args: Optional[Sequence[str]] = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG, format=f"{PROG}: %(levelname)s: %(message)s"
     )
@@ -861,11 +861,11 @@ def main() -> int:
         global_config = read_global_configuration()
     except configparser.Error:
         return 1
-    args = build_cla_parser().parse_args()
-    set_logging_level(args, global_config)
-    log.debug(args)
+    args_ns = build_cla_parser().parse_args(args)
+    set_logging_level(args_ns, global_config)
+    log.debug(args_ns)
     try:
-        return args.func(args, global_config)
+        return args_ns.func(args_ns, global_config)
     except configparser.Error:
         return 1
 
