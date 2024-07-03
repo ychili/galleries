@@ -1331,8 +1331,11 @@ collections's from ``/mnt/exports/Galleries/./db.conf``.
 
 Finally, `Extended Interpolation`_ is enabled for the global collection
 paths file.
-Extended Interpolation is using ``${section:key}`` to denote a value
-from a foreign section.
+It enables values to contain ${} substitutions which refer to other
+values in the same section or values in the DEFAULT section.
+The string ``${key}`` in a value will be substituted with the value of
+that key, although a bad substitution will cause the section it's in to
+be ignored with a warning.
 One side-effect of this is that, in values, the $ sign needs to be
 escaped with '$$'.
 
