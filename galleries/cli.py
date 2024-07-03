@@ -317,6 +317,9 @@ class CollectionFinder:
             config_name=self.default_settings["ConfigName"],
         )
 
+    def collections_added(self) -> set[CollectionPathSpec]:
+        return set(self._collection_paths.values())
+
 
 def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Path sub-command"""
