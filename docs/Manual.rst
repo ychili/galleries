@@ -477,7 +477,7 @@ the selected collection will be one of the following (in order):
 
 - a section name in the `Global collection paths file`_ that starts
   with *COLLECTION*;
-- a `Root`_ path in the `Global collection paths file`_ the matches
+- a `Root`_ path in the `Global collection paths file`_ that matches
   the absolute path value of *COLLECTION*; or
 - whatever the path value of *COLLECTION* is.
 
