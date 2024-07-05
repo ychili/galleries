@@ -266,17 +266,15 @@ class CollectionFinder:
         self._collection_paths[path_spec.collection] = path_spec
 
     def _disambiguate_collection_name(self, name: str) -> Optional[CollectionPathSpec]:
-        name = name.casefold()
         if exact_match := self._collection_names.get(name):
             log.debug("arg matches name exactly: %s", exact_match)
             return exact_match
+        name = name.casefold()
         prefix_matches = [
-            coll
-            for coll in sorted(self._collection_names)
-            if coll.casefold().startswith(name)
+            coll for coll in self._collection_names if coll.casefold().startswith(name)
         ]
         if prefix_matches:
-            prefix_match = self._collection_names[prefix_matches[0]]
+            prefix_match = self._collection_names[min(prefix_matches)]
             log.debug("arg matches name prefix: %s", prefix_match)
             return prefix_match
         return None
