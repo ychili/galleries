@@ -665,7 +665,9 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "--bare", action="store_true", help="create an empty config file"
     )
     init_p.add_argument(
-        "--template", metavar="DIRECTORY", help="copy files from %(metavar)s"
+        "--template",
+        metavar="SRC",
+        help="copy files from %(metavar)s into sub-directory of DIRECTORY",
     )
     init_p.set_defaults(func=init_sc)
 
