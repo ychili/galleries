@@ -962,7 +962,7 @@ def join_semicolon_list(items: Iterable[str]) -> str:
 def split_semicolon_list(value: str) -> list[str]:
     if not value:
         return []
-    return [item.strip() for item in value.split(";")]
+    return [stripped for item in value.split(";") if (stripped := item.strip())]
 
 
 if __name__ == "__main__":
