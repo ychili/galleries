@@ -524,9 +524,9 @@ Options
     Create an empty `collection configuration file`_
     instead of the default containing the built-in settings.
 
---template=DIRECTORY
-    Recursively copy files from *DIRECTORY* into the galleries
-    sub-directory.
+--template=SRC
+    Recursively copy files from the directory *SRC* into the
+    newly-created galleries sub-directory.
     Files with names that start with a dot are not copied.
 
     Default: value of init.\ `TemplateDir`_.
