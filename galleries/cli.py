@@ -417,7 +417,7 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         log.error("Unable to open CSV file for writing: %s", err)
         return 1
     log.info(
-        "Wrote CSV to file: %s", filename.name if filename == sys.stdout else filename
+        "Wrote CSV to file: %s", "<stdout>" if filename == sys.stdout else filename
     )
     return 0
 
