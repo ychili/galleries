@@ -437,8 +437,8 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         # message by closing stderr before exiting.
         sys.stderr.close()
         return 0
-    except OSError as err:
-        log.error("Unable to open CSV file for reading: %s", err)
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
         return 1
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
@@ -466,8 +466,8 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
         try:
             field_fmts = table_query.parse_field_format_file(fmts_file)
-        except OSError as err:
-            log.error("Unable to open FieldFormats file: %s", err)
+        except (OSError, UnicodeDecodeError) as err:
+            log.error("Unable to read FieldFormats file: %s", err)
             return 1
 
     try:
@@ -486,8 +486,8 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         # message by closing stderr before exiting.
         sys.stderr.close()
         return 0
-    except OSError as err:
-        log.error("Unable to open CSV file for reading: %s", err)
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
         return 1
     except table_query.SearchTermError:
         return 1
@@ -518,8 +518,8 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     # Third, see if there are enough values to perform implication
     try:
         error_status = set_tag_actions(gardener, db_config) and 1
-    except OSError as err:
-        log.error("Unable to open tag file for reading: %s", err)
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read tag file: %s", err)
         return 1
     if cla.validate or error_status:
         return error_status
@@ -529,8 +529,8 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     except refresh.FolderPathError as err:
         log.error("With %s value: %s", path_field, err)
         return 1
-    except OSError as err:
-        log.error("Unable to open CSV file for reading: %s", err)
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
         return 1
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
@@ -625,8 +625,8 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 galleries = reader
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
             overlap_table = relatedtag.overlap_table(tag_sets)
-    except OSError as err:
-        log.error("Unable to open CSV file for reading: %s", err)
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
         return 1
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
