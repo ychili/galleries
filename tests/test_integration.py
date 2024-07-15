@@ -359,3 +359,9 @@ class TestCount:
             for line in lines:
                 if match_obj := re.match(rf"{expected_key}\s+(.+)", line.strip()):
                     assert float(match_obj.group(1)) == expected_value
+
+    def test_invalid_unicode(self, write_to_csv, caplog):
+        write_to_csv("日本語ができない！".encode("shift-jis"))
+        rc = galleries.cli.main(["count"])
+        assert rc == 1
+        assert caplog.text
