@@ -365,3 +365,37 @@ class TestCount:
         rc = galleries.cli.main(["count"])
         assert rc == 1
         assert caplog.text
+
+    @pytest.mark.parametrize("bad_field_in_csv", ["Tagz", "tags"])
+    def test_field_not_found(self, write_to_csv, caplog, bad_field_in_csv):
+        """Case where CSV data does not match configuration"""
+        write_to_csv(f"Path,Count,{bad_field_in_csv}\n001,0,untagged\n".encode())
+        expected_field = "Tags"
+        rc = galleries.cli.main(["count"])
+        assert rc == 1
+        assert any(
+            expected_field in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
+    @pytest.mark.usefixtures("write_to_csv")
+    @pytest.mark.parametrize("bad_field_in_arg", ["Not a valid fieldname", "無效"])
+    def test_argument_not_found(self, caplog, bad_field_in_arg):
+        """Case where command-line argument does not match CSV data"""
+        rc = galleries.cli.main(["count", bad_field_in_arg])
+        assert rc == 1
+        assert any(
+            bad_field_in_arg in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
+    @pytest.mark.parametrize(
+        "data_in", ["Path,Count,Tags\n001,0,untagged\\,\n", "Path,Count,Tags\n001,0\n"]
+    )
+    def test_field_mismatch(self, write_to_csv, data_in, caplog):
+        write_to_csv(data_in.encode())
+        rc = galleries.cli.main(["count"])
+        assert rc == 1
+        assert caplog.text
