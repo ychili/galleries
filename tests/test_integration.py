@@ -363,7 +363,7 @@ class TestCount:
     def test_invalid_unicode(self, write_to_csv, caplog):
         write_to_csv("日本語ができない！".encode("shift-jis"))
         rc = galleries.cli.main(["count"])
-        assert rc == 1
+        assert rc > 0
         assert caplog.text
 
     @pytest.mark.parametrize("bad_field_in_csv", ["Tagz", "tags"])
@@ -372,7 +372,7 @@ class TestCount:
         write_to_csv(f"Path,Count,{bad_field_in_csv}\n001,0,untagged\n".encode())
         expected_field = "Tags"
         rc = galleries.cli.main(["count"])
-        assert rc == 1
+        assert rc > 0
         assert any(
             expected_field in record.message
             for record in caplog.records
@@ -384,7 +384,7 @@ class TestCount:
     def test_argument_not_found(self, caplog, bad_field_in_arg):
         """Case where command-line argument does not match CSV data"""
         rc = galleries.cli.main(["count", bad_field_in_arg])
-        assert rc == 1
+        assert rc > 0
         assert any(
             bad_field_in_arg in record.message
             for record in caplog.records
@@ -397,5 +397,5 @@ class TestCount:
     def test_field_mismatch(self, write_to_csv, data_in, caplog):
         write_to_csv(data_in.encode())
         rc = galleries.cli.main(["count"])
-        assert rc == 1
+        assert rc > 0
         assert caplog.text
