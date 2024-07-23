@@ -399,3 +399,30 @@ class TestCount:
         rc = galleries.cli.main(["count"])
         assert rc > 0
         assert caplog.text
+
+
+class TestQuery:
+    @pytest.mark.usefixtures("write_to_csv")
+    def test_no_tags(self, capsys):
+        rc = galleries.cli.main(["query"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert len(captured.out.splitlines()) == 5
+
+    @pytest.mark.parametrize("arg", ["ish", "免許"])
+    def test_invalid_format_arg(self, capsys, arg):
+        with pytest.raises(SystemExit):
+            galleries.cli.main(["query", f"-F{arg}"])
+        assert arg in capsys.readouterr().err
+
+
+class TestRelated:
+    @pytest.mark.usefixtures("write_to_csv")
+    def test_no_tags(self, capsys):
+        tags = ["anytag", "任意"]
+        rc = galleries.cli.main(["-vv", "related", *tags])
+        assert rc == 0
+        captured = capsys.readouterr()
+        for tag in tags:
+            assert tag in captured.out
