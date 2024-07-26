@@ -330,7 +330,7 @@ class TestCount:
         assert rc == 0
         assert not capsys.readouterr().out
 
-    CSV_TAGS_ONLY = "Tags\nA B C\nC B A\nD\nA E\n".encode()
+    CSV_TAGS_ONLY = "Tags\n\nA B C\nC B A\nD\nA E\n\n".encode()
 
     def test_tags_only(self, write_to_csv, capsys):
         write_to_csv(self.CSV_TAGS_ONLY)
@@ -363,5 +363,66 @@ class TestCount:
     def test_invalid_unicode(self, write_to_csv, caplog):
         write_to_csv("日本語ができない！".encode("shift-jis"))
         rc = galleries.cli.main(["count"])
-        assert rc == 1
+        assert rc > 0
         assert caplog.text
+
+    @pytest.mark.parametrize("bad_field_in_csv", ["Tagz", "tags"])
+    def test_field_not_found(self, write_to_csv, caplog, bad_field_in_csv):
+        """Case where CSV data does not match configuration"""
+        write_to_csv(f"Path,Count,{bad_field_in_csv}\n001,0,untagged\n".encode())
+        expected_field = "Tags"
+        rc = galleries.cli.main(["count"])
+        assert rc > 0
+        assert any(
+            expected_field in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
+    @pytest.mark.usefixtures("write_to_csv")
+    @pytest.mark.parametrize("bad_field_in_arg", ["Not a valid fieldname", "無效"])
+    def test_argument_not_found(self, caplog, bad_field_in_arg):
+        """Case where command-line argument does not match CSV data"""
+        rc = galleries.cli.main(["count", bad_field_in_arg])
+        assert rc > 0
+        assert any(
+            bad_field_in_arg in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
+    @pytest.mark.parametrize(
+        "data_in", ["Path,Count,Tags\n001,0,untagged\\,\n", "Path,Count,Tags\n001,0\n"]
+    )
+    def test_field_mismatch(self, write_to_csv, data_in, caplog):
+        write_to_csv(data_in.encode())
+        rc = galleries.cli.main(["count"])
+        assert rc > 0
+        assert caplog.text
+
+
+class TestQuery:
+    @pytest.mark.usefixtures("write_to_csv")
+    def test_no_tags(self, capsys):
+        rc = galleries.cli.main(["query"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert len(captured.out.splitlines()) == 5
+
+    @pytest.mark.parametrize("arg", ["ish", "免許"])
+    def test_invalid_format_arg(self, capsys, arg):
+        with pytest.raises(SystemExit):
+            galleries.cli.main(["query", f"-F{arg}"])
+        assert arg in capsys.readouterr().err
+
+
+class TestRelated:
+    @pytest.mark.usefixtures("write_to_csv")
+    def test_no_tags(self, capsys):
+        tags = ["anytag", "任意"]
+        rc = galleries.cli.main(["-vv", "related", *tags])
+        assert rc == 0
+        captured = capsys.readouterr()
+        for tag in tags:
+            assert tag in captured.out
