@@ -143,7 +143,6 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable[str]:
     return table
 
 
-
 def results_table(file: IO[str], effect: bool = False) -> ResultsTable:
     """Return the ``ResultsTable`` with default settings."""
     printer = ResultsTable(file)
