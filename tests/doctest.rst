@@ -16,7 +16,7 @@ long rows.
 >>> r.fieldnames
 ['field1', 'field2']
 >>> list(r)
-[{'field1': 'data1', 'field2': 'data2'}]
+[Gallery({'field1': 'data1', 'field2': 'data2'})]
 >>> short_row = "data1 but not data2"
 >>> r = StrictReader([fieldnames, short_row])
 >>> list(r)

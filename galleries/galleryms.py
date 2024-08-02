@@ -337,6 +337,11 @@ class Gallery(Dict[str, object]):
             )
         self[field] = count
 
+    def __repr__(self) -> str:
+        if not self:
+            return f"{type(self).__name__}()"
+        return f"{type(self).__name__}({dict(self)!r})"
+
 
 class SearchTerm(abc.ABC):
     """Base class for a search term that can match galleries"""
