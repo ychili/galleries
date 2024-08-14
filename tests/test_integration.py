@@ -330,7 +330,7 @@ class TestCount:
         assert rc == 0
         assert not capsys.readouterr().out
 
-    CSV_TAGS_ONLY = "Tags\n\nA B C\nC B A\nD\nA E\n\n".encode()
+    CSV_TAGS_ONLY = b"Tags\n\nA B C\nC B A\nD\nA E\n\n"
 
     def test_tags_only(self, write_to_csv, capsys):
         write_to_csv(self.CSV_TAGS_ONLY)
