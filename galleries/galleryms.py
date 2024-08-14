@@ -47,9 +47,8 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from typing_extensions import TypeAlias
-
     from _typeshed import SupportsRichComparison
+    from typing_extensions import TypeAlias
 
 T = TypeVar("T")
 H = TypeVar("H", bound=Hashable)
