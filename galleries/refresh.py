@@ -156,6 +156,7 @@ class TagActionsObject:
         # A pool is the set of tag actions that apply to a given set of fields
         self._pools: dict[frozenset[str], _TagActionsContainer] = {}
         # A field's spec is the set of pools that apply to a given field
+        # For each pair x:P, P is the set of pools that contain field x.
         self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
 
     def read_file(
@@ -279,6 +280,10 @@ class TagActionsObject:
         return self._make_implicator(spec)
 
     def _spec_fields(self) -> defaultdict[frozenset[frozenset[str]], set[str]]:
+        # Group fields that have the same 'spec'
+        # (the set of pools that apply to them).
+        # If two or more fields have the same spec, they can share the same
+        # Implicator.
         spec_fields: defaultdict[frozenset[frozenset[str]], set[str]] = defaultdict(set)
         for field, spec in self._field_spec.items():
             spec_fields[frozenset(spec)].add(field)
