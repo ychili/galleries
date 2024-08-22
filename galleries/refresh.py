@@ -20,8 +20,8 @@ from collections.abc import (
     Iterator,
     Mapping,
     Sequence,
-    Set,
 )
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any, Generic, Optional, TypeVar, Union
 
@@ -254,7 +254,7 @@ class TagActionsObject:
             except KeyError as err:
                 self.extr.warn("Bad set/union name: %s", err)
 
-    def _make_implicator(self, spec: Set[frozenset[str]]) -> gms.Implicator:
+    def _make_implicator(self, spec: AbstractSet[frozenset[str]]) -> gms.Implicator:
         implic = gms.Implicator()
         alias_maps: list[dict[str, str]] = []
         for pool in spec:
