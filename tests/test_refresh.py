@@ -1,6 +1,7 @@
 """Unit tests for refresh"""
 
 import itertools
+import logging
 import unittest
 
 import galleries.galleryms
@@ -12,7 +13,13 @@ SETS = {
 }
 
 
-class TestTagActionsObject(unittest.TestCase):
+class RefreshTestCase(unittest.TestCase):
+    def _assert_log(self, context_manager, *strings):
+        for s in strings:
+            self.assertTrue(any(s in msg for msg in context_manager.output))
+
+
+class TestTagActionsObject(RefreshTestCase):
     simple = {
         "fieldnames": ["Tags"],
         "Tags": {"implications": {"blue_dog": "dog"}, "aliases": {"doggy": "dog"}},
@@ -195,9 +202,85 @@ class TestTagActionsObject(unittest.TestCase):
         self.assertFalse(implic.implications)
         self.assertFalse(implic.aliases)
 
-    def _assert_log(self, context_manager, *strings):
-        for s in strings:
-            self.assertTrue(any(s in msg for msg in context_manager.output))
+
+class TestValidateTagActions(RefreshTestCase):
+    @staticmethod
+    def validate(*args, **kwds):
+        implicator = galleries.galleryms.Implicator(*args, **kwds)
+        return galleries.refresh.validate_tag_actions(implicator)
+
+    def test_empty(self):
+        errors = self.validate()
+        self.assertFalse(errors)
+
+    def test_valid(self):
+        implications = [
+            galleries.galleryms.RegularImplication(a, b)
+            for a, b in ("ab", "cd", "ef", "gh", "ia")
+        ]
+        aliases = {"y": "z"}
+        errors = self.validate(implications, aliases)
+        self.assertFalse(errors)
+
+    def test_one_cycle(self):
+        implications = [
+            galleries.galleryms.RegularImplication(a, b) for a, b in ("ab", "bc", "ca")
+        ]
+        with self.assertLogs(level=logging.ERROR) as cm:
+            errors = self.validate(implications)
+        self.assertEqual(errors, 1)
+        self._assert_log(cm, "a -> b -> c -> a")
+
+    def test_multiple_cycles(self):
+        implications = [
+            galleries.galleryms.RegularImplication(a, b)
+            for a, b in ("ab", "ba", "de", "ed")
+        ]
+        with self.assertLogs(level=logging.ERROR):
+            errors = self.validate(implications)
+        # find_cycle returns after the first cycle found.
+        self.assertEqual(errors, 1)
+
+    def test_transitive_alias_errors(self):
+        transitive_aliases = {"a": "c", "d": "a"}
+        with self.subTest("single"):
+            with self.assertLogs(level=logging.ERROR) as cm:
+                errors = self.validate(aliases=transitive_aliases)
+            self.assertEqual(errors, 1)
+            self._assert_log(cm, "d -> a -> c")
+        transitive_aliases.update({"x": "y", "y": "z"})
+        with self.subTest("multiple"):
+            with self.assertLogs(level=logging.ERROR) as cm:
+                errors = self.validate(aliases=transitive_aliases)
+            self.assertEqual(errors, 2)
+
+    def test_aliased_implication_errors(self):
+        implications = [galleries.galleryms.RegularImplication("a", "b")]
+        # Test aliasing both antecedent and consequent.
+        for msg, aliases in [("antecedent", {"a": "c"}), ("consequent", {"b": "c"})]:
+            with self.subTest(msg):
+                with self.assertLogs(level=logging.ERROR) as cm:
+                    errors = self.validate(implications, aliases)
+                self.assertEqual(errors, 1)
+                self._assert_log(cm, "'a'", "'b'", "'c'")
+
+    def test_multiple_errors(self):
+        implications = [
+            galleries.galleryms.RegularImplication(a, b) for a, b in ("ab", "bc", "ca")
+        ]
+        aliases = {"a": "c", "x": "y", "y": "z"}
+        # Expect: 1 cycle, 2 AIs, 1 TA
+        # 2 AIs because validate_implications_not_aliased returns:
+        # AliasedImplication(implication=RegularImplication('c', 'a'),
+        #     antecedent='a', consequent='c')
+        # and
+        # AliasedImplication(implication=RegularImplication('a', 'b'),
+        #     antecedent='a', consequent='c')
+        with self.assertLogs(level=logging.ERROR) as cm:
+            errors = self.validate(implications, aliases)
+        self.assertEqual(errors, 4)
+        # validate_tag_actions only reports the first AI.
+        self._assert_log(cm, "a -> b -> c -> a", "x -> y -> z", "'a'", "'c'")
 
 
 if __name__ == "__main__":
