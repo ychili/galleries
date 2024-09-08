@@ -240,5 +240,19 @@ class TestOverlapTable(unittest.TestCase):
         self.assertEqual(sorted_overlaps[:2], frequent_overlaps)
 
 
+class TestTagSet(unittest.TestCase):
+    def test_whitespace(self):
+        for char in string.whitespace:
+            with self.subTest(char=char):
+                # Calling str.split on a whitespace character returns []
+                self.assertFalse(galleries.galleryms.TagSet.from_tagstring(char))
+
+    def test_apply_aliases(self):
+        aliases = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
+        tag_set = galleries.galleryms.TagSet({"Rome", "New Amsterdam", "Tenochtitlan"})
+        tag_set.apply_aliases(aliases)
+        self.assertEqual(tag_set, {"Rome", "New York", "Tenochtitlan"})
+
+
 if __name__ == "__main__":
     unittest.main()
