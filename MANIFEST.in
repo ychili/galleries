@@ -1,4 +1,4 @@
 graft docs
+graft tests
 
-include tests/*.py
-include tests/*.rst
+global-exclude *~ *.py[cod]
