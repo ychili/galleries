@@ -238,7 +238,7 @@ class TagSet(Set[str]):
     @classmethod
     def from_tagstring(cls: type[TagSetT], tagstring: str) -> TagSetT:
         """Construct from string with whitespace-separated tags"""
-        return cls(tagstring.lower().split())
+        return cls(split_on_whitespace(tagstring.lower()))
 
     def __str__(self) -> str:
         return " ".join(sorted(self))
@@ -1160,6 +1160,9 @@ class OverlapTable(Collection[H]):
         for key, counter in obj["_table"].items():
             new_table._table[key].update(counter)
         return new_table
+
+
+split_on_whitespace = re.compile(r"\S+").findall
 
 
 def distribute(n: int, k: int) -> list[int]:

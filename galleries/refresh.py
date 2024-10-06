@@ -501,7 +501,9 @@ def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
         )
     if any(path.match(f"*.{ext}") for ext in extensions):
         text = path.read_text(encoding="utf-8")
-        return frozenset(gms.DescriptorImplication(desc) for desc in text.split())
+        return frozenset(
+            gms.DescriptorImplication(desc) for desc in gms.split_on_whitespace(text)
+        )
     log.warning(
         "Implications file exists but does not match known file extensions: %s",
         filename,

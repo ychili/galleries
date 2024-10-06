@@ -1,9 +1,5 @@
 """Tests for I/O functions of refresh, using pytest"""
 
-import platform
-
-import pytest
-
 import galleries.galleryms
 import galleries.refresh
 
@@ -72,13 +68,7 @@ _DESCRIPTORS_EXPECTED = frozenset(
     }
 )
 
-xfail_pypy = pytest.mark.xfail(
-    platform.python_implementation() == "PyPy",
-    reason="PyPy's splitting-on-whitespace is different from CPython",
-)
 
-
-@xfail_pypy
 def test_get_tags_from_single_file(tmp_path):
     path = tmp_path / "tag_file_0.txt"
     path.write_bytes(b"".join(RAND_DATA))
@@ -86,7 +76,6 @@ def test_get_tags_from_single_file(tmp_path):
     assert tagset == _TAG_SET_EXPECTED_SINGLE
 
 
-@xfail_pypy
 def test_get_tags_from_multiple_files(tmp_path):
     path_data = [
         (tmp_path / f"tag_file_{i}.txt", data)
@@ -114,7 +103,6 @@ def test_get_aliases_valid(tmp_path):
     assert aliases == dict(_JSON_EXPECTED)
 
 
-@xfail_pypy
 def test_get_descriptor_implications(tmp_path):
     path = tmp_path / "descriptors.asc"
     path.write_bytes(RAND_DATA[0])
