@@ -114,7 +114,7 @@ class TestParseFieldFormatFile:
         assert self.func(path) == {
             "FieldName": galleries.galleryms.FieldFormat(width=20)
         }
-        assert caplog.text == ""
+        assert not caplog.text
 
     def test_optionals(self, tmp_write_text):
         text = """
