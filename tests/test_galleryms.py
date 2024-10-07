@@ -1,5 +1,6 @@
 """Unit tests for galleryms"""
 
+import itertools
 import operator
 import string
 import unittest
@@ -244,7 +245,8 @@ class TestTagSet(unittest.TestCase):
     def test_whitespace(self):
         for char in string.whitespace:
             with self.subTest(char=char):
-                # Calling str.split on a whitespace character returns []
+                # Constructing a TagSet from a tagstring containing a single
+                # whitespace character will produce an empty, falsy TagSet.
                 self.assertFalse(galleries.galleryms.TagSet.from_tagstring(char))
 
     def test_apply_aliases(self):
@@ -252,6 +254,54 @@ class TestTagSet(unittest.TestCase):
         tag_set = galleries.galleryms.TagSet({"Rome", "New Amsterdam", "Tenochtitlan"})
         tag_set.apply_aliases(aliases)
         self.assertEqual(tag_set, {"Rome", "New York", "Tenochtitlan"})
+
+
+class TestSplitOnWhitespace(unittest.TestCase):
+    WHITESPACE_CHARACTERS = frozenset("\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0")
+    CHR_MAX = 0x100
+    _TEST_STRINGS = [
+        ("", []),
+        ("a", ["a"]),
+        ("a  b", ["a", "b"]),
+        (" a b c\t", ["a", "b", "c"]),
+        ("def ghi", ["def", "ghi"]),
+    ]
+
+    def test_single_unicode_characters(self):
+        for i in range(self.CHR_MAX):
+            char = chr(i)
+            with self.subTest(char=char):
+                if galleries.galleryms.split_on_whitespace(char):
+                    self.assertNotIn(
+                        char,
+                        self.WHITESPACE_CHARACTERS,
+                        "Non-empty list returned. char not considered whitespace.",
+                    )
+                else:
+                    self.assertIn(
+                        char,
+                        self.WHITESPACE_CHARACTERS,
+                        "Empty list returned. Expect char to be in set of known whitespace characters.",
+                    )
+
+    def test_whitespace_strings_len_2(self):
+        for pair in itertools.combinations_with_replacement(string.whitespace, 2):
+            short_string = "".join(pair)
+            with self.subTest(string=short_string):
+                self.assertFalse(galleries.galleryms.split_on_whitespace(short_string))
+
+    def test_whitespace_string_very_long(self):
+        for char in self.WHITESPACE_CHARACTERS:
+            long_string = char * 1000
+            with self.subTest(string=long_string):
+                self.assertFalse(galleries.galleryms.split_on_whitespace(long_string))
+
+    def test_strings(self):
+        for test, expected in self._TEST_STRINGS:
+            with self.subTest(string=test):
+                self.assertEqual(
+                    galleries.galleryms.split_on_whitespace(test), expected
+                )
 
 
 if __name__ == "__main__":
