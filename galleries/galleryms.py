@@ -828,8 +828,7 @@ class FieldFormat:
     def __repr__(self) -> str:
         kwargs = {"fg": self._fg, "bg": self._bg, "effect": self._effect}
         args_str = ", ".join(
-            [repr(self.width)]
-            + [f"{kw}={arg!r}" for kw, arg in kwargs.items() if arg != ""]
+            [repr(self.width)] + [f"{kw}={arg!r}" for kw, arg in kwargs.items() if arg]
         )
         return f"{type(self).__name__}({args_str})"
 
