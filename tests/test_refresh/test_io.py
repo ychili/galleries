@@ -1,5 +1,7 @@
 """Tests for I/O functions of refresh, using pytest"""
 
+import pytest
+
 import galleries.galleryms
 import galleries.refresh
 
@@ -67,6 +69,17 @@ _DESCRIPTORS_EXPECTED = frozenset(
         for desc in ["clI`E=\x7f:xV?'n}S", "-6\x17XD", "\x06\x03eR2\x01yl"]
     }
 )
+
+
+def test_gardener_update_count(tmp_path):
+    """Test a failing example of ``Gardener._update_count``."""
+    gard = galleries.refresh.Gardener()
+    gard.set_update_count(path_field="Path", count_field="Count", root_path=tmp_path)
+    assert all(field in gard.needed_fields for field in ["Path", "Count"])
+    gallery_gen = (galleries.galleryms.Gallery(Path=path) for path in ["Not Found"])
+    with pytest.raises(galleries.refresh.FolderPathError) as raises_ctx:
+        list(gard.garden_rows(gallery_gen))
+    assert isinstance(raises_ctx.value.__cause__, FileNotFoundError)
 
 
 def test_get_tags_from_single_file(tmp_path):

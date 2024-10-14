@@ -6,6 +6,7 @@ import unittest
 
 import galleries.galleryms
 import galleries.refresh
+import galleries.util
 
 SETS = {
     "colors": ["red", "green", "blue"],
@@ -17,6 +18,80 @@ class RefreshTestCase(unittest.TestCase):
     def _assert_log(self, context_manager, *strings):
         for s in strings:
             self.assertTrue(any(s in msg for msg in context_manager.output))
+
+
+class TestGardener(RefreshTestCase):
+    _data = [{"Field1": "_extra expected", "Field2": "no"}]
+    _mask = galleries.galleryms.TagSet(["_extra"])
+    _aliases = {"no": "yes"}
+
+    def setUp(self):
+        # Use generator rather than list to ensure we aren't relying on
+        # Sequence features.
+        self.galleries = (
+            galleries.galleryms.Gallery(mapping) for mapping in self._data
+        )
+        self.gard = galleries.refresh.Gardener()
+
+    def test_null_case(self):
+        result = list(self.gard.garden_rows(self.galleries))
+        repeat = list(self.gard.garden_rows(result))
+        self.assertEqual(result, repeat)
+
+    def test_remove_tags(self):
+        fieldname = "Field1"
+        self.gard.set_remove_tags(self._mask, fieldname)
+        self.assertIn(fieldname, self.gard.needed_fields)
+        all_tags_seen = galleries.galleryms.TagSet()
+        for gallery in self.gard.garden_rows(self.galleries):
+            tag_set = gallery[fieldname]
+            assert isinstance(tag_set, galleries.galleryms.TagSet)
+            self.assertNotIn("_extra", tag_set)
+            all_tags_seen.update(tag_set)
+        self.assertIn("expected", all_tags_seen)
+
+    def test_alias_tags(self):
+        fieldname = "Field2"
+        self.gard.set_alias_tags(self._aliases, fieldname)
+        self.assertIn(fieldname, self.gard.needed_fields)
+        all_tags_seen = galleries.galleryms.TagSet()
+        for gallery in self.gard.garden_rows(self.galleries):
+            tag_set = gallery[fieldname]
+            assert isinstance(tag_set, galleries.galleryms.TagSet)
+            self.assertNotIn("no", tag_set)
+            all_tags_seen.update(tag_set)
+        self.assertIn("yes", all_tags_seen)
+
+    def test_field_checking(self):
+        # "Expected Field" from configuration
+        fieldname = "Expected Field"
+        self.gard.set_normalize_tags(fieldname)
+        self.assertIn(fieldname, self.gard.needed_fields)
+        with self.assertRaises(galleries.util.FieldNotFoundError) as assert_raises_ctx:
+            # "Bogus Field" is the actual field parsed from the input headers.
+            list(self.gard.garden_rows(self.galleries, {"Bogus Field"}))
+        self.assertIn(fieldname, assert_raises_ctx.exception.args)
+
+    def test_implicator(self):
+        fieldname = "Field1"
+        implicator = galleries.galleryms.Implicator(
+            implications=[
+                galleries.galleryms.RegularImplication("expected", "implied"),
+                galleries.galleryms.RegularImplication("off_your_chump", "insane"),
+            ],
+            aliases=self._aliases,
+        )
+        self.gard.set_implicator(implicator, fieldname)
+        self.assertIn(fieldname, self.gard.needed_fields)
+        self.assertNotIn("Field2", self.gard.needed_fields)
+        for gallery in self.gard.garden_rows(self.galleries):
+            tag_set = gallery[fieldname]
+            assert isinstance(tag_set, galleries.galleryms.TagSet)
+            if "expected" in tag_set:
+                self.assertIn("implied", tag_set)
+            self.assertIsInstance(
+                gallery["Field2"], str, "Field2 not converted to TagSet"
+            )
 
 
 class TestTagActionsObject(RefreshTestCase):
