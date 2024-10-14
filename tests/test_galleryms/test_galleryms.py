@@ -83,6 +83,27 @@ class TestImplicator(unittest.TestCase):
         )
 
 
+class TestGallery(unittest.TestCase):
+    def test_normalize_tags_args(self):
+        gallery = galleries.galleryms.Gallery()
+        self.assertRaises(KeyError, gallery.normalize_tags, "Null")
+        gallery["Field"] = object()
+        self.assertRaises(TypeError, gallery.normalize_tags, "Field")
+
+    def test_get_folder_args(self):
+        gallery = galleries.galleryms.Gallery()
+        self.assertRaises(KeyError, gallery.get_folder, "Null")
+        gallery["Field"] = object()
+        self.assertRaises(TypeError, gallery.get_folder, "Field")
+
+    def test_get_folder_default(self):
+        gallery = galleries.galleryms.Gallery()
+        folder_name = "Gallery01"
+        gallery["Field"] = folder_name
+        path = gallery.get_folder("Field")
+        self.assertEqual(path.parts, (folder_name,))
+
+
 class TestSearchTerm(unittest.TestCase):
     def test_fields(self):
         # A search term with no fields will never match anything

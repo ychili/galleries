@@ -54,7 +54,7 @@ class TestGallery:
         assert tmp_path / self._FOLDER_NAME in raises_ctx.value.args
 
     @pytest.mark.parametrize(
-        "n_regular_files, n_hidden_files, n_directories",
+        ("n_regular_files", "n_hidden_files", "n_directories"),
         itertools.product((0, 9), repeat=3),
     )
     def test_update_count(
