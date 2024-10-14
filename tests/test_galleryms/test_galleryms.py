@@ -281,7 +281,8 @@ class TestSplitOnWhitespace(unittest.TestCase):
                     self.assertIn(
                         char,
                         self.WHITESPACE_CHARACTERS,
-                        "Empty list returned. Expect char to be in set of known whitespace characters.",
+                        "Empty list returned. "
+                        "Expect char to be in set of known whitespace characters.",
                     )
 
     def test_whitespace_strings_len_2(self):
