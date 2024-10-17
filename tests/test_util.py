@@ -6,6 +6,36 @@ import galleries.galleryms
 import galleries.util
 
 
+class TestReader(unittest.TestCase):
+    _FIELDNAMES_IN = "F,G,H"
+    _FIELDNAMES_OUT = ["F", "G", "H"]
+
+    def test_valid_csv(self):
+        reader = galleries.util.StrictReader([self._FIELDNAMES_IN, "f,g,h"])
+        self.assertEqual(
+            list(galleries.util.Reader(reader)),
+            [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})],
+        )
+
+    def test_missing_fields(self):
+        reader = galleries.util.StrictReader([self._FIELDNAMES_IN, 'f,"g,"'])
+        with self.assertRaises(galleries.util.MissingFieldError) as assert_raises_ctx:
+            list(galleries.util.Reader(reader))
+        exc = assert_raises_ctx.exception
+        self.assertEqual(exc.row, ["f", "g,"])
+        self.assertEqual(exc.fieldnames, self._FIELDNAMES_OUT)
+        self.assertEqual(exc.line_num, 2)
+
+    def test_extra_fields(self):
+        reader = galleries.util.StrictReader([self._FIELDNAMES_IN, "f,g,h,"])
+        with self.assertRaises(galleries.util.ExtraFieldError) as assert_raises_ctx:
+            list(galleries.util.Reader(reader))
+        exc = assert_raises_ctx.exception
+        self.assertEqual(exc.row, ["f", "g", "h", ""])
+        self.assertEqual(exc.fieldnames, self._FIELDNAMES_OUT)
+        self.assertEqual(exc.line_num, 2)
+
+
 class TestSorting(unittest.TestCase):
     GALLERIES_PATH_DATA = [
         "",
