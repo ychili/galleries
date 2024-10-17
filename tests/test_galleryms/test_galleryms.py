@@ -84,6 +84,14 @@ class TestImplicator(unittest.TestCase):
 
 
 class TestGallery(unittest.TestCase):
+    def test_merge_tags(self):
+        values = ["a b c", "d", galleries.galleryms.TagSet("abc")]
+        gallery = galleries.galleryms.Gallery(
+            {field: val for field, val in zip("FGH", values)}
+        )
+        tags = gallery.merge_tags(*"FGH")
+        self.assertEqual(tags, galleries.galleryms.TagSet("abcd"))
+
     def test_normalize_tags_args(self):
         gallery = galleries.galleryms.Gallery()
         self.assertRaises(KeyError, gallery.normalize_tags, "Null")
@@ -260,6 +268,18 @@ class TestOverlapTable(unittest.TestCase):
         frequent_overlaps = table.frequent_overlaps(n=2)
         self.assertEqual(len(sorted_overlaps), 6)
         self.assertEqual(sorted_overlaps[:2], frequent_overlaps)
+
+    def test_similarities(self):
+        table = self._make_nontrivial()
+        expected_overlap_results = {"a": 1, "b": 3, "c": 2, "d": 2}
+        for tag in "abcd":
+            with self.subTest(tag=tag):
+                results = list(table.similarities(tag))
+                # Results are considered unsorted.
+                self.assertEqual(len(results), expected_overlap_results[tag])
+                for result in results:
+                    self.assertEqual(result.tag_a.tag, tag)
+                    self.assertEqual(result.tag_a.count, table.count(tag))
 
 
 class TestTagSet(unittest.TestCase):
