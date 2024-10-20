@@ -118,3 +118,33 @@ Test the ``refresh.WordMultiplier``.
 >>> wm.add_set("numbers", "123")
 >>> sorted(wm.chain(["letters", "numbers"], join="".join))
 [('A1', '1'), ('A2', '2'), ('A3', '3'), ('B1', '1'), ('B2', '2'), ('B3', '3'), ('C1', '1'), ('C2', '2'), ('C3', '3')]
+
+Test tabulated output
+---------------------
+
+The ``Tabulator`` class has some recognized limitations. It will not
+work with strings containing characters that occupy more than one
+terminal column. Nevertheless, here is an example of normal usage, which
+we can at least use to test for regressions.
+
+>>> from galleries.galleryms import FieldFormat, Tabulator
+>>> ff = {'A': FieldFormat(10), 'B': FieldFormat(FieldFormat.REM), 'C': FieldFormat(30)}
+>>> tab = Tabulator(ff, total_width=73)
+>>> rows = [
+... {'A': 'Simon',
+...  'B': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit',
+...  'C': 11.0},
+... {'A': 'Clifford',
+...  'B': 'Ut enim ad minim veniam, quis nostrud exercitation',
+...  'C': 1.3411111111111111},
+... {'A': 'Caramel',
+...  'B': 'Excepteur sint occaecat cupidatat non proident',
+...  'C': 0.9948266942576306}]
+>>> for line in tab.tabulate(rows):
+...     print(line.rstrip())
+ Simon     Lorem ipsum dolor sit amet, consectetur    11.0
+           adipiscing elit
+ Clifford  Ut enim ad minim veniam, quis nostrud      1.3411111111111111
+           exercitation
+ Caramel   Excepteur sint occaecat cupidatat non      0.9948266942576306
+           proident
