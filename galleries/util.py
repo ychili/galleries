@@ -47,7 +47,7 @@ class MissingFieldError(FieldMismatchError):
 class Reader(Iterable[Gallery]):
     def __init__(self, reader: StrictReader) -> None:
         self._reader = reader
-        self.fieldnames = reader.fieldnames
+        self.fieldnames = reader.fieldnames or []
 
     def __iter__(self) -> Iterator[Gallery]:
         yield from self._reader

@@ -402,6 +402,31 @@ class TestCount:
 
 
 class TestQuery:
+    @pytest.fixture
+    def input_args_empty(self, tmp_path):
+        path = tmp_path / "empty.csv"
+        path.write_bytes(b"")
+        return ["--input", str(path)]
+
+    def test_empty_input(self, input_args_empty, capsys):
+        rc = galleries.cli.main(["query", *input_args_empty])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert captured.out == "\r\n"
+
+    def test_sort_field_not_found(self, input_args_empty, caplog):
+        bad_field_in_arg = "???"
+        rc = galleries.cli.main(
+            ["query", *input_args_empty, "--sort", bad_field_in_arg]
+        )
+        assert rc > 0
+        assert any(
+            bad_field_in_arg in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
     @pytest.mark.usefixtures("write_to_csv")
     def test_no_tags(self, capsys):
         rc = galleries.cli.main(["query"])
@@ -415,6 +440,14 @@ class TestQuery:
         with pytest.raises(SystemExit):
             galleries.cli.main(["query", f"-F{arg}"])
         assert arg in capsys.readouterr().err
+
+    def test_input_option(self, tmp_path, capsys):
+        path = tmp_path / "test.csv"
+        text = "Tags\r\nA\r\nB\r\nC\r\n"
+        path.write_text(text)
+        rc = galleries.cli.main(["query", "--input", str(path)])
+        assert rc == 0
+        assert capsys.readouterr().out == text
 
 
 class TestRelated:
