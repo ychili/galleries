@@ -304,18 +304,21 @@ def csv_path(root):
 
 
 @pytest.fixture
-def write_to_csv(tmp_path, real_path):
-    """
-    Initialize default collection and return a function that writes to its DB.
-    """
+def initialize_collection(tmp_path, real_path):
+    """Initialize default collection."""
     root = tmp_path / "test_collection"
     global_config = real_path / "config"
     global_config.write_text("[global]\ndefault = default\n")
     global_collections = real_path / "collections"
     global_collections.write_text(f"[default]\nroot = {root}")
     galleries.cli.main([f"--collection={root}", "init"])
-    mktree(root, DIR_TREE, FILE_TREE)
     galleries.cli.main([f"--collection={root}", "traverse"])
+    return root
+
+
+@pytest.fixture
+def write_to_csv(initialize_collection):
+    root = initialize_collection
 
     def write(data):
         return csv_path(root).write_bytes(data)
@@ -332,9 +335,22 @@ class TestCount:
 
     CSV_TAGS_ONLY = b"Tags\n\nA B C\nC B A\nD\nA E\n\n"
 
+    @pytest.fixture
+    def input_args_tags_only(self, tmp_path):
+        path = tmp_path / "tags-only.csv"
+        path.write_bytes(self.CSV_TAGS_ONLY)
+        return ["--input", str(path)]
+
     def test_tags_only(self, write_to_csv, capsys):
         write_to_csv(self.CSV_TAGS_ONLY)
         rc = galleries.cli.main(["count"])
+        self._assert_count_output(rc, capsys)
+
+    def test_input_option(self, input_args_tags_only, capsys):
+        rc = galleries.cli.main(["count", *input_args_tags_only])
+        self._assert_count_output(rc, capsys)
+
+    def _assert_count_output(self, rc, capsys):
         assert rc == 0
         captured = capsys.readouterr()
         print(captured.out)
@@ -342,9 +358,8 @@ class TestCount:
         assert len(lines) == 5
         assert lines[0].split() == ["3", "a"]
 
-    def test_summarize(self, write_to_csv, capsys):
-        write_to_csv(self.CSV_TAGS_ONLY)
-        rc = galleries.cli.main(["count", "--summarize"])
+    def test_summarize(self, input_args_tags_only, capsys):
+        rc = galleries.cli.main(["count", "--summarize", *input_args_tags_only])
         assert rc == 0
         captured = capsys.readouterr()
         print(captured.out)
@@ -379,11 +394,10 @@ class TestCount:
             if record.levelname == "ERROR"
         )
 
-    @pytest.mark.usefixtures("write_to_csv")
     @pytest.mark.parametrize("bad_field_in_arg", ["Not a valid fieldname", "無效"])
-    def test_argument_not_found(self, caplog, bad_field_in_arg):
+    def test_argument_not_found(self, input_args_tags_only, caplog, bad_field_in_arg):
         """Case where command-line argument does not match CSV data"""
-        rc = galleries.cli.main(["count", bad_field_in_arg])
+        rc = galleries.cli.main(["count", *input_args_tags_only, bad_field_in_arg])
         assert rc > 0
         assert any(
             bad_field_in_arg in record.message
@@ -399,6 +413,12 @@ class TestCount:
         rc = galleries.cli.main(["count"])
         assert rc > 0
         assert caplog.text
+
+    def test_empty_input(self, write_to_csv, capsys):
+        write_to_csv(b"")
+        rc = galleries.cli.main(["count"])
+        assert rc == 0
+        assert not capsys.readouterr().out
 
 
 class TestQuery:
@@ -433,7 +453,7 @@ class TestQuery:
         assert rc == 0
         captured = capsys.readouterr()
         assert not captured.err
-        assert len(captured.out.splitlines()) == 5
+        assert len(captured.out.splitlines()) == 1
 
     @pytest.mark.parametrize("arg", ["ish", "免許"])
     def test_invalid_format_arg(self, capsys, arg):
