@@ -14,7 +14,7 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Optional, TextIO, Union
 
@@ -319,6 +319,14 @@ class CollectionFinder:
         return set(self._collection_paths.values())
 
 
+class _CLIError(Exception):
+    """Some kind of fatal error"""
+
+    def __init__(self, status: int = 1) -> None:
+        super().__init__(status)
+        self.status = status
+
+
 def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Path sub-command"""
     collection = config.get_collections().find_collection(cla.collection)
@@ -429,23 +437,11 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     tag_fields = cla.fields or db_config.get_list("count", "TagFields")
     func = tagcount.summarize if cla.summarize else tagcount.count
     try:
-        with util.read_db(filename, tag_fields) as reader:
+        with _read_db(filename, tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
             return func(tag_sets)
-    except BrokenPipeError:
-        # Even though BrokenPipeError was caught, suppress the error
-        # message by closing stderr before exiting.
-        sys.stderr.close()
-        return 0
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except util.FieldNotFoundError as err:
-        log.error("Field not in file: %s", err)
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
 
 
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -471,7 +467,7 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
 
     try:
-        with util.read_db(filename) as reader:
+        with _read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
             galleries = (gallery for gallery in reader if query.match(gallery))
             return table_query.main(
@@ -481,19 +477,8 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 sort_field=cla.sort,
                 reverse_sort=cla.reverse,
             )
-    except BrokenPipeError:
-        # Even though BrokenPipeError was caught, suppress the error
-        # message by closing stderr before exiting.
-        sys.stderr.close()
-        return 0
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except table_query.SearchTermError:
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -615,7 +600,7 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
 
     try:
-        with util.read_db(input_file, tag_fields) as reader:
+        with _read_db(input_file, tag_fields) as reader:
             if search_terms:
                 query = table_query.query_from_args(
                     search_terms, reader.fieldnames, tag_fields
@@ -625,17 +610,8 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 galleries = reader
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
             overlap_table = relatedtag.overlap_table(tag_sets)
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except util.FieldNotFoundError as err:
-        log.error("Field not in file: %s", err)
-        return 1
-    except table_query.SearchTermError:
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
     log.debug("Read from CSV file %r", input_file)
     relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
     return 0
@@ -965,6 +941,33 @@ def split_semicolon_list(value: str) -> list[str]:
     if not value:
         return []
     return [stripped for item in value.split(";") if (stripped := item.strip())]
+
+
+@contextlib.contextmanager
+def _read_db(
+    file: Optional[os.PathLike] = None, fieldnames: Optional[Iterable[str]] = None
+) -> Iterator[util.Reader]:
+    """Try to read DB from *file*, raising ``_CLIError`` on error."""
+    try:
+        with util.read_db(file=file, fieldnames=fieldnames) as reader:
+            yield reader
+    except BrokenPipeError as err:
+        # Even though BrokenPipeError was caught, suppress the error
+        # message by closing stderr before exiting.
+        sys.stderr.close()
+        raise _CLIError(0) from err
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
+        raise _CLIError from err
+    except util.FieldNotFoundError as err:
+        log.error("Field not in file: %s", err)
+        raise _CLIError from err
+    except table_query.SearchTermError as err:
+        # Error is logged by table_query module.
+        raise _CLIError from err
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
+        raise _CLIError from err
 
 
 if __name__ == "__main__":
