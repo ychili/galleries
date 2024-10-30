@@ -469,16 +469,21 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     try:
         with _read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
-            galleries = (gallery for gallery in reader if query.match(gallery))
-            return table_query.main(
-                galleries,
+            galleries = table_query.sort_table(
+                (gallery for gallery in reader if query.match(gallery)),
                 reader.fieldnames,
-                field_fmts,
                 sort_field=cla.sort,
                 reverse_sort=cla.reverse,
             )
+            table_query.print_table(
+                galleries,
+                reader.fieldnames,
+                table_query.Format.FORMAT if field_fmts else table_query.Format.NONE,
+                field_fmts,
+            )
     except _CLIError as err:
         return err.status
+    return 0
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -962,7 +967,7 @@ def _read_db(
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
         raise _CLIError from err
-    except table_query.SearchTermError as err:
+    except table_query.TableQueryError as err:
         # Error is logged by table_query module.
         raise _CLIError from err
     except util.FieldMismatchError as err:

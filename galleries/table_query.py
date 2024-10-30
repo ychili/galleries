@@ -26,7 +26,19 @@ log = logging.getLogger(PROG)
 ArgumentParser = gms.ArgumentParser
 
 
-class SearchTermError(ValueError):
+class TableQueryError(ValueError):
+    pass
+
+
+class SearchTermError(TableQueryError):
+    pass
+
+
+class SortingError(TableQueryError):
+    pass
+
+
+class FormattingError(TableQueryError):
     pass
 
 
@@ -82,40 +94,44 @@ def query_from_args(
     return query
 
 
-def main(
+def sort_table(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
-    field_formats: Optional[Mapping[str, gms.FieldFormat]] = None,
     sort_field: Optional[str] = None,
+    *,
     reverse_sort: bool = False,
-) -> int:
+) -> Iterable[gms.Gallery]:
     if sort_field:
         if sort_field not in fieldnames:
             log.error("Sort field not found in input: %s", sort_field)
-            return 1
-        sort_key = util.alphanum_getter(sort_field)
-    else:
-        sort_key = None
-    if field_formats:
+            raise SortingError(sort_field)
+        return util.sort_by_field(galleries, sort_field, reverse=reverse_sort)
+    return galleries
+
+
+def print_table(
+    galleries: Iterable[gms.Gallery],
+    fieldnames: Sequence[str],
+    output_format: Format,
+    field_formats: Optional[dict[str, gms.FieldFormat]] = None,
+) -> None:
+    if output_format == Format.FORMAT:
+        if field_formats is None:
+            raise TypeError
         for field in field_formats:
             if field not in fieldnames:
                 log.error(
                     "Field name from FieldFormats file not found in input: %s", field
                 )
-                return 1
+                raise FormattingError(field)
         galleries = list(galleries)
         gallery_total = len(galleries)
         log.info(
             "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
         )
-        if sort_key:
-            galleries.sort(key=sort_key, reverse=reverse_sort)
         print_formatted(galleries, field_formats)
     else:
-        if sort_key:
-            galleries = sorted(galleries, key=sort_key, reverse=reverse_sort)
         util.write_galleries(galleries, fieldnames=fieldnames)
-    return 0
 
 
 def print_formatted(

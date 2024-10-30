@@ -124,6 +124,16 @@ def write_galleries(
 # -----------------
 
 
+def sort_by_field(
+    galleries: Iterable[Gallery], sort_field: str, *, reverse: bool = False
+) -> list[Gallery]:
+    sort_key = alphanum_getter(sort_field)
+    if isinstance(galleries, list):
+        galleries.sort(key=sort_key, reverse=reverse)
+        return galleries
+    return sorted(galleries, key=sort_key, reverse=reverse)
+
+
 def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
     """Return a key function that sorts galleries on *field*."""
 
