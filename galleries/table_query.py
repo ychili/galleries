@@ -22,7 +22,6 @@ import rich.table
 from . import PROG
 from . import galleryms as gms
 from . import util
-from .refresh import ObjectExtractor, load_from_json, load_from_toml
 
 FormatT = TypeVar("FormatT", bound="Format")
 
@@ -255,15 +254,15 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
     as JSON.
     """
     path = Path(filename)
-    load = load_from_json
+    load = util.load_from_json
     if path.match("*.toml"):
-        load = load_from_toml
+        load = util.load_from_toml
     try:
         data = load(path)
     except OSError:
         log.debug("can't read file with path %s, using default", path)
         return _default_rich_table()
-    extr = ObjectExtractor(source=path)
+    extr = util.ObjectExtractor(source=path)
     obj = extr.dict(data)
     if not obj:
         extr.warn("No data!")
@@ -312,7 +311,9 @@ def _default_rich_table(table: Optional[rich.table.Table] = None) -> RichTablePr
     return RichTablePrinter(table, fieldnames=[])
 
 
-def _parse_table_settings(extr: ObjectExtractor, table_def: Mapping) -> dict[str, Any]:
+def _parse_table_settings(
+    extr: util.ObjectExtractor, table_def: Mapping
+) -> dict[str, Any]:
     table_kwds: dict[str, Any] = {}
     with extr.get(table_def, "box", str()) as arg:
         try:
