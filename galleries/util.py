@@ -12,10 +12,14 @@ import sys
 from collections.abc import Callable, Collection, Iterator, Sequence
 from typing import Iterable, Optional, Union
 
+import rich.console
+
 from .galleryms import Gallery
 
 # I/O UTILITIES
 # -------------
+
+console = rich.console.Console()
 
 
 class FieldNotFoundError(Exception):

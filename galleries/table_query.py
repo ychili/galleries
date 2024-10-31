@@ -4,21 +4,29 @@
 
 from __future__ import annotations
 
+import abc
 import enum
 import locale
 import logging
 import shlex
 import shutil
 import sys
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, TypeVar, Union
+from typing import Any, Optional, TextIO, TypeVar, Union
+
+import rich.box
+import rich.console
+import rich.table
 
 from . import PROG
 from . import galleryms as gms
 from . import util
+from .refresh import ObjectExtractor, load_from_json, load_from_toml
 
 FormatT = TypeVar("FormatT", bound="Format")
+
+DEFAULT_BOX = rich.box.SIMPLE
 
 log = logging.getLogger(PROG)
 
@@ -38,13 +46,14 @@ class SortingError(TableQueryError):
     pass
 
 
-class FormattingError(TableQueryError):
+class FormatterError(TableQueryError):
     pass
 
 
 class Format(enum.Enum):
     NONE = "none"
     FORMAT = "format"
+    RICH = "rich"
     AUTO = "auto"
 
     def __str__(self) -> str:
@@ -61,9 +70,69 @@ class Format(enum.Enum):
             return s
 
 
-def auto_format(fmt: Format) -> bool:
-    """Should output be formatted, according to *fmt*?"""
-    return fmt == Format.FORMAT or fmt == Format.AUTO and sys.stdout.isatty()
+class TablePrinter(abc.ABC):
+    @abc.abstractmethod
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def check_fields(self, fieldnames: Collection[str]) -> None:
+        """
+        Raise ``FormatterError`` if a requested field is not found in
+        *fieldnames*.
+        """
+        raise NotImplementedError
+
+
+class FormattedTablePrinter(TablePrinter):
+    def __init__(
+        self,
+        field_formats: dict[str, gms.FieldFormat],
+        file: Optional[TextIO] = sys.stdout,
+    ) -> None:
+        self.field_formats = field_formats
+        self.file = file
+
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        print_formatted(galleries, self.field_formats)
+
+    def check_fields(self, fieldnames: Collection[str]) -> None:
+        for field in self.field_formats:
+            if field not in fieldnames:
+                log.error(
+                    "Field name from FieldFormats file not found in input: %s", field
+                )
+                raise FormatterError(field)
+
+
+class RichTablePrinter(TablePrinter):
+    def __init__(
+        self,
+        table: rich.table.Table,
+        fieldnames: Sequence[str],
+        console: Optional[rich.console.Console] = None,
+    ) -> None:
+        self.table = table
+        self.fieldnames = fieldnames
+        self.console = console or util.console
+
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        for gallery in galleries:
+            row = [str(gallery[fieldname]) for fieldname in self.fieldnames]
+            self.table.add_row(*row)
+        self.console.print(self.table)
+
+    def check_fields(self, fieldnames: Collection[str]) -> None:
+        if not self.fieldnames:
+            self.fieldnames = list(fieldnames)
+            for field in fieldnames:
+                self.table.add_column(header=field)
+        for field in self.fieldnames:
+            if field not in fieldnames:
+                log.error(
+                    "Field name from RichTable file not found in input: %s", field
+                )
+                raise FormatterError(field)
 
 
 def query_from_args(
@@ -112,24 +181,16 @@ def sort_table(
 def print_table(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
-    output_format: Format,
-    field_formats: Optional[dict[str, gms.FieldFormat]] = None,
+    output_formatter: Optional[TablePrinter] = None,
 ) -> None:
-    if output_format == Format.FORMAT:
-        if field_formats is None:
-            raise TypeError
-        for field in field_formats:
-            if field not in fieldnames:
-                log.error(
-                    "Field name from FieldFormats file not found in input: %s", field
-                )
-                raise FormattingError(field)
+    if output_formatter:
+        output_formatter.check_fields(fieldnames)
         galleries = list(galleries)
         gallery_total = len(galleries)
         log.info(
             "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
         )
-        print_formatted(galleries, field_formats)
+        output_formatter.print(galleries)
     else:
         util.write_galleries(galleries, fieldnames=fieldnames)
 
@@ -185,3 +246,82 @@ def parse_field_format_file(filename: gms.StrPath) -> dict[str, gms.FieldFormat]
         except KeyError as err:
             log.error("%s:%d: Bad color argument: %s", filename, lineno, err)
     return max_widths
+
+
+def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
+    """Read *filename* and parse Rich table settings.
+
+    ``*.toml`` files will be parsed as TOML. Anything else will be parsed
+    as JSON.
+    """
+    path = Path(filename)
+    load = load_from_json
+    if path.match("*.toml"):
+        load = load_from_toml
+    try:
+        data = load(path)
+    except OSError:
+        log.debug("can't read file with path %s, using default", path)
+        return _default_rich_table()
+    extr = ObjectExtractor(source=path)
+    obj = extr.dict(data)
+    if not obj:
+        extr.warn("No data!")
+        return _default_rich_table()
+    with extr.get_dict(obj, "table") as table_def:
+        table_kwds = _parse_table_settings(extr, table_def)
+    table = rich.table.Table(**table_kwds)
+    column_def = extr.list("columns")
+    warning_tmpl = "At column def {}: {}: {}"
+    columns: list[str] = []
+    for ind, decl in enumerate(column_def, start=1):
+        match decl:
+            case {"field": field, **kwargs}:
+                field = str(field)
+                if kwargs:
+                    try:
+                        table.add_column(**kwargs)
+                    except TypeError as err:
+                        extr.warn(
+                            warning_tmpl.format(
+                                ind, f"Error with parameter for field {field}", err
+                            )
+                        )
+                        continue
+                else:
+                    table.add_column(header=field)
+                columns.append(field)
+            case {}:
+                extr.warn(
+                    warning_tmpl.format(ind, 'Required key "field" is missing', decl)
+                )
+            case _:
+                extr.warn(
+                    warning_tmpl.format(
+                        ind, "Item is wrong type (should be object/table)", decl
+                    )
+                )
+    if not columns:
+        return _default_rich_table(table=table)
+    return RichTablePrinter(table, fieldnames=columns)
+
+
+def _default_rich_table(table: Optional[rich.table.Table] = None) -> RichTablePrinter:
+    if table is None:
+        table = rich.table.Table(box=DEFAULT_BOX)
+    return RichTablePrinter(table, fieldnames=[])
+
+
+def _parse_table_settings(extr: ObjectExtractor, table_def: Mapping) -> dict[str, Any]:
+    table_kwds: dict[str, Any] = {}
+    with extr.get(table_def, "box", str()) as arg:
+        try:
+            box = getattr(rich.box, arg)
+        except AttributeError:
+            extr.warn("Not a known Box style (defaulting): %s", arg)
+            box = DEFAULT_BOX
+        if not isinstance(box, rich.box.Box):
+            extr.warn("Not a known Box style (defaulting): %s", arg)
+            box = DEFAULT_BOX
+        table_kwds["box"] = box
+    return table_kwds

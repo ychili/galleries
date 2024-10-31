@@ -40,7 +40,9 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "count": {},
     "query": {
         "Format": "none",
+        "AutoFormat": "format",
         "FieldFormats": "tableformat.conf",
+        "RichTable": "richtable.conf",
     },
     "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
@@ -449,23 +451,10 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     db_config = config.get_collections().find_collection(cla.collection).get_db_config()
     filename = cla.csvfile or db_config.get_path("db", "CSVName")
     tag_fields = cla.field or db_config.get_list("query", "TagFields")
-    if cla.format is None:
-        try:
-            fmt = table_query.Format(db_config.parser.get("query", "Format").lower())
-        except ValueError as err:
-            log.error("Invalid configuration setting: %s", err)
-            return 1
-    else:
-        fmt = cla.format
-    field_fmts = {}
-    if table_query.auto_format(fmt) or cla.field_formats:
-        fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
-        try:
-            field_fmts = table_query.parse_field_format_file(fmts_file)
-        except (OSError, UnicodeDecodeError) as err:
-            log.error("Unable to read FieldFormats file: %s", err)
-            return 1
-
+    try:
+        output_formatter = _query_output_formatter(cla, db_config)
+    except _CLIError as err:
+        return err.status
     try:
         with _read_db(filename) as reader:
             query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
@@ -475,15 +464,58 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 sort_field=cla.sort,
                 reverse_sort=cla.reverse,
             )
-            table_query.print_table(
-                galleries,
-                reader.fieldnames,
-                table_query.Format.FORMAT if field_fmts else table_query.Format.NONE,
-                field_fmts,
-            )
+            table_query.print_table(galleries, reader.fieldnames, output_formatter)
     except _CLIError as err:
         return err.status
     return 0
+
+
+def _query_output_formatter(
+    cla: argparse.Namespace, config: DBConfig
+) -> Optional[table_query.TablePrinter]:
+    """Sub-function of ``query_sc``
+
+    Return a ``TablePrinter`` that can print galleries, or return ``None``
+    if no formatting was requested.
+    """
+    fmt = cla.format
+    if cla.field_formats:
+        fmt = table_query.Format.FORMAT
+    elif cla.rich_table:
+        fmt = table_query.Format.RICH
+    if fmt is None:
+        try:
+            fmt = table_query.Format(config.parser.get("query", "Format").lower())
+        except ValueError as err:
+            log.error("Invalid configuration setting: %s", err)
+            raise _CLIError from err
+    if fmt == table_query.Format.AUTO:
+        if sys.stdout.isatty():
+            try:
+                fmt = table_query.Format(
+                    config.parser.get("query", "AutoFormat").lower()
+                )
+            except ValueError as err:
+                log.error("Invalid configuration setting: %s", err)
+                raise _CLIError from err
+            if fmt not in {table_query.Format.FORMAT, table_query.Format.RICH}:
+                log.error("Invalid configuration setting for AutoFormat: %s", fmt.value)
+                raise _CLIError
+        else:
+            fmt = table_query.Format.NONE
+    if fmt == table_query.Format.FORMAT or cla.field_formats:
+        fmts_file = cla.field_formats or config.get_path("query", "FieldFormats")
+        try:
+            field_fmts = table_query.parse_field_format_file(fmts_file)
+        except (OSError, UnicodeDecodeError) as err:
+            log.error("Unable to read FieldFormats file: %s", err)
+            raise _CLIError from err
+        return table_query.FormattedTablePrinter(field_fmts)
+    if fmt == table_query.Format.RICH or cla.rich_table:
+        table_file = cla.rich_table or config.get_path("query", "RichTable")
+        return table_query.parse_rich_table_file(table_file)
+    # fmt == table_query.Format.NONE
+    return None
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -741,8 +773,14 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p.add_argument(
         "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
-    query_p.add_argument(
+    output_format = query_p.add_mutually_exclusive_group()
+    output_format.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"
+    )
+    output_format.add_argument(
+        "--rich-table",
+        metavar="FILE",
+        help="parse Rich table settings from %(metavar)s",
     )
     query_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     query_p.set_defaults(func=query_sc)
