@@ -135,7 +135,7 @@ def toml_address(keys: Iterable[Optional[str]]) -> str:
 # I/O UTILITIES
 # -------------
 
-console = rich.console.Console()
+console = rich.console.Console(markup=False)
 
 
 class FieldNotFoundError(Exception):

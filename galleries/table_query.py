@@ -17,6 +17,7 @@ from typing import Any, Optional, TextIO, TypeVar, Union
 
 import rich.box
 import rich.console
+import rich.errors
 import rich.table
 
 from . import PROG
@@ -72,7 +73,7 @@ class Format(enum.Enum):
 class TablePrinter(abc.ABC):
     @abc.abstractmethod
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def check_fields(self, fieldnames: Collection[str]) -> None:
@@ -80,7 +81,6 @@ class TablePrinter(abc.ABC):
         Raise ``FormatterError`` if a requested field is not found in
         *fieldnames*.
         """
-        raise NotImplementedError
 
 
 class FormattedTablePrinter(TablePrinter):
@@ -119,7 +119,11 @@ class RichTablePrinter(TablePrinter):
         for gallery in galleries:
             row = [str(gallery[fieldname]) for fieldname in self.fieldnames]
             self.table.add_row(*row)
-        self.console.print(self.table)
+        try:
+            self.console.print(self.table)
+        except rich.errors.NotRenderableError as err:
+            log.error("Unable to render table: %s", err)
+            raise FormatterError from err
 
     def check_fields(self, fieldnames: Collection[str]) -> None:
         if not self.fieldnames:
