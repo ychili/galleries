@@ -19,6 +19,7 @@ import warnings
 from collections import ChainMap, Counter, defaultdict
 from collections.abc import (
     Callable,
+    Collection,
     Hashable,
     Iterable,
     Iterator,
@@ -34,19 +35,15 @@ from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
-    Collection,
-    Dict,
     Generic,
     NamedTuple,
     NewType,
-    Set,
-    Tuple,
+    TypeAlias,
     TypeVar,
 )
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
-    from typing_extensions import TypeAlias
 
 T = TypeVar("T")
 H = TypeVar("H", bound=Hashable)
@@ -56,7 +53,7 @@ BinaryCompFunc: TypeAlias = (
 StrPath = str | Path
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
-TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
+TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
 
 class DisambiguationError(ValueError):
@@ -223,7 +220,7 @@ class Implicator(ImplicationGraph):
             self.join_descendants(tagset, tag)
 
 
-class TagSet(Set[str]):
+class TagSet(set[str]):
     """A set of tags
 
     >>> tagset = TagSet.from_tagstring("tok1 tok2")
@@ -277,7 +274,7 @@ class TagSet(Set[str]):
                 self.add(tag)
 
 
-class Gallery(Dict[str, object]):
+class Gallery(dict[str, object]):
     """Represent one row of the database."""
 
     def merge_tags(self, *fields: str) -> TagSet:
@@ -299,8 +296,7 @@ class Gallery(Dict[str, object]):
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
         name = self[field]
-        # 3.10: use StrPath
-        if isinstance(name, (str, Path)):
+        if isinstance(name, StrPath):
             return Path(cwd, name)
         raise TypeError(name)
 

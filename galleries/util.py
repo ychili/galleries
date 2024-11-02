@@ -11,8 +11,8 @@ import logging
 import os
 import re
 import sys
-from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
-from typing import Any, Iterable, TypeVar
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+from typing import Any, TypeVar
 
 if sys.version_info >= (3, 11):
     import tomllib
