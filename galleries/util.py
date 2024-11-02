@@ -14,15 +14,15 @@ import sys
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from typing import Any, TypeVar
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
 import rich.console
 
 from . import PROG
 from .galleryms import Gallery
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 log = logging.getLogger(PROG)
 
