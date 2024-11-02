@@ -84,6 +84,8 @@ class TablePrinter(abc.ABC):
 
 
 class FormattedTablePrinter(TablePrinter):
+    """A TablePrinter that uses ``print_formatted``."""
+
     def __init__(
         self,
         field_formats: dict[str, gms.FieldFormat],
@@ -105,13 +107,20 @@ class FormattedTablePrinter(TablePrinter):
 
 
 class RichTablePrinter(TablePrinter):
+    """A TablePrinter that uses a ``rich.table.Table``.
+
+    If *add_fields* is True (the default) and *fieldnames* is not given,
+    then ``check_fields`` will update fieldnames from its
+    *fieldnames* argument.
+    """
+
     def __init__(
         self,
         table: rich.table.Table,
         fieldnames: Optional[Sequence[str]] = None,
         console: Optional[rich.console.Console] = None,
         *,
-        add_fields: bool = True
+        add_fields: bool = True,
     ) -> None:
         self.table = table
         self.fieldnames = fieldnames or []
@@ -176,6 +185,10 @@ def sort_table(
     *,
     reverse_sort: bool = False,
 ) -> Iterable[gms.Gallery]:
+    """Return *galleries* sorted by *sort_field* if given, otherwise unsorted.
+
+    Raise ``SortingError`` if *sort_field* is not found in *fieldnames*.
+    """
     if sort_field:
         if sort_field not in fieldnames:
             log.error("Sort field not found in input: %s", sort_field)
