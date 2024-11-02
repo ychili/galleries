@@ -207,15 +207,11 @@ class TestMain:
     _fieldnames = ["FieldA", "FieldB"]
     _bogus_field = "CdleiF"
 
-    @pytest.mark.parametrize("sort_field", [*_fieldnames, None])
-    def test_successful(self, capsys, sort_field):
-        # These galleries are already sorted, so results should appear in the
-        # same order regardless of the value of sort_field.
+    def test_successful(self, capsys):
         gallery_gen = (galleries.galleryms.Gallery(mapping) for mapping in self._data)
-        status = galleries.table_query.main(
-            galleries=gallery_gen, fieldnames=self._fieldnames, sort_field=sort_field
+        galleries.table_query.print_table(
+            galleries=gallery_gen, fieldnames=self._fieldnames, output_formatter=None
         )
-        assert status == 0
         out, err = capsys.readouterr()
         assert not err
         results = out.splitlines()
@@ -225,21 +221,21 @@ class TestMain:
         assert results[2] == "{'a'},{'b'}"
 
     def test_sort_field_not_found(self, caplog):
-        status = galleries.table_query.main(
-            galleries=[], fieldnames=self._fieldnames, sort_field=self._bogus_field
-        )
-        self._assert_field_not_found(status, caplog)
+        with pytest.raises(galleries.table_query.SortingError, match=self._bogus_field):
+            galleries.table_query.sort_table(
+                galleries=[], fieldnames=self._fieldnames, sort_field=self._bogus_field
+            )
+        assert any_error_logs(caplog)
+        assert self._bogus_field in caplog.text
 
     def test_format_field_not_found(self, caplog):
-        status = galleries.table_query.main(
-            galleries=[],
-            fieldnames=self._fieldnames,
-            field_formats={self._bogus_field: galleries.galleryms.FieldFormat(80)},
+        bogus_table = galleries.table_query.FormattedTablePrinter(
+            {self._bogus_field: galleries.galleryms.FieldFormat(80)}
         )
-        self._assert_field_not_found(status, caplog)
-
-    def _assert_field_not_found(self, status, caplog):
-        assert status == 1
+        with pytest.raises(
+            galleries.table_query.FormatterError, match=self._bogus_field
+        ):
+            bogus_table.check_fields(self._fieldnames)
         assert any_error_logs(caplog)
         assert self._bogus_field in caplog.text
 

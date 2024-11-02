@@ -14,13 +14,13 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Optional, TextIO, Union
+from typing import Any, TextIO
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
-StrPath = Union[str, Path]
+StrPath = str | Path
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
@@ -40,7 +40,9 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "count": {},
     "query": {
         "Format": "none",
+        "AutoFormat": "format",
         "FieldFormats": "tableformat.conf",
+        "RichTable": "richtable.toml",
     },
     "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
@@ -57,7 +59,7 @@ class FileType:
     def __init__(self, mode: str = "r") -> None:
         self.mode = mode
 
-    def __call__(self, string: str) -> Union[str, TextIO]:
+    def __call__(self, string: str) -> str | TextIO:
         if string == "-":
             if "r" in self.mode:
                 return sys.stdin
@@ -74,8 +76,8 @@ class FileType:
 class GlobalConfig:
     def __init__(
         self,
-        options_p: Optional[configparser.ConfigParser] = None,
-        collections_p: Optional[configparser.ConfigParser] = None,
+        options_p: configparser.ConfigParser | None = None,
+        collections_p: configparser.ConfigParser | None = None,
     ) -> None:
         if options_p is None:
             self.options = configparser.ConfigParser(interpolation=None)
@@ -110,7 +112,7 @@ class GlobalConfig:
                 finder.add_collection(path_spec)
         return finder
 
-    def _spec_from_section(self, section: str) -> Optional[CollectionPathSpec]:
+    def _spec_from_section(self, section: str) -> CollectionPathSpec | None:
         try:
             root = self.collections[section]["Root"]
         except KeyError:
@@ -147,7 +149,7 @@ class DBConfig:
     def __init__(
         self,
         paths: CollectionPathSpec,
-        parser: Optional[configparser.ConfigParser] = None,
+        parser: configparser.ConfigParser | None = None,
     ) -> None:
         self.paths = paths
         if parser is None:
@@ -172,9 +174,7 @@ class DBConfig:
             return [self.paths.get_db_path(name) for name in split_semicolon_list(val)]
         return []
 
-    def get_implicating_fields(
-        self, tag_fields: Optional[list[str]] = None
-    ) -> set[str]:
+    def get_implicating_fields(self, tag_fields: list[str] | None = None) -> set[str]:
         if tag_fields is None:
             tag_fields = self.get_list("refresh", "TagFields")
         implicating_fields = set(tag_fields)
@@ -193,7 +193,7 @@ class DBConfig:
 class CollectionPathSpec:
     """The set of paths describing a collection, optionally named"""
 
-    name: Optional[str]
+    name: str | None
     collection: Path
     subdir: Path
     config: Path
@@ -205,7 +205,7 @@ class CollectionPathSpec:
     # from configparser errors. The parser will not be in a readable state.
     # Log the error and re-raise the exception.
 
-    def acquire_db_config(self) -> Optional[DBConfig]:
+    def acquire_db_config(self) -> DBConfig | None:
         """Check collection's validity, and read its configuration.
 
         If this path spec represents a valid collection, one with a working
@@ -245,9 +245,9 @@ class CollectionFinder:
 
     def __init__(
         self,
-        collections: Optional[Iterable[CollectionPathSpec]] = None,
-        default_name: Optional[str] = None,
-        default_settings: Optional[Mapping[str, Any]] = None,
+        collections: Iterable[CollectionPathSpec] | None = None,
+        default_name: str | None = None,
+        default_settings: Mapping[str, Any] | None = None,
     ) -> None:
         self.default_name = default_name
         if default_settings is not None:
@@ -265,7 +265,7 @@ class CollectionFinder:
             self._collection_names[path_spec.name] = path_spec
         self._collection_paths[path_spec.collection] = path_spec
 
-    def _disambiguate_collection_name(self, name: str) -> Optional[CollectionPathSpec]:
+    def _disambiguate_collection_name(self, name: str) -> CollectionPathSpec | None:
         if exact_match := self._collection_names.get(name):
             log.debug("arg matches name exactly: %s", exact_match)
             return exact_match
@@ -279,7 +279,7 @@ class CollectionFinder:
             return prefix_match
         return None
 
-    def find_collection(self, arg: Optional[str] = None) -> CollectionPathSpec:
+    def find_collection(self, arg: str | None = None) -> CollectionPathSpec:
         """Return the path spec determined by *arg*."""
         if arg:
             return self._lookup_collection(arg)
@@ -317,6 +317,14 @@ class CollectionFinder:
 
     def collections_added(self) -> set[CollectionPathSpec]:
         return set(self._collection_paths.values())
+
+
+class _CLIError(Exception):
+    """Some kind of fatal error"""
+
+    def __init__(self, status: int = 1) -> None:
+        super().__init__(status)
+        self.status = status
 
 
 def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -429,23 +437,11 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     tag_fields = cla.fields or db_config.get_list("count", "TagFields")
     func = tagcount.summarize if cla.summarize else tagcount.count
     try:
-        with util.read_db(filename, tag_fields) as reader:
+        with _read_db(filename, tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
             return func(tag_sets)
-    except BrokenPipeError:
-        # Even though BrokenPipeError was caught, suppress the error
-        # message by closing stderr before exiting.
-        sys.stderr.close()
-        return 0
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except util.FieldNotFoundError as err:
-        log.error("Field not in file: %s", err)
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
 
 
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -453,47 +449,71 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     db_config = config.get_collections().find_collection(cla.collection).get_db_config()
     filename = cla.csvfile or db_config.get_path("db", "CSVName")
     tag_fields = cla.field or db_config.get_list("query", "TagFields")
-    if cla.format is None:
+    try:
+        output_formatter = _query_output_formatter(cla, db_config)
+    except _CLIError as err:
+        return err.status
+    try:
+        with _read_db(filename) as reader:
+            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
+            galleries = table_query.sort_table(
+                (gallery for gallery in reader if query.match(gallery)),
+                reader.fieldnames,
+                sort_field=cla.sort,
+                reverse_sort=cla.reverse,
+            )
+            table_query.print_table(galleries, reader.fieldnames, output_formatter)
+    except _CLIError as err:
+        return err.status
+    return 0
+
+
+def _query_output_formatter(
+    cla: argparse.Namespace, config: DBConfig
+) -> table_query.TablePrinter | None:
+    """Sub-function of ``query_sc``
+
+    Return a ``TablePrinter`` that can print galleries, or return ``None``
+    if no formatting was requested.
+    """
+    fmt = cla.format
+    if cla.field_formats:
+        fmt = table_query.Format.FORMAT
+    elif cla.rich_table:
+        fmt = table_query.Format.RICH
+    if fmt is None:
         try:
-            fmt = table_query.Format(db_config.parser.get("query", "Format").lower())
+            fmt = table_query.Format(config.parser.get("query", "Format").lower())
         except ValueError as err:
             log.error("Invalid configuration setting: %s", err)
-            return 1
-    else:
-        fmt = cla.format
-    field_fmts = {}
-    if table_query.auto_format(fmt) or cla.field_formats:
-        fmts_file = cla.field_formats or db_config.get_path("query", "FieldFormats")
+            raise _CLIError from err
+    if fmt == table_query.Format.AUTO:
+        if sys.stdout.isatty():
+            try:
+                fmt = table_query.Format(
+                    config.parser.get("query", "AutoFormat").lower()
+                )
+            except ValueError as err:
+                log.error("Invalid configuration setting: %s", err)
+                raise _CLIError from err
+            if fmt not in {table_query.Format.FORMAT, table_query.Format.RICH}:
+                log.error("Invalid configuration setting for AutoFormat: %s", fmt.value)
+                raise _CLIError
+        else:
+            fmt = table_query.Format.NONE
+    if fmt == table_query.Format.FORMAT or cla.field_formats:
+        fmts_file = cla.field_formats or config.get_path("query", "FieldFormats")
         try:
             field_fmts = table_query.parse_field_format_file(fmts_file)
         except (OSError, UnicodeDecodeError) as err:
             log.error("Unable to read FieldFormats file: %s", err)
-            return 1
-
-    try:
-        with util.read_db(filename) as reader:
-            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
-            galleries = (gallery for gallery in reader if query.match(gallery))
-            return table_query.main(
-                galleries,
-                reader.fieldnames,
-                field_fmts,
-                sort_field=cla.sort,
-                reverse_sort=cla.reverse,
-            )
-    except BrokenPipeError:
-        # Even though BrokenPipeError was caught, suppress the error
-        # message by closing stderr before exiting.
-        sys.stderr.close()
-        return 0
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except table_query.SearchTermError:
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+            raise _CLIError from err
+        return table_query.FormattedTablePrinter(field_fmts)
+    if fmt == table_query.Format.RICH or cla.rich_table:
+        table_file = cla.rich_table or config.get_path("query", "RichTable")
+        return table_query.parse_rich_table_file(table_file)
+    # fmt == table_query.Format.NONE
+    return None
 
 
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -615,7 +635,7 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             return 1
 
     try:
-        with util.read_db(input_file, tag_fields) as reader:
+        with _read_db(input_file, tag_fields) as reader:
             if search_terms:
                 query = table_query.query_from_args(
                     search_terms, reader.fieldnames, tag_fields
@@ -625,17 +645,8 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
                 galleries = reader
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
             overlap_table = relatedtag.overlap_table(tag_sets)
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except util.FieldNotFoundError as err:
-        log.error("Field not in file: %s", err)
-        return 1
-    except table_query.SearchTermError:
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
     log.debug("Read from CSV file %r", input_file)
     relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
     return 0
@@ -760,8 +771,14 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p.add_argument(
         "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
-    query_p.add_argument(
+    output_format = query_p.add_mutually_exclusive_group()
+    output_format.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"
+    )
+    output_format.add_argument(
+        "--rich-table",
+        metavar="FILE",
+        help="parse Rich table settings from %(metavar)s",
     )
     query_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     query_p.set_defaults(func=query_sc)
@@ -856,7 +873,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     return top_level
 
 
-def main(args: Optional[Sequence[str]] = None) -> int:
+def main(args: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG, format=f"{PROG}: %(levelname)s: %(message)s"
     )
@@ -904,7 +921,7 @@ def collection_path_spec(
     collection_path: StrPath,
     subdir_name: StrPath,
     config_name: StrPath,
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> CollectionPathSpec:
     collection_path = Path(collection_path)
     subdir_path = collection_path / subdir_name
@@ -965,6 +982,33 @@ def split_semicolon_list(value: str) -> list[str]:
     if not value:
         return []
     return [stripped for item in value.split(";") if (stripped := item.strip())]
+
+
+@contextlib.contextmanager
+def _read_db(
+    file: os.PathLike | None = None, fieldnames: Iterable[str] | None = None
+) -> Iterator[util.Reader]:
+    """Try to read DB from *file*, raising ``_CLIError`` on error."""
+    try:
+        with util.read_db(file=file, fieldnames=fieldnames) as reader:
+            yield reader
+    except BrokenPipeError as err:
+        # Even though BrokenPipeError was caught, suppress the error
+        # message by closing stderr before exiting.
+        sys.stderr.close()
+        raise _CLIError(0) from err
+    except (OSError, UnicodeDecodeError) as err:
+        log.error("Unable to read CSV file: %s", err)
+        raise _CLIError from err
+    except util.FieldNotFoundError as err:
+        log.error("Field not in file: %s", err)
+        raise _CLIError from err
+    except table_query.TableQueryError as err:
+        # Error is logged by table_query module.
+        raise _CLIError from err
+    except util.FieldMismatchError as err:
+        log_field_mismatch(err)
+        raise _CLIError from err
 
 
 if __name__ == "__main__":
