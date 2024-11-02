@@ -11,7 +11,7 @@ minversion = "7.1.3"
 addopts = "--import-mode=importlib --doctest-modules --doctest-glob='tests/*.rst'"
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 implicit_optional = false
 # Methods of Collection[Any] may return Any
 warn_return_any = false
@@ -29,4 +29,4 @@ check-str-concat-over-line-jumps = false
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"

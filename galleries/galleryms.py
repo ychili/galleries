@@ -39,11 +39,9 @@ from typing import (
     Generic,
     NamedTuple,
     NewType,
-    Optional,
     Set,
     Tuple,
     TypeVar,
-    Union,
 )
 
 if TYPE_CHECKING:
@@ -55,7 +53,7 @@ H = TypeVar("H", bound=Hashable)
 BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], Any]"
 )
-StrPath = Union[str, Path]
+StrPath = str | Path
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 Table = TypeVar("Table", bound="OverlapTable")
 TransitiveAliases = NewType("TransitiveAliases", Tuple[str, str, str])
@@ -95,7 +93,7 @@ class ImplicationGraph:
     ['a', 'b', 'c', 'd']
     """
 
-    def __init__(self, graph: Optional[Mapping[str, Iterable[str]]] = None) -> None:
+    def __init__(self, graph: Mapping[str, Iterable[str]] | None = None) -> None:
         self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
         if graph is not None:
             for node, consequents in graph.items():
@@ -106,7 +104,7 @@ class ImplicationGraph:
 
     def _traverse(
         self, node: str, stack: MutableSequence[str], seen: MutableSet[str]
-    ) -> Optional[str]:
+    ) -> str | None:
         """Recursive function to visit each node in the graph"""
         # Mark current node as visited and add to recursion stack
         seen.add(node)
@@ -123,7 +121,7 @@ class ImplicationGraph:
         stack.pop()
         return None
 
-    def find_cycle(self) -> Optional[list[str]]:
+    def find_cycle(self) -> list[str] | None:
         """Find cycles in the graph. Return ``None`` if no cycles found.
 
         If multiple cycles exist, only one will be returned.
@@ -170,8 +168,8 @@ class Implicator(ImplicationGraph):
 
     def __init__(
         self,
-        implications: Optional[Iterable[RegularImplication]] = None,
-        aliases: Optional[MutableMapping[str, str]] = None,
+        implications: Iterable[RegularImplication] | None = None,
+        aliases: MutableMapping[str, str] | None = None,
     ) -> None:
         super().__init__()
         self.implications = set(implications or [])
@@ -349,7 +347,7 @@ class SearchTerm(abc.ABC):
 
     @abc.abstractmethod
     def match(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
     ) -> Any:
         """Return a truthy value if *gallery* is matched by this term.
 
@@ -388,13 +386,13 @@ class SearchTerm(abc.ABC):
         self.fields = disambiguated
 
     @staticmethod
-    def _rectify_fields(arg: Optional[Union[str, Iterable[str]]]) -> list[str]:
+    def _rectify_fields(arg: str | Iterable[str] | None) -> list[str]:
         if isinstance(arg, str):
             arg = [arg]
         return list(arg) if arg is not None else []
 
     def tagsets(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
     ) -> Iterator[TagSet]:
         cache = cache or {}
         for fieldname in self.fields:
@@ -404,9 +402,7 @@ class SearchTerm(abc.ABC):
 class TagSearchTerm(SearchTerm):
     """Base class for a search term that matches tags"""
 
-    def __init__(
-        self, word: str, fields: Optional[Union[str, Iterable[str]]] = None
-    ) -> None:
+    def __init__(self, word: str, fields: str | Iterable[str] | None = None) -> None:
         self.word = word
         self.fields = self._rectify_fields(fields)
 
@@ -426,8 +422,8 @@ class WholeSearchTerm(TagSearchTerm):
     """
 
     def match(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Optional[str]:
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
+    ) -> str | None:
         for tagset in self.tagsets(gallery, cache):
             if self.word in tagset:
                 return self.word
@@ -444,15 +440,13 @@ class WildcardSearchTerm(TagSearchTerm):
     True
     """
 
-    def __init__(
-        self, word: str, fields: Optional[Union[str, Iterable[str]]] = None
-    ) -> None:
+    def __init__(self, word: str, fields: str | Iterable[str] | None = None) -> None:
         super().__init__(word, fields=fields)
         self.regex = re.compile(fnmatch.translate(word))
 
     def match(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
-    ) -> Optional[re.Match[str]]:
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
+    ) -> re.Match[str] | None:
         for tagset in self.tagsets(gallery, cache):
             for tag in tagset:
                 if match := self.regex.match(tag):
@@ -475,7 +469,7 @@ class NumericCondition(SearchTerm):
         self,
         comp_func: BinaryCompFunc,
         argument: SupportsRichComparison,
-        fields: Optional[Union[str, Iterable[str]]] = None,
+        fields: str | Iterable[str] | None = None,
     ) -> None:
         self.comp_func = comp_func
         self.argument = argument
@@ -488,7 +482,7 @@ class NumericCondition(SearchTerm):
         return f"{type(self).__name__}({', '.join(parameters)})"
 
     def match(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
     ) -> bool:
         cache = cache or {}
         values: list[float] = []
@@ -512,7 +506,7 @@ class CardinalityCondition(NumericCondition):
     """
 
     def match(
-        self, gallery: Gallery, cache: Optional[MutableMapping[str, Any]] = None
+        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
     ) -> Any:
         value = sum(len(tagset) for tagset in self.tagsets(gallery, cache))
         return self.comp_func(value, self.argument)
@@ -532,9 +526,9 @@ class Query:
 
     def __init__(
         self,
-        conjuncts: Optional[Iterable[SearchTerm]] = None,
-        negations: Optional[Iterable[SearchTerm]] = None,
-        disjuncts: Optional[Iterable[SearchTerm]] = None,
+        conjuncts: Iterable[SearchTerm] | None = None,
+        negations: Iterable[SearchTerm] | None = None,
+        disjuncts: Iterable[SearchTerm] | None = None,
     ) -> None:
         self.conjuncts = list(conjuncts or [])
         self.negations = list(negations or [])
@@ -589,7 +583,7 @@ class ArgumentParser:
     or_operator = "+"
     field_tag_sep = ":"
     field_number_sep = "="
-    relationals: ClassVar[dict[Optional[str], BinaryCompFunc]] = {
+    relationals: ClassVar[dict[str | None, BinaryCompFunc]] = {
         None: operator.eq,
         "ne": operator.ne,
         "gt": operator.gt,
@@ -598,7 +592,7 @@ class ArgumentParser:
         "le": operator.le,
     }
 
-    def __init__(self, default_tag_fields: Optional[Iterable[str]] = None) -> None:
+    def __init__(self, default_tag_fields: Iterable[str] | None = None) -> None:
         self.default_tag_fields = tuple(default_tag_fields or ())
         self.compile()
 
@@ -650,7 +644,7 @@ class ArgumentParser:
                 conjuncts.append(search_term)
         return Query(conjuncts=conjuncts, negations=negations, disjuncts=disjuncts)
 
-    def parse_argument(self, argument: str) -> tuple[SearchTerm, Optional[str]]:
+    def parse_argument(self, argument: str) -> tuple[SearchTerm, str | None]:
         """Parse a single argument token.
 
         Return a ``SearchTerm`` and the string value of the token's logical
@@ -664,7 +658,7 @@ class ArgumentParser:
 
     def _parse_match_object(
         self, match: re.Match[str]
-    ) -> tuple[SearchTerm, Optional[str]]:
+    ) -> tuple[SearchTerm, str | None]:
         logical_operator = match.group("logical_group")
         if (num := match.group("num")) is not None:
             if (relation := match.group("relation")) is not None:
@@ -696,7 +690,7 @@ class ArgumentParser:
 
 class BaseImplication(abc.ABC):
     @abc.abstractmethod
-    def match(self, tag: str) -> Optional[str]:
+    def match(self, tag: str) -> str | None:
         pass
 
 
@@ -721,7 +715,7 @@ class DescriptorImplication(BaseImplication):
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.word!r})"
 
-    def match(self, tag: str) -> Optional[str]:
+    def match(self, tag: str) -> str | None:
         """Return tag string matched after the descriptor or None."""
         if match := self.pattern.search(tag):
             return match.group(1)
@@ -741,7 +735,7 @@ class RegularImplication(BaseImplication):
     def __repr__(self) -> str:
         return f"{type(self).__name__}" f"({self.antecedent!r}, {self.consequent!r})"
 
-    def match(self, tag: str) -> Optional[str]:
+    def match(self, tag: str) -> str | None:
         """Return consequent if string == antecedent."""
         if tag == self.antecedent:
             return self.consequent
@@ -890,9 +884,9 @@ class Tabulator:
         wrappers = self._wrappers()
 
         # Wrap to max widths
-        wrapped_rows: list[dict[str, Union[str, list[str]]]] = []
+        wrapped_rows: list[dict[str, str | list[str]]] = []
         for row in rows:
-            new_row: dict[str, Union[str, list[str]]] = {}
+            new_row: dict[str, str | list[str]] = {}
             for field, fmt in self.field_fmts.items():
                 text = str(row[field])
                 max_width = fmt.width
@@ -1122,9 +1116,7 @@ class OverlapTable(Collection[H]):
         for x, y in self.pairs():
             yield (x, y), self._table[x][y]
 
-    def frequent_overlaps(
-        self, n: Optional[int] = None
-    ) -> list[tuple[tuple[H, H], int]]:
+    def frequent_overlaps(self, n: int | None = None) -> list[tuple[tuple[H, H], int]]:
         """
         List the *n* most likely different tag pairs to overlap and their
         number of overlaps. If *n* is None, then list all tag pairs.
@@ -1179,7 +1171,7 @@ def distribute(n: int, k: int) -> list[int]:
 
 
 def most_common(
-    it: Iterable[T], key: Callable[[T], SupportsRichComparison], n: Optional[int] = None
+    it: Iterable[T], key: Callable[[T], SupportsRichComparison], n: int | None = None
 ) -> list[T]:
     n = 0 if n is None else n
     if n <= 0:

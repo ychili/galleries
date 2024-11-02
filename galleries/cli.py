@@ -16,11 +16,11 @@ import shutil
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Optional, TextIO, Union
+from typing import Any, TextIO
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
-StrPath = Union[str, Path]
+StrPath = str | Path
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
@@ -59,7 +59,7 @@ class FileType:
     def __init__(self, mode: str = "r") -> None:
         self.mode = mode
 
-    def __call__(self, string: str) -> Union[str, TextIO]:
+    def __call__(self, string: str) -> str | TextIO:
         if string == "-":
             if "r" in self.mode:
                 return sys.stdin
@@ -76,8 +76,8 @@ class FileType:
 class GlobalConfig:
     def __init__(
         self,
-        options_p: Optional[configparser.ConfigParser] = None,
-        collections_p: Optional[configparser.ConfigParser] = None,
+        options_p: configparser.ConfigParser | None = None,
+        collections_p: configparser.ConfigParser | None = None,
     ) -> None:
         if options_p is None:
             self.options = configparser.ConfigParser(interpolation=None)
@@ -112,7 +112,7 @@ class GlobalConfig:
                 finder.add_collection(path_spec)
         return finder
 
-    def _spec_from_section(self, section: str) -> Optional[CollectionPathSpec]:
+    def _spec_from_section(self, section: str) -> CollectionPathSpec | None:
         try:
             root = self.collections[section]["Root"]
         except KeyError:
@@ -149,7 +149,7 @@ class DBConfig:
     def __init__(
         self,
         paths: CollectionPathSpec,
-        parser: Optional[configparser.ConfigParser] = None,
+        parser: configparser.ConfigParser | None = None,
     ) -> None:
         self.paths = paths
         if parser is None:
@@ -174,9 +174,7 @@ class DBConfig:
             return [self.paths.get_db_path(name) for name in split_semicolon_list(val)]
         return []
 
-    def get_implicating_fields(
-        self, tag_fields: Optional[list[str]] = None
-    ) -> set[str]:
+    def get_implicating_fields(self, tag_fields: list[str] | None = None) -> set[str]:
         if tag_fields is None:
             tag_fields = self.get_list("refresh", "TagFields")
         implicating_fields = set(tag_fields)
@@ -195,7 +193,7 @@ class DBConfig:
 class CollectionPathSpec:
     """The set of paths describing a collection, optionally named"""
 
-    name: Optional[str]
+    name: str | None
     collection: Path
     subdir: Path
     config: Path
@@ -207,7 +205,7 @@ class CollectionPathSpec:
     # from configparser errors. The parser will not be in a readable state.
     # Log the error and re-raise the exception.
 
-    def acquire_db_config(self) -> Optional[DBConfig]:
+    def acquire_db_config(self) -> DBConfig | None:
         """Check collection's validity, and read its configuration.
 
         If this path spec represents a valid collection, one with a working
@@ -247,9 +245,9 @@ class CollectionFinder:
 
     def __init__(
         self,
-        collections: Optional[Iterable[CollectionPathSpec]] = None,
-        default_name: Optional[str] = None,
-        default_settings: Optional[Mapping[str, Any]] = None,
+        collections: Iterable[CollectionPathSpec] | None = None,
+        default_name: str | None = None,
+        default_settings: Mapping[str, Any] | None = None,
     ) -> None:
         self.default_name = default_name
         if default_settings is not None:
@@ -267,7 +265,7 @@ class CollectionFinder:
             self._collection_names[path_spec.name] = path_spec
         self._collection_paths[path_spec.collection] = path_spec
 
-    def _disambiguate_collection_name(self, name: str) -> Optional[CollectionPathSpec]:
+    def _disambiguate_collection_name(self, name: str) -> CollectionPathSpec | None:
         if exact_match := self._collection_names.get(name):
             log.debug("arg matches name exactly: %s", exact_match)
             return exact_match
@@ -281,7 +279,7 @@ class CollectionFinder:
             return prefix_match
         return None
 
-    def find_collection(self, arg: Optional[str] = None) -> CollectionPathSpec:
+    def find_collection(self, arg: str | None = None) -> CollectionPathSpec:
         """Return the path spec determined by *arg*."""
         if arg:
             return self._lookup_collection(arg)
@@ -472,7 +470,7 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def _query_output_formatter(
     cla: argparse.Namespace, config: DBConfig
-) -> Optional[table_query.TablePrinter]:
+) -> table_query.TablePrinter | None:
     """Sub-function of ``query_sc``
 
     Return a ``TablePrinter`` that can print galleries, or return ``None``
@@ -875,7 +873,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     return top_level
 
 
-def main(args: Optional[Sequence[str]] = None) -> int:
+def main(args: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG, format=f"{PROG}: %(levelname)s: %(message)s"
     )
@@ -923,7 +921,7 @@ def collection_path_spec(
     collection_path: StrPath,
     subdir_name: StrPath,
     config_name: StrPath,
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> CollectionPathSpec:
     collection_path = Path(collection_path)
     subdir_path = collection_path / subdir_name
@@ -988,7 +986,7 @@ def split_semicolon_list(value: str) -> list[str]:
 
 @contextlib.contextmanager
 def _read_db(
-    file: Optional[os.PathLike] = None, fieldnames: Optional[Iterable[str]] = None
+    file: os.PathLike | None = None, fieldnames: Iterable[str] | None = None
 ) -> Iterator[util.Reader]:
     """Try to read DB from *file*, raising ``_CLIError`` on error."""
     try:

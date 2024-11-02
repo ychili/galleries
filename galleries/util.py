@@ -12,7 +12,7 @@ import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
-from typing import Any, Iterable, Optional, TypeVar, Union
+from typing import Any, Iterable, TypeVar
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -44,12 +44,12 @@ class ObjectExtractor:
 
     def __init__(
         self,
-        source: Optional[os.PathLike] = None,
-        logger: Optional[Union[logging.Logger, logging.LoggerAdapter]] = None,
+        source: os.PathLike | None = None,
+        logger: logging.Logger | logging.LoggerAdapter | None = None,
     ) -> None:
         self.source = source or "<???>"
         self.logger = logger or logging.getLogger(PROG)
-        self._parse_stack: list[Optional[str]] = []
+        self._parse_stack: list[str | None] = []
 
     def items(self, mapping: Mapping[T, VT]) -> Iterator[tuple[T, VT]]:
         try:
@@ -112,7 +112,7 @@ class ObjectExtractor:
         )
 
 
-def toml_address(keys: Iterable[Optional[str]]) -> str:
+def toml_address(keys: Iterable[str | None]) -> str:
     """Quote *keys* according to TOML rules and join by periods.
 
     Empty strings and Nones are skipped.
@@ -201,7 +201,7 @@ class StrictReader(csv.DictReader):
 
 @contextlib.contextmanager
 def read_db(
-    file: Optional[os.PathLike] = None, fieldnames: Optional[Iterable[str]] = None
+    file: os.PathLike | None = None, fieldnames: Iterable[str] | None = None
 ) -> Iterator[Reader]:
     """Open *file*, and read DB inside a context manager.
 
@@ -224,7 +224,7 @@ def read_db(
 def write_galleries(
     rows: Iterable[Gallery],
     fieldnames: Collection[str],
-    file: Optional[os.PathLike] = None,
+    file: os.PathLike | None = None,
 ) -> None:
     """Write *rows* with field names *fieldnames* in unformatted CSV.
 
@@ -275,10 +275,10 @@ def sort_by_field(
     return sorted(galleries, key=sort_key, reverse=reverse)
 
 
-def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
+def alphanum_getter(field: str) -> Callable[[Gallery], list[int | str]]:
     """Return a key function that sorts galleries on *field*."""
 
-    def getter(gallery: Gallery) -> list[Union[int, str]]:
+    def getter(gallery: Gallery) -> list[int | str]:
         # As it stands, values should already be str, but convert anyway
         # to be safe.
         value = str(gallery[field]).casefold()
@@ -287,14 +287,14 @@ def alphanum_getter(field: str) -> Callable[[Gallery], list[Union[int, str]]]:
     return getter
 
 
-def atoi(s: str) -> Union[int, str]:
+def atoi(s: str) -> int | str:
     try:
         return int(s)
     except ValueError:
         return s
 
 
-def alphanum_key(s: str) -> list[Union[int, str]]:
+def alphanum_key(s: str) -> list[int | str]:
     """Turn a string into a list of string and number chunks.
 
     >>> alphanum_key("z23a")

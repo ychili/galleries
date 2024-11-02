@@ -11,7 +11,7 @@ import math
 import operator
 import sys
 from collections.abc import Collection, Iterable, Mapping, MutableMapping
-from typing import IO, Any, Optional
+from typing import IO, Any
 
 from . import PROG
 from .galleryms import (
@@ -30,8 +30,8 @@ class ResultsTable:
     def __init__(
         self,
         file: IO[str],
-        tabulator: Optional[Tabulator] = None,
-        header: Optional[Mapping[str, Any]] = None,
+        tabulator: Tabulator | None = None,
+        header: Mapping[str, Any] | None = None,
     ) -> None:
         self.file = file
         self.tabulator = tabulator or Tabulator({})
@@ -39,7 +39,7 @@ class ResultsTable:
         self.formats: dict[str, str] = {}
 
     def add_column(
-        self, name: str, field_fmt: FieldFormat, format_spec: Optional[str] = None
+        self, name: str, field_fmt: FieldFormat, format_spec: str | None = None
     ) -> None:
         self.tabulator.field_fmts[name] = field_fmt
         if format_spec is not None:
@@ -48,7 +48,7 @@ class ResultsTable:
     def write_formatted(
         self,
         data: Iterable[MutableMapping[str, Any]],
-        header: Optional[Mapping[str, Any]] = None,
+        header: Mapping[str, Any] | None = None,
     ) -> None:
         rows: list[Mapping[str, Any]] = []
         if header is not None:
@@ -106,14 +106,14 @@ def make_row(sim: SimilarityCalculator[str]) -> SimilarityResult:
 def sort(
     calculators: Iterable[SimilarityCalculator[str]],
     sort_by: str,
-    n: Optional[int] = None,
+    n: int | None = None,
 ) -> list[SimilarityResult]:
     result_rows = (make_row(sim) for sim in calculators)
     return most_common(result_rows, n=n, key=operator.attrgetter(sort_by))
 
 
 def query(
-    table: OverlapTable[str], tag: str, sort_by: str, limit: Optional[int] = None
+    table: OverlapTable[str], tag: str, sort_by: str, limit: int | None = None
 ) -> list[SimilarityResult]:
     """Get similiarity results for *tag* from *table*."""
     try:
@@ -166,9 +166,9 @@ def print_relatedtags(
     data_table: OverlapTable[str],
     tag_names: Iterable[str],
     sort_by: str = "cosine",
-    limit: Optional[int] = None,
-    file: Optional[IO[str]] = None,
-    printer: Optional[ResultsTable] = None,
+    limit: int | None = None,
+    file: IO[str] | None = None,
+    printer: ResultsTable | None = None,
 ) -> None:
     if file is None:
         file = sys.stdout

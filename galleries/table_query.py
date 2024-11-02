@@ -13,7 +13,7 @@ import shutil
 import sys
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Optional, TextIO, TypeVar, Union
+from typing import Any, TextIO, TypeVar
 
 import rich.box
 import rich.console
@@ -63,7 +63,7 @@ class Format(enum.Enum):
         return str(self)
 
     @classmethod
-    def argparse(cls: type[FormatT], s: str) -> Union[FormatT, str]:
+    def argparse(cls: type[FormatT], s: str) -> FormatT | str:
         try:
             return cls[s.upper()]
         except KeyError:
@@ -89,7 +89,7 @@ class FormattedTablePrinter(TablePrinter):
     def __init__(
         self,
         field_formats: dict[str, gms.FieldFormat],
-        file: Optional[TextIO] = sys.stdout,
+        file: TextIO | None = sys.stdout,
     ) -> None:
         self.field_formats = field_formats
         self.file = file
@@ -117,8 +117,8 @@ class RichTablePrinter(TablePrinter):
     def __init__(
         self,
         table: rich.table.Table,
-        fieldnames: Optional[Sequence[str]] = None,
-        console: Optional[rich.console.Console] = None,
+        fieldnames: Sequence[str] | None = None,
+        console: rich.console.Console | None = None,
         *,
         add_fields: bool = True,
     ) -> None:
@@ -153,7 +153,7 @@ class RichTablePrinter(TablePrinter):
 def query_from_args(
     args: Iterable[str],
     fieldnames: Sequence[str],
-    default_tag_fields: Optional[Iterable[str]] = None,
+    default_tag_fields: Iterable[str] | None = None,
 ) -> gms.Query:
     parser = ArgumentParser(default_tag_fields=default_tag_fields)
     try:
@@ -181,7 +181,7 @@ def query_from_args(
 def sort_table(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
-    sort_field: Optional[str] = None,
+    sort_field: str | None = None,
     *,
     reverse_sort: bool = False,
 ) -> Iterable[gms.Gallery]:
@@ -200,7 +200,7 @@ def sort_table(
 def print_table(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
-    output_formatter: Optional[TablePrinter] = None,
+    output_formatter: TablePrinter | None = None,
 ) -> None:
     if output_formatter:
         output_formatter.check_fields(fieldnames)
@@ -326,7 +326,7 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
     return RichTablePrinter(table, fieldnames=columns)
 
 
-def _default_rich_table(table: Optional[rich.table.Table] = None) -> RichTablePrinter:
+def _default_rich_table(table: rich.table.Table | None = None) -> RichTablePrinter:
     if table is None:
         table = rich.table.Table(box=DEFAULT_BOX)
     return RichTablePrinter(table, fieldnames=[])

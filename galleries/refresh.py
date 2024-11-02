@@ -21,7 +21,7 @@ from collections.abc import (
 )
 from collections.abc import Set as AbstractSet
 from pathlib import Path
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from . import PROG
 from . import galleryms as gms
@@ -51,7 +51,7 @@ class Gardener:
         self._root_path: Path = Path()
 
     def set_update_count(
-        self, path_field: str, count_field: str, root_path: Optional[gms.StrPath] = None
+        self, path_field: str, count_field: str, root_path: gms.StrPath | None = None
     ) -> None:
         self.needed_fields.update([path_field, count_field])
         self._do_count = self._update_count
@@ -60,7 +60,7 @@ class Gardener:
         self._root_path = Path(root_path or Path.cwd())
 
     def _set_tag_action(
-        self, field: str, func: Optional[Callable[[gms.TagSet], None]] = None
+        self, field: str, func: Callable[[gms.TagSet], None] | None = None
     ) -> None:
         actions = self._tag_fields.setdefault(field, [])
         if func is None:
@@ -101,9 +101,7 @@ class Gardener:
             self._set_tag_action(field, implicator.implicate)
 
     def garden_rows(
-        self,
-        reader: Iterable[gms.Gallery],
-        fieldnames: Optional[Collection[str]] = None,
+        self, reader: Iterable[gms.Gallery], fieldnames: Collection[str] | None = None
     ) -> Iterator[gms.Gallery]:
         """
         After operation parameters have been set, yield gardened galleries.
@@ -149,7 +147,7 @@ class TagActionsObject:
 
     extr: util.ObjectExtractor
 
-    def __init__(self, default_tag_fields: Optional[Iterable[str]] = None) -> None:
+    def __init__(self, default_tag_fields: Iterable[str] | None = None) -> None:
         self.default_tag_fields = frozenset(default_tag_fields or [])
         # A pool is the set of tag actions that apply to a given set of fields
         self._pools: dict[frozenset[str], _TagActionsContainer] = {}
@@ -157,9 +155,7 @@ class TagActionsObject:
         # For each pair x:P, P is the set of pools that contain field x.
         self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
 
-    def read_file(
-        self, filename: os.PathLike, file_format: Optional[str] = None
-    ) -> None:
+    def read_file(self, filename: os.PathLike, file_format: str | None = None) -> None:
         """Read *filename* and parse tag actions based on its file extension.
 
         ``*.toml`` files will be parsed as TOML. Anything else will be parsed
@@ -174,7 +170,7 @@ class TagActionsObject:
         obj = load(path)
         self.update(obj, source=path)
 
-    def update(self, obj: object, source: Optional[os.PathLike] = None) -> None:
+    def update(self, obj: object, source: os.PathLike | None = None) -> None:
         self.extr = util.ObjectExtractor(source=source)
         obj = self.extr.dict(obj)
         if not obj:
@@ -195,8 +191,8 @@ class TagActionsObject:
                 tac.aliases.update(self._parse_aliases(table))
                 tac.implications.update(self._parse_implications(table))
 
-    def _parse_fields(self, obj: Mapping) -> dict[frozenset[str], Optional[str]]:
-        dests: dict[frozenset[str], Optional[str]] = {}
+    def _parse_fields(self, obj: Mapping) -> dict[frozenset[str], str | None]:
+        dests: dict[frozenset[str], str | None] = {}
         for fieldname in self.extr.get_list(obj, "fieldnames"):
             field = str(fieldname)
             dests[frozenset([field])] = field
@@ -266,7 +262,7 @@ class TagActionsObject:
         implic.aliases = ChainMap(*alias_maps)
         return implic
 
-    def get_implicator(self, fieldname: Optional[str] = None) -> gms.Implicator:
+    def get_implicator(self, fieldname: str | None = None) -> gms.Implicator:
         """Return the Implicator for a single field *fieldname*.
 
         If *fieldname* is ``None`` then return the Implicator for the default
