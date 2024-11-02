@@ -108,12 +108,15 @@ class RichTablePrinter(TablePrinter):
     def __init__(
         self,
         table: rich.table.Table,
-        fieldnames: Sequence[str],
+        fieldnames: Optional[Sequence[str]] = None,
         console: Optional[rich.console.Console] = None,
+        *,
+        add_fields: bool = True
     ) -> None:
         self.table = table
-        self.fieldnames = fieldnames
+        self.fieldnames = fieldnames or []
         self.console = console or util.console
+        self.add_fields = add_fields
 
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
         for gallery in galleries:
@@ -126,7 +129,7 @@ class RichTablePrinter(TablePrinter):
             raise FormatterError from err
 
     def check_fields(self, fieldnames: Collection[str]) -> None:
-        if not self.fieldnames:
+        if self.add_fields and not self.fieldnames:
             self.fieldnames = list(fieldnames)
             for field in fieldnames:
                 self.table.add_column(header=field)
@@ -274,7 +277,7 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
     with extr.get_dict(obj, "table") as table_def:
         table_kwds = _parse_table_settings(extr, table_def)
     table = rich.table.Table(**table_kwds)
-    column_def = extr.list("columns")
+    column_def = extr.get_list(obj, "columns")
     warning_tmpl = "At column def {}: {}: {}"
     columns: list[str] = []
     for ind, decl in enumerate(column_def, start=1):
@@ -282,6 +285,7 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
             case {"field": field, **kwargs}:
                 field = str(field)
                 if kwargs:
+                    kwargs.setdefault("header", field)
                     try:
                         table.add_column(**kwargs)
                     except TypeError as err:
@@ -320,13 +324,13 @@ def _parse_table_settings(
 ) -> dict[str, Any]:
     table_kwds: dict[str, Any] = {}
     with extr.get(table_def, "box", str()) as arg:
-        try:
-            box = getattr(rich.box, arg)
-        except AttributeError:
-            extr.warn("Not a known Box style (defaulting): %s", arg)
-            box = DEFAULT_BOX
-        if not isinstance(box, rich.box.Box):
-            extr.warn("Not a known Box style (defaulting): %s", arg)
-            box = DEFAULT_BOX
+        box = DEFAULT_BOX
+        if arg:
+            try:
+                box = getattr(rich.box, arg)
+            except AttributeError:
+                extr.warn("Not a known Box style (defaulting): %s", arg)
+            if not isinstance(box, rich.box.Box):
+                extr.warn("Not a known Box style (defaulting): %s", arg)
         table_kwds["box"] = box
     return table_kwds

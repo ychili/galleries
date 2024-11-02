@@ -42,7 +42,7 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
         "Format": "none",
         "AutoFormat": "format",
         "FieldFormats": "tableformat.conf",
-        "RichTable": "richtable.conf",
+        "RichTable": "richtable.toml",
     },
     "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
