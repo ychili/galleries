@@ -335,15 +335,11 @@ def _default_rich_table(table: rich.table.Table | None = None) -> RichTablePrint
 def _parse_table_settings(
     extr: util.ObjectExtractor, table_def: Mapping
 ) -> dict[str, Any]:
-    table_kwds: dict[str, Any] = {}
-    with extr.get(table_def, "box", str()) as arg:
-        box = DEFAULT_BOX
+    table_kwds: dict[str, Any] = {"box": DEFAULT_BOX}
+    with extr.get(table_def, "box", None) as arg:
         if arg:
-            try:
-                box = getattr(rich.box, arg)
-            except AttributeError:
+            if (box := getattr(rich.box, arg, None)) and isinstance(box, rich.box.Box):
+                table_kwds["box"] = box
+            else:
                 extr.warn("Not a known Box style (defaulting): %s", arg)
-            if not isinstance(box, rich.box.Box):
-                extr.warn("Not a known Box style (defaulting): %s", arg)
-        table_kwds["box"] = box
     return table_kwds
