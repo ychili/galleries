@@ -64,6 +64,14 @@ class TestSorting(unittest.TestCase):
             for data in self.GALLERIES_PATH_DATA
         ]
 
+    def test_sort_by_field(self):
+        fieldname = "Path"
+        it = iter(self._galleries_to_sort(fieldname))
+        results = galleries.util.sort_by_field(it, fieldname)
+        self.assertEqual([g[fieldname] for g in results], self.GALLERIES_PATH_RESULTS)
+        repeat = galleries.util.sort_by_field(results, fieldname)
+        self.assertEqual(results, repeat, (results, repeat))
+
     def test_alphanum_getter_correct_sort(self):
         fieldname = "Path"
         galls = self._galleries_to_sort(fieldname)

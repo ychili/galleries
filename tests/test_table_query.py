@@ -4,6 +4,7 @@ import re
 import sys
 
 import pytest
+import rich.box
 
 import galleries.galleryms
 import galleries.table_query
@@ -220,6 +221,13 @@ class TestMain:
         assert re.match(rf"{object_regex},{object_regex}\Z", results[1])
         assert results[2] == "{'a'},{'b'}"
 
+    def test_no_sorting(self):
+        glist = [galleries.galleryms.Gallery(mapping) for mapping in self._data]
+        result = galleries.table_query.sort_table(
+            glist, self._fieldnames, sort_field=None
+        )
+        assert glist == result
+
     def test_sort_field_not_found(self, caplog):
         with pytest.raises(galleries.table_query.SortingError, match=self._bogus_field):
             galleries.table_query.sort_table(
@@ -267,6 +275,80 @@ class TestPrintFormatted:
                 rows=self.gallery_gen(), field_formats=field_formats, file=sys.stdout
             )
         assert not capsys.readouterr().out
+
+
+class TestParseRichTableFile:
+    _TABLE_SETTINGS_TMPL = '{{"table": {{"box": "{}", "unexpected": true}}}}\n'
+
+    func = staticmethod(galleries.table_query.parse_rich_table_file)
+
+    def test_nonexistent_file(self, tmp_path):
+        path = tmp_path / "null"
+        table = self.func(path)
+        assert not table.fieldnames
+        assert table.table.box == galleries.table_query.DEFAULT_BOX
+
+    def test_empty_file(self, tmp_write_text, caplog):
+        path = tmp_write_text("empty.txt", "")
+        table = self.func(path)
+        assert not table.fieldnames
+        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert any(record.levelname == "WARNING" for record in caplog.records)
+        assert path.name in caplog.text
+
+    @pytest.mark.parametrize(
+        ("filename", "text"),
+        [("invalid.json", '{"k", "v"}'), ("invalid.toml", "k=v\n")],
+    )
+    def test_invalid_file_format(self, tmp_write_text, caplog, filename, text):
+        path = tmp_write_text(filename, text)
+        table = self.func(path)
+        assert not table.fieldnames
+        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert any_error_logs(caplog)
+        assert path.name in caplog.text
+
+    @pytest.mark.parametrize(
+        ("boxarg", "box_expected"),
+        [
+            ("HEAVY", rich.box.HEAVY),
+            ("SQUARE", rich.box.SQUARE),
+            ("Box", galleries.table_query.DEFAULT_BOX),
+            ("spam", galleries.table_query.DEFAULT_BOX),
+        ],
+    )
+    def test_table_settings(self, tmp_write_text, caplog, boxarg, box_expected):
+        path = tmp_write_text(
+            "table_settings.json", self._TABLE_SETTINGS_TMPL.format(boxarg)
+        )
+        table = self.func(path)
+        assert table.table.box == box_expected
+        assert not any_error_logs(caplog)
+
+    def test_no_columns(self, tmp_write_text, caplog):
+        path = tmp_write_text("column_settings.json", '{"columns": {}}\n')
+        table = self.func(path)
+        assert "columns" in caplog.text
+        assert not table.fieldnames
+        assert not table.table.columns
+
+    def test_bare_field(self, tmp_write_text):
+        path = tmp_write_text("column_settings.json", '{"columns": [{"field": "A"}]}\n')
+        table = self.func(path)
+        assert table.fieldnames == ["A"]
+        assert len(table.table.columns) == 1, table.table.columns
+
+    def test_unexpected_column_kwarg(self, tmp_write_text, caplog):
+        path = tmp_write_text(
+            "column_settings.json", '{"columns": [{"field": "A", "class": null}]}\n'
+        )
+        table = self.func(path)
+        assert any(
+            "class" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
+        assert not table.fieldnames
 
 
 def any_error_logs(caplog):
