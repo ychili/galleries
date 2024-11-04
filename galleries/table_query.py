@@ -133,7 +133,7 @@ class RichTablePrinter(TablePrinter):
             self.table.add_row(*row)
         try:
             self.console.print(self.table)
-        except rich.errors.NotRenderableError as err:
+        except (TypeError, AttributeError, rich.errors.NotRenderableError) as err:
             log.error("Unable to render table: %s", err)
             raise FormatterError from err
 
@@ -301,7 +301,7 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
                     kwargs.setdefault("header", field)
                     try:
                         table.add_column(**kwargs)
-                    except TypeError as err:
+                    except (TypeError, rich.errors.StyleError) as err:
                         extr.warn(
                             warning_tmpl.format(
                                 ind, f"Error with parameter for field {field}", err
