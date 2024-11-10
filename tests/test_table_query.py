@@ -277,20 +277,16 @@ class TestPrintFormatted:
         assert not capsys.readouterr().out
 
 
-class TestParseRichTableFile:
-    _TABLE_SETTINGS_TMPL = '{{"table": {{"box": "{}", "unexpected": true}}}}\n'
-
-    func = staticmethod(galleries.table_query.parse_rich_table_file)
-
+class TestParseRichTableSettings:
     def test_nonexistent_file(self, tmp_path):
         path = tmp_path / "null"
-        table = self.func(path)
+        table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
         assert table.table.box == galleries.table_query.DEFAULT_BOX
 
     def test_empty_file(self, tmp_write_text, caplog):
         path = tmp_write_text("empty.txt", "")
-        table = self.func(path)
+        table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
         assert table.table.box == galleries.table_query.DEFAULT_BOX
         assert any(record.levelname == "WARNING" for record in caplog.records)
@@ -302,7 +298,7 @@ class TestParseRichTableFile:
     )
     def test_invalid_file_format(self, tmp_write_text, caplog, filename, text):
         path = tmp_write_text(filename, text)
-        table = self.func(path)
+        table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
         assert table.table.box == galleries.table_query.DEFAULT_BOX
         assert any_error_logs(caplog)
@@ -317,32 +313,28 @@ class TestParseRichTableFile:
             ("spam", galleries.table_query.DEFAULT_BOX),
         ],
     )
-    def test_table_settings(self, tmp_write_text, caplog, boxarg, box_expected):
-        path = tmp_write_text(
-            "table_settings.json", self._TABLE_SETTINGS_TMPL.format(boxarg)
-        )
-        table = self.func(path)
+    def test_table_settings(self, caplog, boxarg, box_expected):
+        obj = {"table": {"box": boxarg, "unexpected": True}}
+        table = galleries.table_query.parse_rich_table_object(obj)
         assert table.table.box == box_expected
         assert not any_error_logs(caplog)
 
-    def test_no_columns(self, tmp_write_text, caplog):
-        path = tmp_write_text("column_settings.json", '{"columns": {}}\n')
-        table = self.func(path)
+    def test_no_columns(self, caplog):
+        obj = {"columns": {}}
+        table = galleries.table_query.parse_rich_table_object(obj)
         assert "columns" in caplog.text
         assert not table.fieldnames
         assert not table.table.columns
 
-    def test_bare_field(self, tmp_write_text):
-        path = tmp_write_text("column_settings.json", '{"columns": [{"field": "A"}]}\n')
-        table = self.func(path)
+    def test_bare_field(self):
+        obj = {"columns": [{"field": "A"}]}
+        table = galleries.table_query.parse_rich_table_object(obj)
         assert table.fieldnames == ["A"]
         assert len(table.table.columns) == 1, table.table.columns
 
-    def test_unexpected_column_kwarg(self, tmp_write_text, caplog):
-        path = tmp_write_text(
-            "column_settings.json", '{"columns": [{"field": "A", "class": null}]}\n'
-        )
-        table = self.func(path)
+    def test_unexpected_column_kwarg(self, caplog):
+        obj = {"columns": [{"field": "A", "class": None}]}
+        table = galleries.table_query.parse_rich_table_object(obj)
         assert any(
             "class" in record.message
             for record in caplog.records

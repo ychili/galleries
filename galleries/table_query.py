@@ -8,6 +8,7 @@ import abc
 import enum
 import locale
 import logging
+import os
 import shlex
 import shutil
 import sys
@@ -282,7 +283,14 @@ def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
     except OSError:
         log.debug("can't read file with path %s, using default", path)
         return _default_rich_table()
-    extr = util.ObjectExtractor(source=path)
+    return parse_rich_table_object(data, source=path)
+
+
+def parse_rich_table_object(
+    data: object, source: os.PathLike | None = None
+) -> RichTablePrinter:
+    """Extract Rich table settings from parsed object *data*."""
+    extr = util.ObjectExtractor(source=source)
     obj = extr.dict(data)
     if not obj:
         extr.warn("No data!")
