@@ -5,9 +5,11 @@ import sys
 
 import pytest
 import rich.box
+import rich.table
 
 import galleries.galleryms
 import galleries.table_query
+import galleries.util
 
 
 @pytest.fixture
@@ -250,10 +252,6 @@ class TestMain:
 
 @pytest.mark.usefixtures("set_columns")
 class TestPrintFormatted:
-    def gallery_gen(self):
-        for mapping in [{"FieldA": "a", "FieldB": "b", "FieldC": "c"}, {"FieldA": "a"}]:
-            yield galleries.galleryms.Gallery(mapping)
-
     @pytest.mark.parametrize(
         ("field_formats", "expected_out"),
         [({}, []), ({"FieldA": galleries.galleryms.FieldFormat(79)}, [" a", " a"])],
@@ -262,7 +260,7 @@ class TestPrintFormatted:
         # For some reason, it is important that file=sys.stdout be specified
         # in the body of the test function in order for capsys to work.
         galleries.table_query.print_formatted(
-            rows=self.gallery_gen(), field_formats=field_formats, file=sys.stdout
+            rows=_gallery_gen(), field_formats=field_formats, file=sys.stdout
         )
         captured = capsys.readouterr()
         assert captured.out.splitlines() == expected_out
@@ -272,7 +270,7 @@ class TestPrintFormatted:
         field_formats = {bogus_field: galleries.galleryms.FieldFormat(79)}
         with pytest.raises(KeyError, match=repr(bogus_field)):
             galleries.table_query.print_formatted(
-                rows=self.gallery_gen(), field_formats=field_formats, file=sys.stdout
+                rows=_gallery_gen(), field_formats=field_formats, file=sys.stdout
             )
         assert not capsys.readouterr().out
 
@@ -343,5 +341,61 @@ class TestParseRichTableSettings:
         assert not table.fieldnames
 
 
+@pytest.mark.usefixtures("set_columns")
+class TestRichTablePrinter:
+    def test_default_rich_table(self):
+        printer = galleries.table_query.parse_rich_table_object({})
+        assert not printer.fieldnames
+        assert printer.console is galleries.util.console
+        assert printer.add_fields
+        assert printer.table.box == galleries.table_query.DEFAULT_BOX
+        assert not printer.table.columns
+
+    def test_add_fields(self):
+        printer = galleries.table_query.parse_rich_table_object({})
+        fieldnames = list("ABCD")
+        printer.check_fields(fieldnames)
+        assert printer.fieldnames == fieldnames
+
+    def test_check_fields(self):
+        printer = galleries.table_query.parse_rich_table_object(
+            {"columns": [{"field": "FieldA"}]}
+        )
+        with pytest.raises(galleries.table_query.FormatterError, match="FieldA"):
+            printer.check_fields([])
+
+    def test_print_no_fieldnames(self, capsys):
+        printer = galleries.table_query.parse_rich_table_object({})
+        printer.print(_gallery_gen())
+        assert capsys.readouterr().out.isspace()
+
+    def test_print_valid_fieldnames(self, capsys):
+        printer = galleries.table_query.parse_rich_table_object({})
+        printer.check_fields({"FieldA"})
+        printer.print(_gallery_gen())
+        captured = capsys.readouterr()
+        assert "FieldA" in captured.out
+
+    def test_print_field_not_found(self):
+        printer = galleries.table_query.parse_rich_table_object({})
+        # The second gallery does not have FieldB.
+        printer.check_fields({"FieldA", "FieldB"})
+        with pytest.raises(KeyError, match=repr("FieldB")):
+            printer.print(_gallery_gen())
+
+    def test_print_bad_table(self):
+        table = rich.table.Table()
+        table.add_column(-1)  # type: ignore
+        printer = galleries.table_query.RichTablePrinter(table, ["FieldA"])
+        with pytest.raises(galleries.table_query.FormatterError):
+            printer.print(_gallery_gen())
+
+
 def any_error_logs(caplog):
     return any(record.levelname == "ERROR" for record in caplog.records)
+
+
+def _gallery_gen(data=None):
+    data = data or [{"FieldA": "a", "FieldB": "b", "FieldC": "c"}, {"FieldA": "a"}]
+    for mapping in data:
+        yield galleries.galleryms.Gallery(mapping)
