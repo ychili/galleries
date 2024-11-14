@@ -12,7 +12,7 @@ import os
 import shlex
 import shutil
 import sys
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO, TypeVar
 
@@ -299,36 +299,16 @@ def parse_rich_table_object(
         table_kwds = _parse_table_settings(extr, table_def)
     table = rich.table.Table(**table_kwds)
     column_def = extr.get_list(obj, "columns")
-    warning_tmpl = "At column def {}: {}: {}"
     columns: list[str] = []
     for ind, decl in enumerate(column_def, start=1):
-        match decl:
-            case {"field": field, **kwargs}:
-                field = str(field)
-                if kwargs:
-                    kwargs.setdefault("header", field)
-                    try:
-                        table.add_column(**kwargs)
-                    except (TypeError, rich.errors.StyleError) as err:
-                        extr.warn(
-                            warning_tmpl.format(
-                                ind, f"Error with parameter for field {field}", err
-                            )
-                        )
-                        continue
-                else:
-                    table.add_column(header=field)
-                columns.append(field)
-            case {}:
-                extr.warn(
-                    warning_tmpl.format(ind, 'Required key "field" is missing', decl)
-                )
-            case _:
-                extr.warn(
-                    warning_tmpl.format(
-                        ind, "Item is wrong type (should be object/table)", decl
-                    )
-                )
+        _parse_column_settings(
+            decl,
+            table,
+            columns,
+            lambda *args: extr.warn(
+                ": ".join(map(str, [f"At column def {ind}", *args]))
+            ),
+        )
     if not columns:
         return _default_rich_table(table=table)
     return RichTablePrinter(table, fieldnames=columns)
@@ -355,3 +335,25 @@ def _parse_table_settings(
         elif arg is not missing:
             extr.warn("Not a known Box style (defaulting): %s", arg)
     return table_kwds
+
+
+def _parse_column_settings(
+    decl: object, table: rich.table.Table, columns: list[str], warn: Callable[..., None]
+) -> None:
+    match decl:
+        case {"field": field, **kwargs}:
+            field = str(field)
+            if kwargs:
+                kwargs.setdefault("header", field)
+                try:
+                    table.add_column(**kwargs)
+                except (TypeError, rich.errors.StyleError) as err:
+                    warn(f"Error with parameter for field {field}", err)
+                    return
+            else:
+                table.add_column(header=field)
+            columns.append(field)
+        case {}:
+            warn('Required key "field" is missing', decl)
+        case _:
+            warn("Item is wrong type (should be object/table)", decl)
