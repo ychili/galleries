@@ -344,10 +344,14 @@ def _parse_table_settings(
     extr: util.ObjectExtractor, table_def: Mapping
 ) -> dict[str, Any]:
     table_kwds: dict[str, Any] = {"box": DEFAULT_BOX}
-    with extr.get(table_def, "box", None) as arg:
-        if arg:
-            if (box := getattr(rich.box, arg, None)) and isinstance(box, rich.box.Box):
-                table_kwds["box"] = box
-            else:
-                extr.warn("Not a known Box style (defaulting): %s", arg)
+    missing = object()
+    with extr.get(table_def, "box", missing) as arg:
+        if arg is None:
+            table_kwds["box"] = None
+        elif (box := getattr(rich.box, str(arg), None)) and isinstance(
+            box, rich.box.Box
+        ):
+            table_kwds["box"] = box
+        elif arg is not missing:
+            extr.warn("Not a known Box style (defaulting): %s", arg)
     return table_kwds

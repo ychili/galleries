@@ -309,6 +309,7 @@ class TestParseRichTableSettings:
             ("SQUARE", rich.box.SQUARE),
             ("Box", galleries.table_query.DEFAULT_BOX),
             ("spam", galleries.table_query.DEFAULT_BOX),
+            (None, None),
         ],
     )
     def test_table_settings(self, caplog, boxarg, box_expected):
