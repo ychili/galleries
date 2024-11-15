@@ -26,6 +26,13 @@ else:
 
 log = logging.getLogger(PROG)
 
+
+class Const:
+    """Namespace for constants used in pattern matching."""
+
+    sentinel = object()
+
+
 # PARSING HELPERS
 # ---------------
 

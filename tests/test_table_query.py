@@ -309,6 +309,8 @@ class TestParseRichTableSettings:
             ("SQUARE", rich.box.SQUARE),
             ("Box", galleries.table_query.DEFAULT_BOX),
             ("spam", galleries.table_query.DEFAULT_BOX),
+            (True, galleries.table_query.DEFAULT_BOX),
+            (False, None),
             (None, None),
         ],
     )
