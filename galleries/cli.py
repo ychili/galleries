@@ -40,7 +40,7 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "count": {},
     "query": {
         "Format": "none",
-        "AutoFormat": "format",
+        "AutoFormat": "rich",
         "FieldFormats": "tableformat.conf",
         "RichTable": "richtable.toml",
     },
