@@ -314,11 +314,31 @@ class TestParseRichTableSettings:
             (None, None),
         ],
     )
-    def test_table_settings(self, caplog, boxarg, box_expected):
+    def test_table_settings_box(self, caplog, boxarg, box_expected):
         obj = {"table": {"box": boxarg, "unexpected": True}}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert table.table.box == box_expected
         assert not any_error_logs(caplog)
+
+    @pytest.mark.parametrize(
+        ("value", "warnings_expected"),
+        [
+            # Valid bools
+            (True, False),
+            (False, False),
+            # Invalid values
+            ("true", True),
+            (0, True),
+        ],
+    )
+    def test_table_settings_show_header(self, caplog, value, warnings_expected):
+        obj = {"table": {"show_header": value}}
+        table = galleries.table_query.parse_rich_table_object(obj)
+        if warnings_expected:
+            assert self.assert_msg_in_warning(str(value), caplog)
+        else:
+            result = value
+            assert table.table.show_header == result
 
     def test_no_columns(self, caplog):
         obj = {"columns": {}}
@@ -336,12 +356,15 @@ class TestParseRichTableSettings:
     def test_unexpected_column_kwarg(self, caplog):
         obj = {"columns": [{"field": "A", "class": None}]}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert any(
-            "class" in record.message
+        assert self.assert_msg_in_warning("class", caplog)
+        assert not table.fieldnames
+
+    def assert_msg_in_warning(self, substring, caplog):
+        return any(
+            substring in record.message
             for record in caplog.records
             if record.levelname == "WARNING"
         )
-        assert not table.fieldnames
 
 
 @pytest.mark.usefixtures("set_columns")

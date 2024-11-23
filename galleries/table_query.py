@@ -343,6 +343,14 @@ def _parse_table_settings(
                 pass
             case _:
                 extr.warn("Not a known Box style (defaulting): %s", arg)
+    with extr.get(table_def, "show_header", None) as arg:
+        match arg:
+            case bool():
+                table_kwds["show_header"] = arg
+            case None:
+                pass
+            case _:
+                extr.warn("Invalid value for show_header (defaulting): %s", arg)
     return table_kwds
 
 
