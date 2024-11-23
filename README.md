@@ -18,7 +18,10 @@ Features:
 Requirements
 ------------
 
--   Python 3.8+
+-   Python 3.10+
+-   [Rich](https://rich.readthedocs.io/)
+-   [Tomli](https://github.com/hukkin/tomli),
+    if using a Python older than 3.11
 
 Copyright
 ---------
