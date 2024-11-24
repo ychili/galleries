@@ -544,20 +544,13 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     if cla.validate or error_status:
         return error_status
     try:
-        with util.read_db(filename, gardener.needed_fields) as reader:
+        with _read_db(filename, gardener.needed_fields) as reader:
             rows = list(gardener.garden_rows(reader))
     except refresh.FolderPathError as err:
         log.error("With %s value: %s", path_field, err)
         return 1
-    except (OSError, UnicodeDecodeError) as err:
-        log.error("Unable to read CSV file: %s", err)
-        return 1
-    except util.FieldNotFoundError as err:
-        log.error("Field not in file: %s", err)
-        return 1
-    except util.FieldMismatchError as err:
-        log_field_mismatch(err)
-        return 1
+    except _CLIError as err:
+        return err.status
     if not rows:
         return 0
     try:
