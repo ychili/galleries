@@ -893,11 +893,13 @@ def set_logging_level(args: argparse.Namespace, global_config: GlobalConfig) -> 
     verbosity = 1 if config_setting else 0
     if args.verbose is not None:
         verbosity = args.verbose
+    root_logger = logging.getLogger()
     if args.quiet or verbosity == 0:
-        logging.disable(logging.INFO)
+        root_logger.setLevel(logging.WARNING)
     elif verbosity == 1:
-        logging.disable(logging.DEBUG)
-    # else: level remains at DEBUG
+        root_logger.setLevel(logging.INFO)
+    else:
+        root_logger.setLevel(logging.DEBUG)
 
 
 def get_global_config_dir() -> Path:
