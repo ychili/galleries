@@ -80,7 +80,8 @@ class ObjectExtractor:
             yield default
         else:
             yield value
-        self._parse_stack.pop()
+        finally:
+            self._parse_stack.pop()
 
     def object(self, value: object, class_or_type: type[T]) -> T:
         if isinstance(value, class_or_type):
