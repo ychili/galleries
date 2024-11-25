@@ -884,7 +884,6 @@ def main(args: Sequence[str] | None = None) -> int:
 
 
 def set_logging_level(args: argparse.Namespace, global_config: GlobalConfig) -> None:
-    verbosity = 0
     try:
         config_setting = global_config.options["global"].getboolean("Verbose")
     except ValueError as err:
