@@ -313,6 +313,7 @@ def parse_rich_table_object(
             table,
             columns,
             lambda *args: extr.warn(
+                # pylint: disable=cell-var-from-loop
                 ": ".join(map(str, [f"At column def {ind}", *args]))
             ),
         )
