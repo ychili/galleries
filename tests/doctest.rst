@@ -45,6 +45,10 @@ Create a ``Query`` from a series of search terms.
 (CardinalityCondition(<built-in function le>, 8, fields=['field']), None)
 >>> ap.parse_argument("g:tok%")
 (WildcardSearchTerm('tok*', fields=['g']), None)
+>>> ap.parse_argument("#c")
+Traceback (most recent call last):
+    ...
+galleries.galleryms.ArgumentParsingError: #c
 >>> ap.parse_args(["tok1", "tok2"])
 Query(conjuncts=[WholeSearchTerm('tok1'), WholeSearchTerm('tok2')])
 >>> ap = ArgumentParser(["TagField1", "TagField2"])
