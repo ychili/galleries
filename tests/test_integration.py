@@ -540,6 +540,20 @@ class TestQuery:
         assert rc == 0
         assert capsys.readouterr().out == text
 
+    def test_field_argument_not_found(self, tmp_path, caplog):
+        bad_field_arg = "tagz"
+        path = tmp_path / "test.csv"
+        path.write_text("Tags\r\nA\r\nB\r\nC\r\n")
+        rc = galleries.cli.main(
+            ["query", "--input", str(path), "--field", bad_field_arg, "A"]
+        )
+        assert rc > 0
+        assert any(
+            bad_field_arg in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
     def test_custom_csv_filename(self, initialize_collection, capsys):
         custom_filename = "MYGALL~1.CSV"
         text = "Tags\r\na b c\r\nx y z\r\n"
@@ -579,6 +593,17 @@ class TestQuery:
         # Subtract the header
         results = captured.out.splitlines()[1:]
         assert rows_expected == results
+
+    def test_invalid_format_from_config(self, initialize_collection, caplog):
+        arg = "免許"
+        _edit_db_conf(db_conf_path(initialize_collection), "Format", arg)
+        rc = galleries.cli.main(["query"])
+        assert rc > 0
+        assert any(
+            arg in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
 
     @pytest.mark.usefixtures("write_to_csv")
     @pytest.mark.parametrize("args", [[" "], ["Π", "#f"]])
