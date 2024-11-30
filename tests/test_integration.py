@@ -469,6 +469,13 @@ class TestQuery:
         assert rc == 0
         assert capsys.readouterr().out == text
 
+    @pytest.mark.usefixtures("write_to_csv")
+    @pytest.mark.parametrize("args", [[" "], ["Π", "#f"]])
+    def test_invalid_search_terms(self, caplog, args):
+        rc = galleries.cli.main(["query", *args])
+        assert rc > 0
+        assert repr(args[0]) in caplog.text
+
 
 class TestRelated:
     @pytest.mark.usefixtures("write_to_csv")
