@@ -1,5 +1,6 @@
 """Integration tests for the CLI, using pytest"""
 
+import collections
 import contextlib
 import functools
 import pathlib
@@ -303,6 +304,10 @@ def csv_path(root):
     )
 
 
+def db_conf_path(root):
+    return root / galleries.cli.DB_DIR_NAME / galleries.cli.DB_CONFIG_NAME
+
+
 @pytest.fixture
 def initialize_collection(tmp_path, real_path):
     """Initialize default collection."""
@@ -324,6 +329,17 @@ def write_to_csv(initialize_collection):
         return csv_path(root).write_bytes(data)
 
     return write
+
+
+def _edit_db_conf(path, field, value):
+    config_text = path.read_text()
+    config_text = re.sub(
+        rf"^\s*{re.escape(field)}\s*[=:].*$",
+        f"{field} = {value}\n",
+        config_text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    path.write_text(config_text)
 
 
 class TestCount:
@@ -420,6 +436,61 @@ class TestCount:
         assert rc == 0
         assert not capsys.readouterr().out
 
+    CSV_MULTIPLE_FIELDS = "A,B,C\na b c,m n,x y z\na b c,i j k,w z\n"
+    COUNT_EXPECTED_BY_FIELD = {
+        "A": {"a": 2, "b": 2, "c": 2},
+        "B": {"m": 1, "n": 1, "i": 1, "j": 1, "k": 1},
+        "C": {"x": 1, "y": 1, "z": 2, "w": 1},
+    }
+
+    def _assert_count_results(self, output, result_dicts):
+        lines = [line.strip() for line in output.splitlines()]
+        count_expected = collections.Counter()
+        for d in result_dicts:
+            count_expected.update(d)
+        assert len(lines) == len(count_expected)
+        for expected_key, expected_value in count_expected.items():
+            assert any(
+                re.match(rf"{expected_value}\s+{expected_key}", line) for line in lines
+            )
+
+    def test_custom_csv_filename(self, initialize_collection, capsys):
+        custom_filename = "MYGALL~1.CSV"
+        cla_fields = ("A", "B")
+        csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
+        csv_path.write_text(self.CSV_MULTIPLE_FIELDS)
+        _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
+        rc = galleries.cli.main(["count", *cla_fields])
+        assert rc == 0
+        captured = capsys.readouterr()
+        print(captured.out)
+        self._assert_count_results(
+            captured.out, (self.COUNT_EXPECTED_BY_FIELD[field] for field in cla_fields)
+        )
+
+    @pytest.mark.parametrize(
+        ("conf_fields", "cla_fields", "fields_expected"),
+        [
+            ("A", [], ["A"]),
+            ("B", [], ["B"]),
+            ("A;B;C", [], ["A", "B", "C"]),
+            ("A;B;C", ["C"], ["C"]),
+        ],
+    )
+    def test_custom_tag_fields(
+        self, initialize_collection, capsys, conf_fields, cla_fields, fields_expected
+    ):
+        csv_path(initialize_collection).write_text(self.CSV_MULTIPLE_FIELDS)
+        _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
+        rc = galleries.cli.main(["count", *cla_fields])
+        assert rc == 0
+        captured = capsys.readouterr()
+        print(captured.out)
+        self._assert_count_results(
+            captured.out,
+            (self.COUNT_EXPECTED_BY_FIELD[field] for field in fields_expected),
+        )
+
 
 class TestQuery:
     @pytest.fixture
@@ -468,6 +539,46 @@ class TestQuery:
         rc = galleries.cli.main(["query", "--input", str(path)])
         assert rc == 0
         assert capsys.readouterr().out == text
+
+    def test_custom_csv_filename(self, initialize_collection, capsys):
+        custom_filename = "MYGALL~1.CSV"
+        text = "Tags\r\na b c\r\nx y z\r\n"
+        csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
+        csv_path.write_text(text)
+        _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
+        rc = galleries.cli.main(["query"])
+        assert rc == 0
+        assert capsys.readouterr().out == text
+
+    @pytest.mark.parametrize(
+        ("conf_fields", "cla_fields", "terms", "rows_expected"),
+        [
+            ("B", [], ["a"], []),
+            ("B;A", [], ["a"], ["a,b"]),
+            ("B", ["A"], ["a"], ["a,b"]),
+            ("A", [], ["+a", "+m"], ["a,b", "m,n"]),
+        ],
+    )
+    def test_custom_tag_fields(
+        self,
+        initialize_collection,
+        capsys,
+        conf_fields,
+        cla_fields,
+        terms,
+        rows_expected,
+    ):
+        csv_text = "A,B\na,b\nm,n\n"
+        csv_path(initialize_collection).write_text(csv_text)
+        _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
+        cla_fields = (f"--field={fieldname}" for fieldname in cla_fields)
+        rc = galleries.cli.main(["query", *cla_fields, *terms])
+        assert rc == 0
+        captured = capsys.readouterr()
+        print(captured.out)
+        # Subtract the header
+        results = captured.out.splitlines()[1:]
+        assert rows_expected == results
 
     @pytest.mark.usefixtures("write_to_csv")
     @pytest.mark.parametrize("args", [[" "], ["Π", "#f"]])
