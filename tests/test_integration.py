@@ -97,11 +97,7 @@ class TestInit:
         directory.touch()
         rc = galleries.cli.main(["init", "--bare", str(directory)])
         assert rc > 0
-        assert any(
-            "Failed to create root directory" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, "Failed to create root directory")
 
     def test_config_exists(self, tmp_path, caplog):
         directory = tmp_path / "test_collection"
@@ -112,10 +108,8 @@ class TestInit:
         config_file.touch()
         rc = galleries.cli.main(["init", "--bare", str(directory)])
         assert rc > 0
-        assert any(
-            "Refusing to overwrite existing configuration file" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
+        assert msg_in_error_logs(
+            caplog, "Refusing to overwrite existing configuration file"
         )
 
     def test_template_dir_successful(self, tmp_path, caplog):
@@ -145,11 +139,7 @@ class TestInit:
         destination = tmp_path / "destination_collection"
         rc = galleries.cli.main(["init", "--template", str(db_dir), str(destination)])
         assert rc > 0
-        assert any(
-            "TemplateDir is not a directory" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, "TemplateDir is not a directory")
         assert "my_db_files" in caplog.text
 
     def test_template_dir_destination_exists(self, tmp_path, caplog):
@@ -166,11 +156,7 @@ class TestInit:
         new_subdir.mkdir()
         rc = galleries.cli.main(["init", "--template", str(db_dir), str(destination)])
         assert rc > 0
-        assert any(
-            "Refusing to overwrite existing" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, "Refusing to overwrite existing")
         assert new_subdir.name in caplog.text
 
     def test_successful(self, tmp_path, caplog):
@@ -193,11 +179,7 @@ class TestInit:
         destination = tmp_path / "destination_collection"
         rc = galleries.cli.main(["init", str(destination)])
         assert rc > 0
-        assert any(
-            "TemplateDir is not a directory" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, "TemplateDir is not a directory")
         assert "do_not_create" in caplog.text
 
     def test_cwd(self, tmp_path, monkeypatch):
@@ -222,11 +204,7 @@ class TestTraverse:
 
     def test_no_configuration(self, caplog):
         assert galleries.cli.main(["traverse"]) > 0
-        assert any(
-            "No valid collection found" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, "No valid collection found")
 
     @pytest.mark.parametrize(
         ("directories", "files", "total"), [([], [], 1), (DIR_TREE, FILE_TREE, 5)]
@@ -404,22 +382,14 @@ class TestCount:
         expected_field = "Tags"
         rc = galleries.cli.main(["count"])
         assert rc > 0
-        assert any(
-            expected_field in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, expected_field)
 
     @pytest.mark.parametrize("bad_field_in_arg", ["Not a valid fieldname", "無效"])
     def test_argument_not_found(self, input_args_tags_only, caplog, bad_field_in_arg):
         """Case where command-line argument does not match CSV data"""
         rc = galleries.cli.main(["count", *input_args_tags_only, bad_field_in_arg])
         assert rc > 0
-        assert any(
-            bad_field_in_arg in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, bad_field_in_arg)
 
     @pytest.mark.parametrize(
         "data_in", ["Path,Count,Tags\n001,0,untagged\\,\n", "Path,Count,Tags\n001,0\n"]
@@ -512,11 +482,7 @@ class TestQuery:
             ["query", *input_args_empty, "--sort", bad_field_in_arg]
         )
         assert rc > 0
-        assert any(
-            bad_field_in_arg in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, bad_field_in_arg)
 
     @pytest.mark.usefixtures("write_to_csv")
     def test_no_tags(self, capsys):
@@ -548,11 +514,7 @@ class TestQuery:
             ["query", "--input", str(path), "--field", bad_field_arg, "A"]
         )
         assert rc > 0
-        assert any(
-            bad_field_arg in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, bad_field_arg)
 
     def test_custom_csv_filename(self, initialize_collection, capsys):
         custom_filename = "MYGALL~1.CSV"
@@ -599,11 +561,7 @@ class TestQuery:
         _edit_db_conf(db_conf_path(initialize_collection), "Format", arg)
         rc = galleries.cli.main(["query"])
         assert rc > 0
-        assert any(
-            arg in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
+        assert msg_in_error_logs(caplog, arg)
 
     @pytest.mark.usefixtures("write_to_csv")
     @pytest.mark.parametrize("args", [[" "], ["Π", "#f"]])
@@ -622,3 +580,11 @@ class TestRelated:
         captured = capsys.readouterr()
         for tag in tags:
             assert tag in captured.out
+
+
+def msg_in_error_logs(caplog, substring):
+    return any(
+        substring in record.message
+        for record in caplog.records
+        if record.levelname == "ERROR"
+    )
