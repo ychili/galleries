@@ -163,11 +163,17 @@ class DBConfig:
     def __repr__(self) -> str:
         return f"{type(self).__name__}(paths={self.paths}, parser={self.parser})"
 
-    def get_list(self, section: str, option: str, **kwds: Any) -> list[str]:
-        return split_semicolon_list(self.parser.get(section, option, **kwds))
+    def get_list(self, section: str, option: str) -> list[str]:
+        """Parse semicolon-separated list value of *option* in *section*."""
+        return split_semicolon_list(self.parser[section].get(option, ""))
 
-    def get_path(self, section: str, option: str, **kwds: Any) -> Path:
-        return self.paths.get_db_path(self.parser.get(section, option, **kwds))
+    def get_path(self, section: str, option: str) -> Path:
+        """Parse DB-relative path value of *option* in *section*.
+
+        If *option* is not found, then the return value will be equal to
+        ``paths.subdir``.
+        """
+        return self.paths.get_db_path(self.parser[section].get(option, ""))
 
     def get_multi_paths(self, section: str, option: str) -> list[Path]:
         if val := self.parser[section].get(option):

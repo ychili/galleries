@@ -372,6 +372,21 @@ class TestDBConfig:
             _ = getattr(real_db, getter)()
         assert "Unable to read configuration from file" in caplog.text
 
+    def test_get_list(self, real_db):
+        real_db.config.write_text("[db]\n[refresh]\n")
+        config = real_db.get_db_config()
+        assert not config.get_list(
+            "refresh", "TagActions"
+        ), "A key without a default value produces an empty list"
+        assert not config.get_list(
+            "refresh", "???"
+        ), "An unknown key produces an empty list"
+
+    def test_get_path(self, real_db):
+        real_db.config.write_text("[db]\n[refresh]\n")
+        config = real_db.get_db_config()
+        assert config.get_path("refresh", "???") == real_db.subdir
+
     @pytest.mark.parametrize("caseless", [str, str.lower])
     def test_get_multi_paths(self, real_db, caseless):
         real_db.config.write_text(
