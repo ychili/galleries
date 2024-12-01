@@ -409,8 +409,8 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         if not cla.force and filename.exists():
             log.error("Refusing to overwrite existing CSV file: %s", filename)
             return 1
-    path_field = db_config.parser.get("db", "PathField")
-    count_field = db_config.parser.get("db", "CountField")
+    path_field = db_config.parser["db"]["PathField"]
+    count_field = db_config.parser["db"]["CountField"]
     tag_fields = db_config.get_list("db", "TagFields")
     fieldnames = [path_field, count_field, *tag_fields]
     log.debug(
@@ -489,16 +489,14 @@ def _query_output_formatter(
         fmt = table_query.Format.RICH
     if fmt is None:
         try:
-            fmt = table_query.Format(config.parser.get("query", "Format").lower())
+            fmt = table_query.Format(config.parser["query"]["Format"].lower())
         except ValueError as err:
             log.error("Invalid configuration setting: %s", err)
             raise _CLIError from err
     if fmt == table_query.Format.AUTO:
         if sys.stdout.isatty():
             try:
-                fmt = table_query.Format(
-                    config.parser.get("query", "AutoFormat").lower()
-                )
+                fmt = table_query.Format(config.parser["query"]["AutoFormat"].lower())
             except ValueError as err:
                 log.error("Invalid configuration setting: %s", err)
                 raise _CLIError from err
@@ -533,10 +531,10 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     filename = db_config.get_path("db", "CSVName")
     tag_fields = db_config.get_list("refresh", "TagFields")
     gardener.set_normalize_tags(*tag_fields)
-    backup_suffix = cla.suffix or db_config.parser.get("refresh", "BackupSuffix")
+    backup_suffix = cla.suffix or db_config.parser["refresh"]["BackupSuffix"]
     # Second, acquire values for Update file count, if requested
-    path_field = db_config.parser.get("refresh", "PathField")
-    count_field = db_config.parser.get("refresh", "CountField")
+    path_field = db_config.parser["refresh"]["PathField"]
+    count_field = db_config.parser["refresh"]["CountField"]
     sort_field = db_config.parser["refresh"].get("SortField", path_field)
     gardener.needed_fields.add(sort_field)
     if not cla.no_check:
@@ -625,12 +623,12 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     search_terms = cla.where or db_config.get_list("related", "Filter")
     if limit is None:
         try:
-            limit = db_config.parser.getint("related", "Limit")
+            limit = db_config.parser["related"].getint("Limit")
         except ValueError as err:
             log.error("Invalid configuration setting for Limit: %s", err)
             return 1
     if sort_by is None:
-        sort_by = db_config.parser.get("related", "SortMetric").lower()
+        sort_by = db_config.parser["related"]["SortMetric"].lower()
         if sort_by not in relatedtag.SimilarityResult.choices():
             log.error("Invalid configuration setting for SortMetric: %s", sort_by)
             return 1
@@ -887,7 +885,10 @@ def main(args: Sequence[str] | None = None) -> int:
     log.debug(args_ns)
     try:
         return args_ns.func(args_ns, global_config)
-    except configparser.Error:
+    except configparser.Error as err:
+        log.debug(
+            "A configparser.Error is causing cli.main to exit with error: %s", err
+        )
         return 1
 
 
