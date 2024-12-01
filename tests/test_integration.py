@@ -582,6 +582,15 @@ class TestRelated:
             assert tag in captured.out
 
 
+class TestRefresh:
+    def test_simple(self, initialize_collection):
+        csv_path(initialize_collection).write_bytes(b"Path,Tags\n,xYz AbC\n")
+        rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        assert rc == 0
+        result = csv_path(initialize_collection).read_bytes()
+        assert result == b"Path,Tags\r\n,abc xyz\r\n"
+
+
 def msg_in_error_logs(caplog, substring):
     return any(
         substring in record.message
