@@ -607,9 +607,11 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
         log.debug("Validating implicator for field(s): %s", ", ".join(sorted(fields)))
         errors += refresh.validate_tag_actions(implic)
         gardener.set_implicator(implic, *fields)
-    msg = "Found %d logical error%s in TagActions files: %s"
-    paths = join_semicolon_list(config.get_list("refresh", "TagActions"))
-    log.info(msg, errors, "" if errors == 1 else "s", paths)
+    if unified:
+        # List paths as DB-relative.
+        paths = join_semicolon_list(config.get_list("refresh", "TagActions"))
+        msg = "Found %d logical error%s in TagActions files: %s"
+        log.info(msg, errors, "" if errors == 1 else "s", paths)
     return errors
 
 
