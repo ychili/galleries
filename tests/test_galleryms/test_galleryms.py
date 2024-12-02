@@ -89,9 +89,7 @@ class TestImplicator(unittest.TestCase):
 class TestGallery(unittest.TestCase):
     def test_merge_tags(self):
         values = ["a b c", "d", galleries.galleryms.TagSet("abc")]
-        gallery = galleries.galleryms.Gallery(
-            {field: val for field, val in zip("FGH", values)}
-        )
+        gallery = galleries.galleryms.Gallery(zip("FGH", values))
         tags = gallery.merge_tags(*"FGH")
         self.assertEqual(tags, galleries.galleryms.TagSet("abcd"))
 
