@@ -1,11 +1,14 @@
 """Unit tests for galleryms"""
 
 import itertools
+import json
 import operator
 import string
 import unittest
 
 import galleries.galleryms
+
+from . import TAG_SETS, TestOverlapTable
 
 
 class TestImplicationGraph(unittest.TestCase):
@@ -234,7 +237,7 @@ class TestSimilarityCalculator(unittest.TestCase):
         self.assertEqual(zero.frequency(), 0.0)
 
 
-class TestOverlapTable(unittest.TestCase):
+class TestOverlapTableNoFS(unittest.TestCase, TestOverlapTable):
     @staticmethod
     def _make_nontrivial():
         return galleries.galleryms.OverlapTable({"a"}, {"b", "c"}, {"b", "d"})
@@ -280,6 +283,18 @@ class TestOverlapTable(unittest.TestCase):
                 for result in results:
                     self.assertEqual(result.tag_a.tag, tag)
                     self.assertEqual(result.tag_a.count, table.count(tag))
+
+    def test_roundtrip_json_string(self):
+        input_tables = [
+            self._make_nontrivial(),
+            galleries.galleryms.OverlapTable(*TAG_SETS),
+        ]
+        for table0 in input_tables:
+            with self.subTest(table=table0):
+                json_string = table0.to_json_string()
+                json_obj = json.loads(json_string)
+                table1 = galleries.galleryms.OverlapTable.from_json(json_obj)
+                self.assertTrue(self._tables_equal(table0, table1))
 
 
 class TestTagSet(unittest.TestCase):

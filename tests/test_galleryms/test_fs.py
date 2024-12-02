@@ -1,10 +1,13 @@
 """Tests for functions of galleryms needing filesystem, using pytest"""
 
 import itertools
+import json
 
 import pytest
 
 import galleries.galleryms
+
+from . import TAG_SETS, TestOverlapTable
 
 
 @pytest.fixture
@@ -78,3 +81,14 @@ class TestGallery:
         gallery.update_count("Count", folder)
         repeat = gallery["Count"]
         assert repeat == result, (repeat, result)
+
+
+class TestOverlapTableFileSystem(TestOverlapTable):
+    def test_roundtrip_json_stream(self, tmp_path):
+        table0 = galleries.galleryms.OverlapTable(*TAG_SETS)
+        with open(tmp_path / "serialized_table.json", "w", encoding="utf-8") as f:
+            table0.to_json_stream(f)
+        with open(tmp_path / "serialized_table.json", "rb") as f:
+            obj = json.load(f)
+        table1 = galleries.galleryms.OverlapTable.from_json(obj)
+        assert self._tables_equal(table0, table1)
