@@ -136,7 +136,7 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable[str]:
             math.comb(len(table), 2),
             len(table),
             table.n_sets,
-            sum(table.counter.values()) / table.n_sets,
+            sum(table.counter().values()) / table.n_sets,
         )
     else:
         log.info("No elements counted!")

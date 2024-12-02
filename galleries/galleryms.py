@@ -1018,6 +1018,8 @@ class OverlapTable(Collection[H]):
     tags occur in together, as well as calculating similarity metrics.
 
     >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
+    >>> table.counter()
+    Counter({'b': 2, 'a': 1, 'c': 1})
     >>> table.get('a', 'b')
     1
     >>> table.similarity('a', 'b').jaccard_index()
@@ -1025,12 +1027,9 @@ class OverlapTable(Collection[H]):
 
     Other properties:
         n_sets: number of input sets
-        counter: counts tags in input sets
 
     >>> table.n_sets
     2
-    >>> table.counter
-    Counter({'b': 2, 'a': 1, 'c': 1})
     """
 
     # Poor man's version of pandas DataFrame with labels
@@ -1090,8 +1089,8 @@ class OverlapTable(Collection[H]):
     def n_sets(self) -> int:
         return self._n_sets
 
-    @property
     def counter(self) -> Counter[H]:
+        """Counter for tags in input sets"""
         return Counter({tag: counter[tag] for tag, counter in self._table.items()})
 
     def __len__(self) -> int:
