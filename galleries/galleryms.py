@@ -1011,26 +1011,8 @@ class SimilarityCalculator(Generic[H]):
         return self.overlap / self.tag_a.count
 
 
-class OverlapTable(Collection[H]):
-    """2D hash table of overlap between tag pairs
-
-    Methods allow accessing overlap values, i.e. the number of sets that two
-    tags occur in together, as well as calculating similarity metrics.
-
-    >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
-    >>> table.counter()
-    Counter({'b': 2, 'a': 1, 'c': 1})
-    >>> table.get('a', 'b')
-    1
-    >>> table.similarity('a', 'b').jaccard_index()
-    0.5
-
-    Other properties:
-        n_sets: number of input sets
-
-    >>> table.n_sets
-    2
-    """
+class GenericOverlapTable(Collection[H]):
+    """An ``OverlapTable`` that can count any hashable object."""
 
     # Poor man's version of pandas DataFrame with labels
     #
@@ -1118,7 +1100,32 @@ class OverlapTable(Collection[H]):
         """
         return most_common(self.pairs_overlaps(), key=operator.itemgetter(1), n=n)
 
+
+class OverlapTable(GenericOverlapTable[str]):
+    """2D hash table of overlap between tag pairs
+
+    Methods allow accessing overlap values, i.e. the number of sets that two
+    tags occur in together, as well as calculating similarity metrics.
+
+    >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
+    >>> table.counter()
+    Counter({'b': 2, 'a': 1, 'c': 1})
+    >>> table.get('a', 'b')
+    1
+    >>> table.similarity('a', 'b').jaccard_index()
+    0.5
+
+    Other properties:
+        n_sets: number of input sets
+
+    >>> table.n_sets
+    2
+    """
+
     # METHODS FOR JSON SERIALIZATION
+
+    # JSON serialization requires that keys be type str to be round-trip
+    # stable.
 
     def _to_dict(self) -> dict:
         """Convert self's data attributes to an equivalent dictionary.
