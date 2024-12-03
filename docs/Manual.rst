@@ -336,40 +336,56 @@ So, avoid doing that.
 By default, galleries are printed as CSV rows with no extra formatting
 (``--format=none``).
 To print query results with each field as a wrapped column,
-create a "field formats file."
-The name of this file is passed to the `FieldFormats`_ configuration key.
-The default name is ``tableformat.conf``.
-The field formats file should contain the name of field you wish to include
-in the query results, one per line,
-followed by its formatting parameters.
-Each argument is separated by tabs or spaces.
-Therefore, tabs or spaces within arguments must be quoted.
+use the option ``--format=rich``.
+To customize the layout of the results table,
+create a "Rich table settings file".
+`Rich`_ is the library used to format the table.
+The name of this file is passed to the `RichTable`_ configuration key.
+The default name is ``richtable.toml``.
+Like the TagActions file, if the
+Rich table settings file has a .toml file extension, as in the default,
+then it should use the `TOML format`_,
+otherwise it should be in JSON format.
+See the section `Rich table settings`_ for more detail.
 
-From left to right, the arguments in a field formats file are:
-1) field name, 2) maximum width, 3) foreground color,
-4) background color, and 5) effect.
-See the section `Field formats file`_ for more details.
+Here is an example Rich table settings file in TOML format::
 
-Here is an example field formats file::
+    [[columns]]
+    field = "Path"
+    max_width = 30
+    style = "bright_blue bold"
 
-    # Comments are okay
-    Path  30 "bright blue" "" "bold"
-    Count 3
-    Tags  REM
+    [[columns]]
+    field = "Count"
+    max_width = 3
 
-This means:
-for the Path field dedicate at most 30 terminal columns before wrapping
-and make the text bright blue and bold (with default background color),
-dedicate at most 3 columns to the Count field,
-and dedicate the remaining available terminal columns to the Tags field.
-The formatter will use all available columns in your terminal window.
+    [[columns]]
+    field = "Tags"
 
-Once the field formats file is set up, enable formatted output
-by setting the value of the ``--format`` option
-or the `Format`_ configuration key in the [query] section.
-A value of **format** means always format.
-A value of **auto** will format if it detects that standard output
-is connected to a terminal (and not, for example, a pipe).
+    [table]
+    box = false
+
+Columns should be declared in the order they should appear in the output,
+left to right.
+The key "field" is the only required key,
+which should be the field name from the CSV file.
+The remainder of the key–value pairs will be passed as `column options`_
+for modifying the layout and appearance of each column.
+The above example shows the use of "max_width",
+which prevents the column from growing beyond a certain width,
+and "style", which sets a `text style`_ for the column.
+In the example, ``table.box`` has been set to ``false``,
+disabling the default table grid.
+Any of Rich’s Box constants are also allowable values for "box",
+such as ``HEAVY_HEAD`` or ``MINIMAL``.
+Try the command ``python -m rich.box`` to see all possibilities.
+
+.. _Rich:
+   https://rich.readthedocs.io/
+.. _column options:
+   https://rich.readthedocs.io/en/stable/tables.html#column-options
+.. _text style:
+   https://rich.readthedocs.io/en/stable/style.html
 
 Calling the query command without any search term arguments will cause
 every gallery to be printed.
@@ -639,10 +655,17 @@ The **query** command prints galleries that match *search_term*.
 If *search_term* is not given then all galleries in the input are
 printed.
 
-**query** supports either unformatted or formatted output.
+**query** supports unformatted output and two methods of formatted
+output.
 Unformatted output mode prints galleries as the CSV rows appear in the
 input, plus fieldname headers.
-Formatted output mode prints galleries in a table-like format.
+Rich formatted output mode, selected by ``--format=rich``, uses the
+`Rich`_ terminal text formatting library to display the output as a
+table.
+The formatting parameters of Rich's table can be optionally customized
+with a `Rich table settings`_ file.
+Original formatted output mode, selected by ``--format=format``, prints
+galleries in a table-like format.
 It requires a "`field formats file`_" so it knows which fields to
 include, how wide each column in the table should be, and optionally
 which terminal effects to apply.
@@ -663,15 +686,20 @@ Options
 
 -F WHEN, --format=WHEN
     Control output format.
-    *WHEN* can be omitted or one of **none**, **format**, or **auto**.
+    *WHEN* can be omitted or one of **none**, **format**, **rich**,
+    or **auto**.
     The argument **none** selects no formatting.
     That is, rows are printed as they are in CSV format.
     The argument **format** selects formatted output, where fields are
     printed in wrapped columns.
     To use formatted output, a field formats file must be provided
     containing formatting instructions.
+    The argument **rich** will use the table formatter offered by the
+    `Rich`_ library.
     The argument **auto** will select formatted output if printing to
     a terminal, otherwise unformatted output.
+    Which formatting method will be used (**format** or **rich**) can be
+    customized by setting query.\ `AutoFormat`_.
     The ``--format`` option with no argument is the same as
     ``--format=auto``.
 
@@ -695,8 +723,14 @@ Options
 --field-formats=FILE
     Parse field formats from *FILE*.
     See "`Field formats file`_" below for the syntax of this file.
+    This option implies ``--format=format``.
 
     Default: value of query.\ `FieldFormats`_.
+
+--rich-table=FILE
+    Parse Rich table settings from *FILE*.
+    See "`Rich table settings`_" below for the syntax of this file.
+    This option implies ``--format=rich``.
 
 Search terms
 ------------
@@ -749,6 +783,34 @@ letter or letters in that field name will be expanded to
 "LongTagFieldName" in the field specifier, as long as no other fields
 begin with the same letter or letters.
 
+Rich table settings
+-------------------
+
+If ``--format=rich`` is selected and no Rich table settings file is
+found, then the `Rich`_ library will automatically format the output of
+the **query** command.
+However, the Rich table settings file allows customizing the output.
+The default name for this file is ``richtable.toml``, located in the
+galleries sub-directory.
+A file with a "toml" extension will be parsed as `TOML format`_.
+Anything else will be parsed as JSON.
+
+.. TODO: Specify format.
+
+A table named "table" can be used to pass arguments to the Rich `Table
+constructor`_.
+Parameters:
+
+"box" : name of a Box constant
+    Will be used as the `Box style`_ for the table grid.
+"show_header" : Boolean
+    Show a header row. Defaults to True.
+
+.. _Table constructor:
+   https://rich.readthedocs.io/en/stable/reference/table.html#rich.table.Table
+.. _Box style:
+   https://rich.readthedocs.io/en/stable/appendix/box.html
+
 Field formats file
 ------------------
 
@@ -758,6 +820,7 @@ formatted output mode.
 Each field's format is described on a separate line.
 Lines starting with '#' are comments. Blank lines are ignored.
 Values on each line are separated by tabs or spaces.
+Therefore, tabs or spaces within arguments must be quoted.
 
 The meaning of each value or argument is listed below in order of
 position.
@@ -801,6 +864,13 @@ arguments following.
 If a line cannot be parsed or if any of a field name's formatting
 arguments are of incorrect type, then that line will be ignored and a
 warning emitted.
+
+Here is an example field formats file::
+
+    # Comments are okay
+    Path  30 "bright blue" "" "bold"
+    Count 3
+    Tags  REM
 
 Examples
 --------
@@ -1156,13 +1226,28 @@ The default argument to `query`_’s ``--field-formats`` option.
 :Type: `DB-relative path`_
 :Default value: tableformat.conf
 
+RichTable
+`````````
+The default argument to `query`_’s ``--rich-table`` option.
+
+:Type: `DB-relative path`_
+:Default value: richtable.toml
+
 Format
 ``````
 The default argument to `query`_’s ``--format`` option.
 The values it takes are the same.
 
-:Type: One of {none, format, auto}
+:Type: One of {none, format, rich, auto}
 :Default value: None
+
+AutoFormat
+``````````
+If **auto** formatting is selected by `query`_’s ``--format`` option,
+this formatting method will be used when printing to a terminal.
+
+:Type: One of {format, rich}
+:Default value: rich
 
 [refresh]
 ---------
