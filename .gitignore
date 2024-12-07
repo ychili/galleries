@@ -2,5 +2,11 @@ __pycache__/
 *.py[cod]
 
 *.egg-info/
-
+build/
 dist/
+
+# Unit tests / coverage
+.tox/
+.coverage
+.coverage.*
+.hypothesis/
