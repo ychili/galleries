@@ -571,6 +571,35 @@ class TestQuery:
         assert repr(args[0]) in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("query_args", "expected_results"),
+    [
+        ([], {"a": "3", "b": "2", "c": "2", "d": "1", "e": "1"}),
+        (["b"], {"a": "2", "b": "2", "c": "2"}),
+    ],
+)
+def test_pipe_query_to_count(initialize_collection, query_args, expected_results):
+    """Pipe the results of "query" to "count"."""
+    csv_path(initialize_collection).write_bytes(TestCount.CSV_TAGS_ONLY)
+    collection_args = ("-c", str(initialize_collection))
+    query_proc = subprocess.Popen(
+        ["galleries", *collection_args, "query", *query_args], stdout=subprocess.PIPE
+    )
+    count_proc = run_normal(
+        ["galleries", *collection_args, "count", "-i-"], stdin=query_proc.stdout
+    )
+    assert query_proc.stdout is not None
+    query_proc.stdout.close()
+    print(count_proc.stdout)
+    output_pairs = [line.split() for line in count_proc.stdout.splitlines()]
+    assert len(output_pairs) == len(expected_results), (output_pairs, expected_results)
+    # Makes no assertions about the order of count results, just checks that
+    # values are correct
+    for lineno, (count, tag, *extra) in enumerate(output_pairs, start=1):
+        assert not extra, f"Unexpected character(s) on line {lineno} of count output"
+        assert expected_results[tag] == count, tag
+
+
 class TestRelated:
     @pytest.mark.usefixtures("write_to_csv")
     def test_no_tags(self, capsys):
