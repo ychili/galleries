@@ -581,6 +581,38 @@ class TestRelated:
         for tag in tags:
             assert tag in captured.out
 
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("Limit", "none"), ("SortMetric", "無効"), ("Filter", "Not a tag")],
+    )
+    def test_invalid_config_settings(self, initialize_collection, caplog, field, value):
+        _edit_db_conf(db_conf_path(initialize_collection), field, value)
+        rc = galleries.cli.main(["related", ""])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, value)
+
+    _EXPECTED_RESULTS = [
+        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
+        ["a", "5", "1.00000", "1.00000", "1.00000", "100%"],
+        ["b", "3", "0.77460", "0.60000", "1.00000", "60%"],
+        ["c", "3", "0.51640", "0.33333", "0.66667", "40%"],
+        ["d", "2", "0.31623", "0.16667", "0.50000", "20%"],
+        [],  # Blank line
+        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
+        ["b", "3", "1.00000", "1.00000", "1.00000", "100%"],
+        ["a", "5", "0.77460", "0.60000", "1.00000", "100%"],
+        ["c", "3", "0.33333", "0.20000", "0.33333", "33%"],
+    ]
+
+    def test_results(self, write_to_csv, capsys):
+        write_to_csv(b"Tags\na b\na b\na c\nc d\na d\na b c\n")
+        rc = galleries.cli.main(["related", "a", "b"])
+        assert rc == 0
+        stdout = capsys.readouterr().out
+        print(stdout)
+        results = [line.split() for line in stdout.splitlines()]
+        assert results == self._EXPECTED_RESULTS
+
 
 class TestRefresh:
     def test_simple(self, initialize_collection):
