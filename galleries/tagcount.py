@@ -21,7 +21,7 @@ def tag_counts(tag_sets: Iterable[TagSet]) -> collections.Counter[str]:
     return collections.Counter(itertools.chain.from_iterable(tag_sets))
 
 
-def count(tag_sets: Iterable[TagSet], reverse: bool = False) -> int:
+def count(tag_sets: Iterable[TagSet], *, reverse: bool = False) -> int:
     """Print tag counts + tag names from *tag_sets*.
 
     If *reverse* is True, print in ascending order.

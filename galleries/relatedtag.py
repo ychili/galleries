@@ -70,6 +70,7 @@ class ResultsTable:
         self,
         data: Iterable[Mapping[str, Any]],
         fieldnames: Collection[str],
+        *,
         write_header: bool = True,
     ) -> None:
         writer = csv.DictWriter(self.file, fieldnames=fieldnames)
@@ -143,7 +144,7 @@ def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
     return table
 
 
-def results_table(file: IO[str], effect: bool = False) -> ResultsTable:
+def results_table(file: IO[str], *, effect: bool = False) -> ResultsTable:
     """Return the ``ResultsTable`` with default settings."""
     printer = ResultsTable(file)
     printer.header = {

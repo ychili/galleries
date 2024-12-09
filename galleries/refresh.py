@@ -444,7 +444,7 @@ def validate_tag_actions(implicator: gms.Implicator) -> int:
     return errors
 
 
-def traverse_fs(root: Path, leaves_only: bool = False) -> Iterator[tuple[Path, int]]:
+def traverse_fs(root: Path, *, leaves_only: bool = False) -> Iterator[tuple[Path, int]]:
     """Yield descendant directories of *root* and their file counts.
 
     Directories with a file count of zero are not yielded.
@@ -472,7 +472,7 @@ def traverse_fs(root: Path, leaves_only: bool = False) -> Iterator[tuple[Path, i
 
 
 def traverse_main(
-    root: Path, path_field: str, count_field: str, leaves_only: bool = False
+    root: Path, path_field: str, count_field: str, *, leaves_only: bool = False
 ) -> Iterator[gms.Gallery]:
     for path, count in traverse_fs(root, leaves_only=leaves_only):
         path_value = path.relative_to(root)
