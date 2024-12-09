@@ -204,7 +204,7 @@ class StrictReader(csv.DictReader):
         if l_fn > l_row:
             # Missing fields
             raise MissingFieldError(row, self.fieldnames, self.line_num)
-        return Gallery(zip(self.fieldnames, row))
+        return Gallery(zip(self.fieldnames, row, strict=True))
 
 
 @contextlib.contextmanager

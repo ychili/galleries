@@ -961,7 +961,10 @@ class Tabulator:
         for row in wrapped_rows:
             for line in itertools.zip_longest(*row.values(), fillvalue=""):
                 # It is necessary to add whitespace to empty lines
-                cells = (cell.ljust(width) for width, cell in zip(sizes.values(), line))
+                cells = (
+                    cell.ljust(width)
+                    for width, cell in zip(sizes.values(), line, strict=True)
+                )
                 out = line_template.format(
                     left_margin=" " * self.left_margin,
                     cells=(" " * self.padding).join(cells),
