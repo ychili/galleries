@@ -8,6 +8,7 @@ import re
 
 import pytest
 
+import galleries
 import galleries.cli
 
 _STD_CONFIGPARSER_ERRORS = [
@@ -419,6 +420,26 @@ class TestDBConfig:
             if record.levelname == "WARNING"
         )
         assert fields == set()
+
+
+_ENV_VARS = ["GALLERIES_CONF", "XDG_CONFIG_HOME"]
+
+
+@pytest.mark.parametrize(
+    ("env_key", "env_val", "name_expected"),
+    [
+        ("GALLERIES_CONF", "~/.config/test_dir", "test_dir"),
+        ("XDG_CONFIG_HOME", "/mnt/c/Users/Brian/.config", galleries.PROG),
+        (None, None, galleries.PROG),
+    ],
+)
+def test_get_global_config_dir(monkeypatch, env_key, env_val, name_expected):
+    for var in _ENV_VARS:
+        monkeypatch.setenv(var, "")
+    if env_key:
+        monkeypatch.setenv(env_key, env_val)
+    result = galleries.cli.get_global_config_dir()
+    assert result.name == name_expected
 
 
 def test_split_semicolon_list():
