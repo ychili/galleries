@@ -469,8 +469,11 @@ class TestQuery:
         path.write_bytes(b"")
         return ["--input", str(path)]
 
-    def test_empty_input(self, input_args_empty, capsys):
-        rc = galleries.cli.main(["query", *input_args_empty])
+    @pytest.mark.parametrize("format_args", [[], ["-Fnone"], ["-Fauto"]])
+    def test_empty_input(self, input_args_empty, capsys, format_args):
+        # All these format args should produce the same unformatted output,
+        # given stdout is not a tty.
+        rc = galleries.cli.main(["query", *input_args_empty, *format_args])
         assert rc == 0
         captured = capsys.readouterr()
         assert not captured.err
@@ -569,6 +572,84 @@ class TestQuery:
         rc = galleries.cli.main(["query", *args])
         assert rc > 0
         assert repr(args[0]) in caplog.text
+
+    def test_unconfigured_rich_output(self, input_args_empty, capsys):
+        rc = galleries.cli.main(["query", *input_args_empty, "--format", "rich"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert captured.out.isspace()
+
+    @pytest.mark.parametrize(
+        ("file_content", "loglevel"),
+        [
+            (None, "DEBUG"),  # FileNotFoundError
+            (b'"field":"Path",', "ERROR"),  # JSONDecodeError
+        ],
+    )
+    def test_rich_table_file_errors(
+        self, tmp_path, input_args_empty, caplog, file_content, loglevel
+    ):
+        rich_table_file = tmp_path / "rich_table_settings_test"
+        if file_content:
+            rich_table_file.write_bytes(file_content)
+        rc = galleries.cli.main(
+            ["-vv", "query", *input_args_empty, "--rich-table", str(rich_table_file)]
+        )
+        # In any case, the default Rich table is used, so no error exit
+        assert rc == 0
+        assert any(
+            rich_table_file.name in record.message
+            for record in caplog.records
+            if record.levelname == loglevel
+        )
+
+    _FF_JP = "パス\t40\n数\t5\n"
+
+    @pytest.mark.parametrize(
+        "file_content",
+        [
+            None,  # FileNotFoundError
+            _FF_JP.encode("shift-jis"),  # UnicodeDecodeError
+            _FF_JP.encode("utf-8"),  # FieldNotFoundError
+        ],
+    )
+    def test_field_format_file_errors(
+        self, tmp_path, input_args_empty, caplog, file_content
+    ):
+        field_formats_file = tmp_path / "field_formats_test"
+        if file_content:
+            field_formats_file.write_bytes(file_content)
+        rc = galleries.cli.main(
+            [
+                "--quiet",
+                "query",
+                *input_args_empty,
+                "--field-formats",
+                str(field_formats_file),
+            ]
+        )
+        assert rc > 0
+        assert msg_in_error_logs(caplog, "FieldFormats file")
+
+    def test_field_format_file_empty(self, tmp_path, capsys):
+        field_formats_file = tmp_path / "field_formats_test"
+        field_formats_file.write_bytes(b"")
+        csv_file = tmp_path / "test_input.csv"
+        csv_file.write_bytes(b"Tags\none\ntwo three\nfour\n")
+        rc = galleries.cli.main(
+            [
+                "query",
+                "--input",
+                str(csv_file),
+                "--field-formats",
+                str(field_formats_file),
+            ]
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.out
+        assert not captured.err
 
 
 @pytest.mark.parametrize(
