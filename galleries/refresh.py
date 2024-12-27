@@ -167,6 +167,7 @@ class TagActionsObject:
         load = util.load_from_json
         if path.match("*.toml") and file_format != "json":
             load = util.load_from_toml
+        log.debug("Loading TagActionsObject from file: %s", filename)
         obj = load(path)
         self.update(obj, source=path)
 
