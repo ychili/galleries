@@ -509,8 +509,11 @@ def _query_output_formatter(
         fmts_file = cla.field_formats or config.get_path("query", "FieldFormats")
         try:
             field_fmts = table_query.parse_field_format_file(fmts_file)
-        except (OSError, UnicodeDecodeError) as err:
+        except OSError as err:
             log.error("Unable to read FieldFormats file: %s", err)
+            raise _CLIError from err
+        except UnicodeDecodeError as err:
+            log.error("Unable to decode FieldFormats file: %s: %s", err, str(fmts_file))
             raise _CLIError from err
         return table_query.FormattedTablePrinter(field_fmts)
     if fmt == table_query.Format.RICH or cla.rich_table:
@@ -1000,8 +1003,11 @@ def _read_db(
         # message by closing stderr before exiting.
         sys.stderr.close()
         raise _CLIError(0) from err
-    except (OSError, UnicodeDecodeError) as err:
+    except OSError as err:
         log.error("Unable to read CSV file: %s", err)
+        raise _CLIError from err
+    except UnicodeDecodeError as err:
+        log.error("Unable to decode CSV file: %s: %s", err, str(file))
         raise _CLIError from err
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
