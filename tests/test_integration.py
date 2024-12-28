@@ -704,7 +704,7 @@ class TestRelated:
         assert rc > 0
         assert msg_in_error_logs(caplog, value)
 
-    _EXPECTED_RESULTS = [
+    _EXPECTED_RESULTS_0 = [
         ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
         ["a", "5", "1.00000", "1.00000", "1.00000", "100%"],
         ["b", "3", "0.77460", "0.60000", "1.00000", "60%"],
@@ -724,7 +724,32 @@ class TestRelated:
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
-        assert results == self._EXPECTED_RESULTS
+        assert results == self._EXPECTED_RESULTS_0
+
+    _CSV_CONTENT_1 = (
+        "Tags\na b e\nb d e\na d e\na c d\na c e\n"
+        "a b c d\nc d e\na b d\nc\nc d\na\na b d\n"
+    )
+    _EXPECTED_RESULTS_1 = [
+        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
+        ["a", "8", "0.70711", "0.50000", "1.00000", "100%"],
+        ["b", "4", "1.00000", "1.00000", "1.00000", "100%"],
+        ["d", "5", "0.67082", "0.50000", "0.75000", "75%"],
+        ["e", "3", "0.28868", "0.16667", "0.33333", "25%"],
+    ]
+
+    def test_options(self, tmp_path, capsys):
+        csv_file = tmp_path / "test_input.csv"
+        write_utf8(csv_file, self._CSV_CONTENT_1)
+        rc = galleries.cli.main(
+            ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "-w", "a", "b"]
+        )
+        assert rc == 0
+        stdout = capsys.readouterr().out
+        print(stdout)
+        results = [line.split() for line in stdout.splitlines()]
+        for line in self._EXPECTED_RESULTS_1:
+            assert line in results
 
 
 class TestRefresh:
