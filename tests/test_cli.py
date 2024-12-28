@@ -89,7 +89,7 @@ class TestGlobalConfig:
         assert finder.default_name is None
 
     def test_valid_collections(self, write_to_collections, caplog):
-        colle_text = "[1]\nRoot: /some/path\n[2]\nRoot: /an/other/path\n"
+        colle_text = "[1]\nRoot: //some/path\n[2]\nRoot: //an/other/path\n"
         write_to_collections(colle_text)
         finder = self.func().get_collections()
         assert not any(
@@ -123,7 +123,7 @@ class TestGlobalConfig:
         assert len(finder.collections_added()) == 0
 
     def test_collection_settings(self, write_to_collections, caplog):
-        colle_text = "[DEFAULT]\nGalleriesDir=.db\n[1]\nRoot=/imaginary\n"
+        colle_text = "[DEFAULT]\nGalleriesDir=.db\n[1]\nRoot=//imaginary/\n"
         write_to_collections(colle_text)
         finder = self.func().get_collections()
         assert not any(
@@ -146,8 +146,8 @@ class TestGlobalConfig:
     @pytest.mark.parametrize(
         "colle_text",
         [
-            "[1]\nRoot = ${Phony}/somefolder\n",
-            "[1]\nRoot = /Users/Me/Pictures\nConfigName = ${Phony}somestring\n",
+            "[1]\nRoot = //${Phony}/somefolder\n",
+            "[1]\nRoot = //Users/Me/Pictures\nConfigName = //${Phony}somestring\n",
         ],
     )
     def test_interpolation_missing_option_error(
@@ -166,7 +166,7 @@ class TestGlobalConfig:
         # Arbitrary K-V pairs can be put in the DEFAULT section safely
         colle_text = """
             [DEFAULT]
-            home_dir: /home/user
+            home_dir: //home/user
             [1]
             root: ${home_dir}/rootfolder1
             [2]
@@ -179,7 +179,7 @@ class TestGlobalConfig:
         )
         path_specs = finder.collections_added()
         assert len(path_specs) == 2
-        assert all(spec.collection.match("/home/user/*") for spec in path_specs)
+        assert all(spec.collection.match("//home/user/*") for spec in path_specs)
 
 
 @pytest.mark.usefixtures("global_config_dir")
@@ -260,7 +260,7 @@ class TestCollectionFinding:
         assert path.config == db_dir_name / galleries.cli.DB_CONFIG_NAME
 
     COLLECTIONS_TXT = "\n".join(
-        f"[{name}]\n\tRoot=/any/abs/path/{path}]\n"
+        f"[{name}]\n\tRoot=//any/abs/path/{path}]\n"
         for name, path in [("one", "1"), ("onetwo", "2"), ("three", "3"), ("四", "4")]
     )
 
@@ -274,7 +274,7 @@ class TestCollectionFinding:
         assert len(finder.collections_added()) == 4
         path = finder.find_collection(arg)
         assert path.name == name_expected
-        assert path.collection.match("/any/abs/path/*")
+        assert path.collection.match("//any/abs/path/*")
         assert path.subdir.name == galleries.cli.DB_DIR_NAME
         assert path.config.name == galleries.cli.DB_CONFIG_NAME
 
@@ -297,12 +297,12 @@ class TestCollectionFinding:
             GalleriesDir = .
             ConfigName = g.conf
             [1]
-            Root = /data/g/1
+            Root = //data/g/1
             [2]
-            Root = /data/g/2
+            Root = //data/g/2
             GalleriesDir = .db
             [3]
-            Root = /data/g/3
+            Root = //data/g/3
             ConfigName = .myconfig
         """
         write_to_collections(colle_text)
@@ -310,7 +310,7 @@ class TestCollectionFinding:
         assert len(finder.collections_added()) == 3
         path = finder.find_collection(cname)
         assert path.name == cname
-        root = pathlib.Path(f"/data/g/{cname}")
+        root = pathlib.Path(f"//data/g/{cname}")
         assert path.collection == root
         assert path.subdir == root / dirname
         assert path.config == root / dirname / cfgname

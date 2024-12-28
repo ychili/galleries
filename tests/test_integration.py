@@ -72,7 +72,10 @@ def test_help(capsys):
 
 @pytest.mark.parametrize(
     ("argv", "expected"),
-    [([], pathlib.Path.cwd), (["-c", "/any/string"], lambda: "/any/string")],
+    [
+        ([], pathlib.Path.cwd),
+        (["-c", "/any/string"], lambda: pathlib.Path("/any/string")),
+    ],
 )
 def test_path_cmd(capsys, argv, expected):
     rc = galleries.cli.main(argv)
