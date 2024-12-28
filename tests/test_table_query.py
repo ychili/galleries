@@ -218,8 +218,9 @@ class TestMain:
         out, err = capsys.readouterr()
         assert not err
         results = out.splitlines()
+        print(results)
         assert results[0] == "FieldA,FieldB"
-        object_regex = r"<object object at 0x[0-9a-f]+>"
+        object_regex = r"<object object at 0x[0-9a-fA-F]+>"
         assert re.match(rf"{object_regex},{object_regex}\Z", results[1])
         assert results[2] == "{'a'},{'b'}"
 
