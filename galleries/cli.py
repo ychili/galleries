@@ -223,7 +223,7 @@ class CollectionPathSpec:
             return None
         config = DBConfig(paths=self)
         try:
-            successful = config.parser.read(self.config)
+            successful = config.parser.read(self.config, encoding="utf-8")
         except configparser.Error as err:
             self._log_bad_read(err)
             raise
@@ -235,7 +235,7 @@ class CollectionPathSpec:
     def get_db_config(self) -> DBConfig:
         config = DBConfig(paths=self)
         try:
-            config.parser.read(self.config)
+            config.parser.read(self.config, encoding="utf-8")
         except configparser.Error as err:
             self._log_bad_read(err)
             raise
@@ -946,12 +946,12 @@ def read_global_configuration() -> GlobalConfig:
     # Log the error and re-raise.
     err_msg = "Unable to read %s configuration file: %s"
     try:
-        parser.options.read(config_dir_path / "config")
+        parser.options.read(config_dir_path / "config", encoding="utf-8")
     except configparser.Error as err:
         log.error(err_msg, "global", err)
         raise
     try:
-        parser.collections.read(config_dir_path / "collections")
+        parser.collections.read(config_dir_path / "collections", encoding="utf-8")
     except configparser.Error as err:
         log.error(err_msg, "collections", err)
         raise

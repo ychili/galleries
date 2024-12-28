@@ -175,7 +175,7 @@ class TestInit:
     def test_configuration(self, tmp_path, real_path, caplog):
         global_config_path = real_path / "config"
         fake_dir = tmp_path / "do_not_create"
-        global_config_path.write_text(f"[init]\nTemplateDir: {fake_dir}\n")
+        write_utf8(global_config_path, f"[init]\nTemplateDir: {fake_dir}\n")
         destination = tmp_path / "destination_collection"
         rc = galleries.cli.main(["init", str(destination)])
         assert rc > 0
@@ -261,13 +261,13 @@ class TestTraverse:
         init_rc = galleries.cli.main(["init", "--bare", str(root)])
         assert init_rc == 0
         config_path = root / galleries.cli.DB_DIR_NAME / galleries.cli.DB_CONFIG_NAME
-        config_path.write_text(f"[db]\nCSVName=custom.csv\n{key}={value}\n")
+        write_utf8(config_path, f"[db]\nCSVName=custom.csv\n{key}={value}\n")
         mktree(root, [], [])
-        traverse_rc = galleries.cli.main(["-c", str(root), "traverse"])
+        traverse_rc = galleries.cli.main(["-c", str(root), "-v", "traverse"])
         assert traverse_rc == 0
         csv_path = root / galleries.cli.DB_DIR_NAME / "custom.csv"
         assert csv_path.is_file()
-        headers = csv_path.read_text().strip().split(",")
+        headers = csv_path.read_text(encoding="utf-8").strip().split(",")
         fieldnames = galleries.cli.split_semicolon_list(value)
         for field in fieldnames:
             assert field in headers
@@ -291,9 +291,9 @@ def initialize_collection(tmp_path, real_path):
     """Initialize default collection."""
     root = tmp_path / "test_collection"
     global_config = real_path / "config"
-    global_config.write_text("[global]\ndefault = default\n")
+    write_utf8(global_config, "[global]\ndefault = default\n")
     global_collections = real_path / "collections"
-    global_collections.write_text(f"[default]\nroot = {root}")
+    write_utf8(global_collections, f"[default]\nroot = {root}")
     galleries.cli.main([f"--collection={root}", "init"])
     galleries.cli.main([f"--collection={root}", "traverse"])
     return root
@@ -310,14 +310,14 @@ def write_to_csv(initialize_collection):
 
 
 def _edit_db_conf(path, field, value):
-    config_text = path.read_text()
+    config_text = path.read_text(encoding="utf-8")
     config_text = re.sub(
         rf"^\s*{re.escape(field)}\s*[=:].*$",
         f"{field} = {value}\n",
         config_text,
         flags=re.IGNORECASE | re.MULTILINE,
     )
-    path.write_text(config_text)
+    write_utf8(path, config_text)
 
 
 class TestCount:
@@ -428,7 +428,7 @@ class TestCount:
         custom_filename = "MYGALL~1.CSV"
         cla_fields = ("A", "B")
         csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
-        csv_path.write_text(self.CSV_MULTIPLE_FIELDS)
+        write_utf8(csv_path, self.CSV_MULTIPLE_FIELDS)
         _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
         rc = galleries.cli.main(["count", *cla_fields])
         assert rc == 0
@@ -450,7 +450,7 @@ class TestCount:
     def test_custom_tag_fields(
         self, initialize_collection, capsys, conf_fields, cla_fields, fields_expected
     ):
-        csv_path(initialize_collection).write_text(self.CSV_MULTIPLE_FIELDS)
+        write_utf8(csv_path(initialize_collection), self.CSV_MULTIPLE_FIELDS)
         _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
         rc = galleries.cli.main(["count", *cla_fields])
         assert rc == 0
@@ -504,7 +504,7 @@ class TestQuery:
     def test_input_option(self, tmp_path, capsys):
         path = tmp_path / "test.csv"
         text = "Tags\r\nA\r\nB\r\nC\r\n"
-        path.write_text(text)
+        write_utf8(path, text)
         rc = galleries.cli.main(["query", "--input", str(path)])
         assert rc == 0
         assert capsys.readouterr().out == text
@@ -512,7 +512,7 @@ class TestQuery:
     def test_field_argument_not_found(self, tmp_path, caplog):
         bad_field_arg = "tagz"
         path = tmp_path / "test.csv"
-        path.write_text("Tags\r\nA\r\nB\r\nC\r\n")
+        write_utf8(path, "Tags\r\nA\r\nB\r\nC\r\n")
         rc = galleries.cli.main(
             ["query", "--input", str(path), "--field", bad_field_arg, "A"]
         )
@@ -523,7 +523,7 @@ class TestQuery:
         custom_filename = "MYGALL~1.CSV"
         text = "Tags\r\na b c\r\nx y z\r\n"
         csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
-        csv_path.write_text(text)
+        write_utf8(csv_path, text)
         _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
         rc = galleries.cli.main(["query"])
         assert rc == 0
@@ -548,7 +548,7 @@ class TestQuery:
         rows_expected,
     ):
         csv_text = "A,B\na,b\nm,n\n"
-        csv_path(initialize_collection).write_text(csv_text)
+        write_utf8(csv_path(initialize_collection), csv_text)
         _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
         cla_fields = (f"--field={fieldname}" for fieldname in cla_fields)
         rc = galleries.cli.main(["query", *cla_fields, *terms])
@@ -731,6 +731,10 @@ class TestRefresh:
         assert rc == 0
         result = csv_path(initialize_collection).read_bytes()
         assert result == b"Path,Tags\r\n,abc xyz\r\n"
+
+
+def write_utf8(path, text):
+    return path.write_text(text, encoding="utf-8")
 
 
 def msg_in_error_logs(caplog, substring):

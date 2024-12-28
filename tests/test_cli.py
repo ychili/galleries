@@ -19,12 +19,16 @@ _STD_CONFIGPARSER_ERRORS = [
 ]
 
 
+def write_utf8(path, text):
+    return path.write_text(text, encoding="utf-8")
+
+
 @pytest.fixture
 def write_to_collections(real_path):
     collections_path = real_path / "collections"
 
     def write(data):
-        collections_path.write_text(data)
+        write_utf8(collections_path, data)
 
     return write
 
@@ -57,7 +61,7 @@ class TestGlobalConfig:
     def test_custom_settings(self, real_path):
         config_path = real_path / "config"
         config_text = "[global]\nVerbose=true\n"  # Change Verbose to True
-        config_path.write_text(config_text)
+        write_utf8(config_path, config_text)
         cfg = self.func()
         assert cfg.options["global"].getboolean("verbose") is True
         assert cfg.options["global"].get("default") is None
@@ -68,13 +72,13 @@ class TestGlobalConfig:
     @pytest.mark.parametrize("filename", ["config", "collections"])
     def test_config_parsing_exceptions(self, real_path, filename, config_text, exc):
         config_path = real_path / filename
-        config_path.write_text(config_text)
+        write_utf8(config_path, config_text)
         pytest.raises(exc, self.func)
 
     def test_default_collection_not_in_collections(self, real_path, caplog):
         config_path = real_path / "config"
         config_text = "[global]\nDefault = Where?\n"
-        config_path.write_text(config_text)
+        write_utf8(config_path, config_text)
         cfg = galleries.cli.read_global_configuration()
         finder = cfg.get_collections()  # This emits a warning log
         assert any(
@@ -210,9 +214,9 @@ class TestCollectionFinding:
         assert path.config == db_dir_name / galleries.cli.DB_CONFIG_NAME
 
     def test_valid_default(self, real_path, changedir):
-        real_path.joinpath("config").write_text("[global]\nDefault=1\n")
+        write_utf8(real_path.joinpath("config"), "[global]\nDefault=1\n")
         root = changedir / "root1"
-        real_path.joinpath("collections").write_text(f"[1]\nRoot={root}\n")
+        write_utf8(real_path.joinpath("collections"), f"[1]\nRoot={root}\n")
 
         finder = self.func()
         assert len(finder.collections_added()) == 1
@@ -368,13 +372,13 @@ class TestDBConfig:
     @pytest.mark.parametrize(("config_text", "exc"), _STD_CONFIGPARSER_ERRORS)
     @pytest.mark.parametrize("getter", ["get_db_config", "acquire_db_config"])
     def test_config_parsing_exceptions(self, real_db, caplog, getter, config_text, exc):
-        real_db.config.write_text(config_text)
+        write_utf8(real_db.config, config_text)
         with pytest.raises(exc):
             _ = getattr(real_db, getter)()
         assert "Unable to read configuration from file" in caplog.text
 
     def test_get_list(self, real_db):
-        real_db.config.write_text("[db]\n[refresh]\n")
+        write_utf8(real_db.config, "[db]\n[refresh]\n")
         config = real_db.get_db_config()
         assert not config.get_list(
             "refresh", "TagActions"
@@ -384,14 +388,14 @@ class TestDBConfig:
         ), "An unknown key produces an empty list"
 
     def test_get_path(self, real_db):
-        real_db.config.write_text("[db]\n[refresh]\n")
+        write_utf8(real_db.config, "[db]\n[refresh]\n")
         config = real_db.get_db_config()
         assert config.get_path("refresh", "???") == real_db.subdir
 
     @pytest.mark.parametrize("caseless", [str, str.lower])
     def test_get_multi_paths(self, real_db, caseless):
-        real_db.config.write_text(
-            "[refresh]\nTagActions =\n\t1.toml\n\t2.toml; 3.toml\n"
+        write_utf8(
+            real_db.config, "[refresh]\nTagActions =\n\t1.toml\n\t2.toml; 3.toml\n"
         )
         config = real_db.get_db_config()
         assert config.get_multi_paths("refresh", caseless("TagActions")) == [
@@ -400,7 +404,7 @@ class TestDBConfig:
         assert not config.get_multi_paths("refresh", caseless("Other Key"))
 
     def test_get_implicating_fields(self, real_db, caplog):
-        real_db.config.write_text("[db]\nTagFields: Field A; Field B; Field C\n")
+        write_utf8(real_db.config, "[db]\nTagFields: Field A; Field B; Field C\n")
         config = real_db.get_db_config()
         fields = config.get_implicating_fields()
         assert not caplog.text

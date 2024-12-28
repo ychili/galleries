@@ -15,7 +15,7 @@ RAND_DATA = [
     b'"*snn|\x14^Dr#^\x14\x1ah+h\x05\x1c\x06/B9\x13%Uo<M^',
     b"7\x11ORo\x17a\x1f/5\x1f-R\x06J4X\x18fuU\x1fhY{T;=b\x0f",
 ]
-JSON_DATA = '{"key": {\n  "false key": "value"\n  }\n}\n'
+JSON_DATA = b'{"key": {\n  "false key": "value"\n  }\n}\n'
 
 _TAG_SET_EXPECTED_SINGLE = galleries.galleryms.TagSet(
     {
@@ -111,7 +111,7 @@ def test_get_aliases_error(tmp_path, caplog):
 
 def test_get_aliases_valid(tmp_path):
     path = tmp_path / "aliases_file.json"
-    path.write_text(JSON_DATA)
+    path.write_bytes(JSON_DATA)
     aliases = galleries.refresh.get_aliases(path)
     assert aliases == dict(_JSON_EXPECTED)
 
@@ -125,7 +125,7 @@ def test_get_descriptor_implications(tmp_path):
 
 def test_get_regular_implications(tmp_path):
     path = tmp_path / "implications.json"
-    path.write_text(JSON_DATA)
+    path.write_bytes(JSON_DATA)
     implications = galleries.refresh.get_implications(path)
     assert implications == frozenset(
         {galleries.galleryms.RegularImplication(*_JSON_EXPECTED[0])}
