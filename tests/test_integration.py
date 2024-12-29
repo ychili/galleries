@@ -198,9 +198,9 @@ class TestInit:
 
 class TestTraverse:
     @staticmethod
-    def _assert_csv(csv_path, total):
-        assert csv_path.is_file()
-        csv_rows = csv_path.read_text(encoding="utf-8").splitlines()
+    def _assert_csv(csvpath, total):
+        assert csvpath.is_file()
+        csv_rows = csvpath.read_text(encoding="utf-8").splitlines()
         print(csv_rows)
         assert len(csv_rows) == total
         assert csv_rows[0] == "Path,Count,Tags"
@@ -238,12 +238,12 @@ class TestTraverse:
         init_rc = galleries.cli.main(["init", str(root)])
         assert init_rc == 0
         mktree(root, [], [])
-        csv_path = root / "test.csv"
+        csvpath = root / "test.csv"
         traverse_rc = galleries.cli.main(
-            ["-c", str(root), "traverse", "-o", str(csv_path)]
+            ["-c", str(root), "traverse", "-o", str(csvpath)]
         )
         assert traverse_rc == 0
-        self._assert_csv(csv_path, total=2)
+        self._assert_csv(csvpath, total=2)
 
     def test_standard_output(self, tmp_path, capsys):
         root = tmp_path / "test_collection"
@@ -268,9 +268,9 @@ class TestTraverse:
         mktree(root, [], [])
         traverse_rc = galleries.cli.main(["-c", str(root), "-v", "traverse"])
         assert traverse_rc == 0
-        csv_path = root / galleries.cli.DB_DIR_NAME / "custom.csv"
-        assert csv_path.is_file()
-        headers = csv_path.read_text(encoding="utf-8").strip().split(",")
+        csvpath = root / galleries.cli.DB_DIR_NAME / "custom.csv"
+        assert csvpath.is_file()
+        headers = csvpath.read_text(encoding="utf-8").strip().split(",")
         fieldnames = galleries.cli.split_semicolon_list(value)
         for field in fieldnames:
             assert field in headers
@@ -430,8 +430,8 @@ class TestCount:
     def test_custom_csv_filename(self, initialize_collection, capsys):
         custom_filename = "MYGALL~1.CSV"
         cla_fields = ("A", "B")
-        csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
-        write_utf8(csv_path, self.CSV_MULTIPLE_FIELDS)
+        csvpath = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
+        write_utf8(csvpath, self.CSV_MULTIPLE_FIELDS)
         _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
         rc = galleries.cli.main(["count", *cla_fields])
         assert rc == 0
@@ -525,8 +525,8 @@ class TestQuery:
     def test_custom_csv_filename(self, initialize_collection, capsys):
         custom_filename = "MYGALL~1.CSV"
         text = "Tags\r\na b c\r\nx y z\r\n"
-        csv_path = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
-        write_utf8(csv_path, text)
+        csvpath = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
+        write_utf8(csvpath, text)
         _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
         rc = galleries.cli.main(["query"])
         assert rc == 0
