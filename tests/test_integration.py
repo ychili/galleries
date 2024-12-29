@@ -666,14 +666,13 @@ def test_pipe_query_to_count(initialize_collection, query_args, expected_results
     """Pipe the results of "query" to "count"."""
     csv_path(initialize_collection).write_bytes(TestCount.CSV_TAGS_ONLY)
     collection_args = ("-c", str(initialize_collection))
-    query_proc = subprocess.Popen(
+    with subprocess.Popen(
         ["galleries", *collection_args, "query", *query_args], stdout=subprocess.PIPE
-    )
-    count_proc = run_normal(
-        ["galleries", *collection_args, "count", "-i-"], stdin=query_proc.stdout
-    )
-    assert query_proc.stdout is not None
-    query_proc.stdout.close()
+    ) as query_proc:
+        count_proc = run_normal(
+            ["galleries", *collection_args, "count", "-i-"], stdin=query_proc.stdout
+        )
+        assert query_proc.stdout is not None
     print(count_proc.stdout)
     output_pairs = [line.split() for line in count_proc.stdout.splitlines()]
     assert len(output_pairs) == len(expected_results), (output_pairs, expected_results)
