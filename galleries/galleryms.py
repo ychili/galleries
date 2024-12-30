@@ -729,7 +729,7 @@ class RegularImplication(BaseImplication):
     consequent: str
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}" f"({self.antecedent!r}, {self.consequent!r})"
+        return f"{type(self).__name__}({self.antecedent!r}, {self.consequent!r})"
 
     def match(self, tag: str) -> str | None:
         """Return consequent if string == antecedent."""
