@@ -795,17 +795,51 @@ galleries sub-directory.
 A file with a "toml" extension will be parsed as `TOML format`_.
 Anything else will be parsed as JSON.
 
-.. TODO: Specify format.
+The format accepts two top-level keys, "columns" and "table".
+The value of "columns" should be an array of objects/tables.
+At a minimum these objects should have a key "field" with a value of
+a field name.
+Results from these fields will appear in the order they are defined in
+this array, regardless of how they appear in the input CSV.
+The remainder of the key–value pairs in the field's object will be passed
+as optional keyword arguments to the method `Table.add_column`_.
+Check the documentation for your version of Rich,
+but here are some useful settings
+(taken from the section for `column options`_):
 
-A table named "table" can be used to pass arguments to the Rich `Table
-constructor`_.
+   -  ``header_style`` Sets the style of the header, e.g. "bold
+      magenta".
+   -  ``style`` Sets a style that applies to the column. You could use
+      this to highlight a column by setting the background with "on
+      green" for example.
+   -  ``justify`` Sets the text justify to one of "left", "center",
+      "right", or "full".
+   -  ``vertical`` Sets the vertical alignment of the cells in a column,
+      to one of "top", "middle", or "bottom".
+   -  ``width`` Explicitly set the width of a row to a given number of
+      characters (disables automatic calculation).
+   -  ``min_width`` When set to an integer will prevent the column from
+      shrinking below this amount.
+   -  ``max_width`` When set to an integer will prevent the column from
+      growing beyond this amount.
+   -  ``ratio`` Defines a ratio to set the column width. For instance,
+      if there are 3 columns with a total of 6 ratio, and ``ratio=2``
+      then the column will be a third of the available size.
+   -  ``no_wrap`` Set to true to prevent this column from wrapping.
+
+The value of "table" should be an object/table containing arguments to
+the Rich `Table constructor`_.
 Parameters:
 
-"box" : name of a Box constant
+``box`` : name of a Box constant
     Will be used as the `Box style`_ for the table grid.
-"show_header" : Boolean
-    Show a header row. Defaults to True.
+    Defaults to "SIMPLE".
+``show_header`` : Boolean
+    Show field names in a header row.
+    Defaults to true.
 
+.. _Table.add_column:
+   https://rich.readthedocs.io/en/stable/reference/table.html#rich.table.Table.add_column
 .. _Table constructor:
    https://rich.readthedocs.io/en/stable/reference/table.html#rich.table.Table
 .. _Box style:
