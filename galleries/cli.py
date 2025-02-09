@@ -569,7 +569,7 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         )
         reverse = False
     log.debug("Sorting by field: %s", sort_field)
-    rows.sort(key=util.alphanum_getter(sort_field), reverse=reverse)
+    rows.sort(key=util.alphanum_getter(sort_field), reverse=bool(reverse))
     backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
     log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
