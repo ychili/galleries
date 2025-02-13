@@ -191,11 +191,13 @@ class StrictReader(csv.DictReader):
             # If self.fieldnames is None then StopIteration will be raised on
             # the next line.
         row = next(self.reader)
+        assert (
+            self.fieldnames is not None
+        ), "DictReader.__next__ did not behave as expected"
         self.line_num = self.reader.line_num
 
         while row == []:
             row = next(self.reader)
-        self.fieldnames: Sequence[str]  # Assert type
         l_fn = len(self.fieldnames)
         l_row = len(row)
         if l_fn < l_row:
