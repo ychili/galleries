@@ -1,14 +1,16 @@
 """Unit tests for galleryms"""
 
 import itertools
-import json
 import operator
 import string
 import unittest
 
+import hypothesis
+import hypothesis.strategies
+
 import galleries.galleryms
 
-from . import TAG_SETS, TestOverlapTable
+positive_integers = hypothesis.strategies.integers(min_value=1)
 
 
 class TestImplicationGraph(unittest.TestCase):
@@ -179,25 +181,21 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(list(query.all_terms()), [term, term])
 
 
-class TestSimilarityCalculator(unittest.TestCase):
-    TYPICAL_COUNTS = (
-        galleries.galleryms.TagCount("a", 15),
-        galleries.galleryms.TagCount("b", 20),
-    )
-    B_IS_ZERO = (
-        galleries.galleryms.TagCount("a", 4),
-        galleries.galleryms.TagCount("b", 0),
-    )
+class TestRelatedTag(unittest.TestCase):
+    _TYPICAL_COUNT = galleries.galleryms.TagCount("a", 15)
 
-    @staticmethod
-    def _make(tag_count_a, tag_count_b, overlap):
-        return galleries.galleryms.SimilarityCalculator(
-            tag_count_a, tag_count_b, overlap
-        )
+    def _make(self, tag_count=None, overlap_count=0, search_count=0):
+        tag_count = tag_count or self._TYPICAL_COUNT
+        return galleries.galleryms.RelatedTag(tag_count, overlap_count, search_count)
 
-    def test_no_overlap(self):
+    @hypothesis.given(count_a=positive_integers, count_b=positive_integers)
+    def test_no_overlap(self, count_a, count_b):
         """Where A and B are disjoint"""
-        no_overlap = self._make(*self.TYPICAL_COUNTS, overlap=0)
+        no_overlap = galleries.galleryms.RelatedTag(
+            galleries.galleryms.TagCount("tag", count_a),
+            overlap_count=0,
+            search_count=count_b,
+        )
         method_names = [
             "cosine_similarity",
             "jaccard_index",
@@ -210,7 +208,7 @@ class TestSimilarityCalculator(unittest.TestCase):
 
     def test_partial_overlap(self):
         """Where A and B intersect"""
-        partial = self._make(*self.TYPICAL_COUNTS, overlap=1)
+        partial = self._make(overlap_count=1, search_count=20)
         self.assertAlmostEqual(partial.cosine_similarity(), 0.05773502691896257)
         self.assertAlmostEqual(partial.jaccard_index(), 0.029411764705882353)
         self.assertAlmostEqual(partial.overlap_coefficient(), 0.06666666666666667)
@@ -218,81 +216,26 @@ class TestSimilarityCalculator(unittest.TestCase):
 
     def test_subset(self):
         """Where A is a subset of B"""
-        subset = self._make(*self.TYPICAL_COUNTS, overlap=15)
+        subset = self._make(overlap_count=15, search_count=20)
         self.assertAlmostEqual(subset.cosine_similarity(), 0.8660254037844386)
         self.assertAlmostEqual(subset.jaccard_index(), 0.75)
         self.assertEqual(subset.overlap_coefficient(), 1.0)
         self.assertEqual(subset.frequency(), 1.0)
 
-    def test_empty(self):
+    @hypothesis.given(count_a=positive_integers)
+    def test_empty(self, count_a):
         """Where B is empty"""
-        zero = self._make(*self.B_IS_ZERO, overlap=0)
+        zero = galleries.galleryms.RelatedTag(
+            galleries.galleryms.TagCount("tag", count_a),
+            search_count=0,
+            overlap_count=0,
+        )
         with self.assertRaises(ZeroDivisionError):
             zero.cosine_similarity()
         self.assertEqual(zero.jaccard_index(), 0.0)
         with self.assertRaises(ZeroDivisionError):
             zero.overlap_coefficient()
         self.assertEqual(zero.frequency(), 0.0)
-
-
-class TestOverlapTableNoFS(unittest.TestCase, TestOverlapTable):
-    @staticmethod
-    def _make_nontrivial():
-        return galleries.galleryms.OverlapTable({"a"}, {"b", "c"}, {"b", "d"})
-
-    def test_require_hashable(self):
-        self.assertRaises(TypeError, galleries.galleryms.OverlapTable, [{}])
-
-    def test_containership(self):
-        table = galleries.galleryms.OverlapTable()
-        self.assertTrue("a" not in table)
-        table = self._make_nontrivial()
-        self.assertTrue("a" in table)
-
-    def test_iteration(self):
-        table = galleries.galleryms.OverlapTable()
-        self.assertEqual(list(table), [])
-        table = galleries.galleryms.OverlapTable({"a"})
-        self.assertEqual(list(table), ["a"])
-        table.update({"a", "b"})
-        self.assertEqual(list(table), ["a", "b"])
-
-    def test_length(self):
-        table = galleries.galleryms.OverlapTable()
-        self.assertEqual(len(table), 0)
-        table.update(set(string.ascii_lowercase))
-        self.assertEqual(len(table), 26)
-
-    def test_frequent_overlaps(self):
-        table = self._make_nontrivial()
-        sorted_overlaps = table.frequent_overlaps()
-        frequent_overlaps = table.frequent_overlaps(n=2)
-        self.assertEqual(len(sorted_overlaps), 6)
-        self.assertEqual(sorted_overlaps[:2], frequent_overlaps)
-
-    def test_similarities(self):
-        table = self._make_nontrivial()
-        expected_overlap_results = {"a": 1, "b": 3, "c": 2, "d": 2}
-        for tag in "abcd":
-            with self.subTest(tag=tag):
-                results = list(table.similarities(tag))
-                # Results are considered unsorted.
-                self.assertEqual(len(results), expected_overlap_results[tag])
-                for result in results:
-                    self.assertEqual(result.tag_a.tag, tag)
-                    self.assertEqual(result.tag_a.count, table.count(tag))
-
-    def test_roundtrip_json_string(self):
-        input_tables = [
-            self._make_nontrivial(),
-            galleries.galleryms.OverlapTable(*TAG_SETS),
-        ]
-        for table0 in input_tables:
-            with self.subTest(table=table0):
-                json_string = table0.to_json_string()
-                json_obj = json.loads(json_string)
-                table1 = galleries.galleryms.OverlapTable.from_json(json_obj)
-                self.assertTrue(self._tables_equal(table0, table1))
 
 
 class TestTagSet(unittest.TestCase):
