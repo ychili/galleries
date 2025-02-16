@@ -715,21 +715,32 @@ class TestRelated:
         ["a", "5", "3", "0.77460", "0.60000", "1.00000", "60%"],
         ["c", "3", "1", "0.33333", "0.20000", "0.33333", "33%"],
     ]
+    _EXPECTED_RESULTS_1 = [
+        _EXPECTED_HEADER,
+        ["a", "5", "5", "0.91287", "0.83333", "1.00000", "100%"],
+        ["b", "3", "3", "0.70711", "0.50000", "1.00000", "100%"],
+        ["c", "3", "3", "0.70711", "0.50000", "1.00000", "100%"],
+        ["d", "2", "2", "0.57735", "0.33333", "1.00000", "100%"],
+    ]
 
-    def test_results(self, write_to_csv, capsys):
+    @pytest.mark.parametrize(
+        ("args", "expected_results"),
+        [(["a", "b"], _EXPECTED_RESULTS_0), ([], _EXPECTED_RESULTS_1)],
+    )
+    def test_results(self, write_to_csv, capsys, args, expected_results):
         write_to_csv(b"Tags\na b\na b\na c\nc d\na d\na b c\n")
-        rc = galleries.cli.main(["related", "a", "b"])
+        rc = galleries.cli.main(["related", *args])
         assert rc == 0
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
-        assert results == self._EXPECTED_RESULTS_0
+        assert results == expected_results
 
     _CSV_CONTENT_1 = (
         "Tags\na b e\nb d e\na d e\na c d\na c e\n"
         "a b c d\nc d e\na b d\nc\nc d\na\na b d\n"
     )
-    _EXPECTED_RESULTS_1 = [
+    _EXPECTED_RESULTS_FOR_OPTIONS = [
         _EXPECTED_HEADER,
         ["b", "5", "1", "0.44721", "0.20000", "1.00000", "20%"],
         ["d", "8", "1", "0.35355", "0.12500", "1.00000", "12%"],
@@ -746,7 +757,7 @@ class TestRelated:
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
-        for line in self._EXPECTED_RESULTS_1:
+        for line in self._EXPECTED_RESULTS_FOR_OPTIONS:
             assert line in results
 
 
