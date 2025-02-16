@@ -1070,7 +1070,7 @@ presented as a real number from 0.0 to 1.0 or the equivalent percent.
 The higher the number, the more similar the tag is to *tag*.
 A tag's similarity to itself is always 1.0 or 100%.
 
-In the definitions below, :math:`|A \cap B|` stands for the size of the 
+In the definitions below, :math:`|A \cap B|` stands for the size of the
 intersection between set of tag sets that A appears in and the set of
 tag sets that B appears in, i.e. the overlap between tags A and B.
 
@@ -1107,7 +1107,7 @@ FREQ
     Frequency, how frequently tag A occurs together with tag B:
 
     .. math::
-        
+
         \frac{|A \cap B|}{|A|}
 
 .. _Otsuka–Ochiai coefficient:
