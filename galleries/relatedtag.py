@@ -9,7 +9,6 @@ import dataclasses
 import logging
 import operator
 from collections.abc import Hashable, Iterable, Iterator, Mapping
-from collections.abc import Set as AbstractSet
 from typing import Any, Generic, TypeVar
 
 import rich.console
@@ -105,7 +104,7 @@ def sort(
 
 
 def get_related_tags(
-    galleries: Iterable[Gallery], query: Query, tag_fields: AbstractSet[str]
+    galleries: Iterable[Gallery], query: Query, tag_fields: Iterable[str]
 ) -> Iterator[RelatedTag[str]]:
     """Yield tags in *tag_fields* from *galleries* matched by *query*."""
     # Counter for tags in tag_fields from all galleries
