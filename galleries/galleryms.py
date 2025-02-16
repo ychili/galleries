@@ -986,6 +986,7 @@ class RelatedTag(Generic[T]):
     tag: TagCount[T]
     overlap_count: int
     search_count: int
+    query: Query | None = None
 
     def cosine_similarity(self) -> float:
         """Known as the Otsuka–Ochiai coefficient"""

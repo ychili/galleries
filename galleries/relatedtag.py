@@ -122,6 +122,7 @@ def get_related_tags(
     for tag, overlap_count in related_tag_counter.items():
         yield RelatedTag(
             TagCount(tag, total_tag_counter[tag]),
+            query=query,
             overlap_count=overlap_count,
             search_count=search_count,
         )
