@@ -801,7 +801,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
     related_p = subparsers.add_parser(
         "related",
         help="list related tags",
-        description="Print frequently co-occurring tags",
+        description="Print tags frequently occuring in galleries matching TERM(s)",
     )
     related_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     related_p.add_argument(
@@ -809,7 +809,7 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "--field",
         metavar="NAME",
         action="append",
-        help="analyze tags from %(metavar)s(s) instead of default TagFields",
+        help="show tags from %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(
         "-i",

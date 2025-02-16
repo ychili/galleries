@@ -983,6 +983,20 @@ class TagCount(Generic[T]):
 
 @dataclasses.dataclass
 class RelatedTag(Generic[T]):
+    """Contain a tag occuring in the result of some query.
+
+    >>> related_tag = RelatedTag(
+    ...     TagCount("tag", count=2),
+    ...     overlap_count=2, search_count=50,
+    ...     query=Query())
+    >>> related_tag.tag.tag
+    'tag'
+    >>> related_tag.tag.count
+    2
+    >>> related_tag.jaccard_index()
+    0.04
+    """
+
     tag: TagCount[T]
     overlap_count: int
     search_count: int

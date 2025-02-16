@@ -1015,14 +1015,17 @@ Usage
 .. parsed-literal::
 
     **galleries** [*general_options* ...] **related**
-        [*related_options* ...] *tag* [*tag* ...]
+        [*related_options* ...] [*search_term* ...]
 
-The **related** command prints a table of other tags that are similar to
-*tag*.
-The table includes the tags' names, their total count, and a selection
-of `similarity metrics`_.
+The **related** command prints a table of tags found in galleries that
+match the given *search_term*\ (s).
+The table includes the tags' names ("TAG"), their total count ("TOTAL"),
+their overlap count ("COUNT", i.e. how many times they appear in the search),
+and a selection of `similarity metrics`_.
 This can be used for finding related tags that frequently appear in the
 same tag sets together.
+
+The syntax for `search terms`_ is the same as for the **query** command.
 
 Options
 -------
@@ -1031,7 +1034,7 @@ Options
     Show help message for **related**.
 
 -f NAME, --field=NAME
-    Search for *tag*\ (s) in *FIELD*.
+    Restrict results to tags from the tag field *NAME*.
     This option can be passed more than once to build up a list of
     tag fields.
 
@@ -1050,24 +1053,20 @@ Options
 
 -s NAME, --sort=NAME
     Sort results by *NAME*, where *NAME* is one the field names in the
-    table of results (tag name, tag count, or similarity metric).
+    table of results (tag name, total tag count, overlap count,
+    or similarity metric).
 
     Default: value of related.\ `SortMetric`_.
-
--w TERM, --where=TERM
-    Only analyze tags from galleries that match *TERM*, where *TERM* is
-    a search term with the same syntax as used by the `query`_ command.
-    This option can be passed more than once to build up a list of
-    search terms.
-
-    Default: value of related.\ `Filter`_.
 
 Similarity metrics
 ------------------
 
-Tags that are similar to *tag* are ranked by a selection of metrics,
+Tags that are similar to the tags in the given search terms
+are ranked by a selection of metrics,
 presented as a real number from 0.0 to 1.0 or the equivalent percent.
-The higher the number, the more similar the tag is to *tag*.
+Two tags are considered similar if they share nearly the same set of
+galleries and have nearly the same total count.
+The higher the number, the more similar the tag is to the given search.
 A tag's similarity to itself is always 1.0 or 100%.
 
 In the definitions below, :math:`|A \cap B|` stands for the size of the 
@@ -1329,13 +1328,6 @@ If this option is set, parse listed values as paths to TagActions files.
 
 [related]
 ---------
-
-Filter
-``````
-The default argument to `related`_’s ``--where`` option.
-
-:Type: `Semicolon list`_ of `search terms`_
-:Default value: None
 
 Limit
 `````
