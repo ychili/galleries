@@ -9,18 +9,15 @@ import dataclasses
 import fnmatch
 import heapq
 import itertools
-import json
 import math
 import operator
 import os
 import re
 import textwrap
 import warnings
-from collections import ChainMap, Counter, defaultdict
+from collections import ChainMap, defaultdict
 from collections.abc import (
     Callable,
-    Collection,
-    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -31,7 +28,6 @@ from collections.abc import (
 )
 from pathlib import Path
 from typing import (
-    IO,
     TYPE_CHECKING,
     Any,
     ClassVar,
@@ -46,13 +42,11 @@ if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
 T = TypeVar("T")
-H = TypeVar("H", bound=Hashable)
 BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], Any]"
 )
 StrPath = str | Path
 TagSetT = TypeVar("TagSetT", bound="TagSet")
-Table = TypeVar("Table", bound="OverlapTable")
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
 
@@ -982,180 +976,46 @@ class Tabulator:
 
 
 @dataclasses.dataclass
-class TagCount(Generic[H]):
-    tag: H
+class TagCount(Generic[T]):
+    tag: T
     count: int
 
 
 @dataclasses.dataclass
-class SimilarityCalculator(Generic[H]):
-    """Provide a variety of similarity metrics between two tags.
+class RelatedTag(Generic[T]):
+    """Contain a tag occuring in the result of some query.
 
-    Two tags are considered similar if they have nearly the same set of
-    galleries and nearly the same size.
+    >>> related_tag = RelatedTag(
+    ...     TagCount("tag", count=2),
+    ...     overlap_count=2, search_count=50,
+    ...     query=Query())
+    >>> related_tag.tag.tag
+    'tag'
+    >>> related_tag.tag.count
+    2
+    >>> related_tag.jaccard_index()
+    0.04
     """
 
-    tag_a: TagCount[H]
-    tag_b: TagCount[H]
-    overlap: int
+    tag: TagCount[T]
+    overlap_count: int
+    search_count: int
+    query: Query | None = None
 
     def cosine_similarity(self) -> float:
         """Known as the Otsuka–Ochiai coefficient"""
-        return self.overlap / math.sqrt(self.tag_a.count * self.tag_b.count)
+        return self.overlap_count / math.sqrt(self.tag.count * self.search_count)
 
     def jaccard_index(self) -> float:
-        return self.overlap / (self.tag_a.count + self.tag_b.count - self.overlap)
+        return self.overlap_count / (
+            self.tag.count + self.search_count - self.overlap_count
+        )
 
     def overlap_coefficient(self) -> float:
-        return self.overlap / min(self.tag_a.count, self.tag_b.count)
+        return self.overlap_count / min(self.tag.count, self.search_count)
 
     def frequency(self) -> float:
-        """How frequently tag A occurs together with tag B"""
-        return self.overlap / self.tag_a.count
-
-
-class GenericOverlapTable(Collection[H]):
-    """An ``OverlapTable`` that can count any hashable object."""
-
-    # Poor man's version of pandas DataFrame with labels
-    #
-    # The table matrix is symmetrical: table[i][j] == table[j][i]. Either
-    # returns the number of galleries that tags i and j have in common.
-
-    def __init__(self, *sets: Iterable[H]) -> None:
-        self._n_sets: int = 0
-        self._table: defaultdict[H, Counter[H]] = defaultdict(Counter)
-        self.update(*sets)
-
-    def update(self, *sets: Iterable[H]) -> None:
-        """Update the table with new sets of tags.
-
-        This is the only method to edit the table.
-        """
-        for tag_set in sets:
-            self._n_sets += 1
-            for tag_x, tag_y in itertools.product(tag_set, repeat=2):
-                self._table[tag_x][tag_y] += 1
-
-    # BINARY METHODS
-
-    def get(self, x: H, y: H, /) -> int:
-        """Get the number of overlaps between *x* and *y*."""
-        return self._table.get(x, {})[y]
-
-    def similarity(self, x: H, y: H, /) -> SimilarityCalculator[H]:
-        tag_x = TagCount(x, self.count(x))
-        tag_y = TagCount(y, self.count(y))
-        return SimilarityCalculator(tag_x, tag_y, self.get(x, y))
-
-    # UNARY METHODS
-
-    def count(self, tag: H) -> int:
-        return self.get(tag, tag)
-
-    def __contains__(self, tag: object) -> bool:
-        return tag in self._table
-
-    def overlaps(self, tag: H) -> Iterator[tuple[H, int]]:
-        """
-        Yield the tags that *tag* overlaps with and their number of overlaps.
-        """
-        yield from self._table.get(tag, {}).items()
-
-    def similarities(self, tag: H) -> Iterator[SimilarityCalculator[H]]:
-        tag_a = TagCount(tag, self.count(tag))
-        for other_tag, overlap in self.overlaps(tag):
-            tag_b = TagCount(other_tag, self._table[other_tag][other_tag])
-            yield SimilarityCalculator(tag_a, tag_b, overlap)
-
-    # NULLARY METHODS
-
-    @property
-    def n_sets(self) -> int:
-        return self._n_sets
-
-    def counter(self) -> Counter[H]:
-        """Counter for tags in input sets"""
-        return Counter({tag: counter[tag] for tag, counter in self._table.items()})
-
-    def __len__(self) -> int:
-        return len(self._table)
-
-    def __iter__(self) -> Iterator[H]:
-        return iter(self._table.keys())
-
-    def pairs(self) -> Iterator[tuple[H, H]]:
-        """Iterate over all unique tag combinations."""
-        return itertools.combinations(self, 2)
-
-    def pairs_overlaps(self) -> Iterator[tuple[tuple[H, H], int]]:
-        """Iterate over the table.
-
-        Yield ((x, y), table[x][y]) for every unique pair.
-        """
-        for x, y in self.pairs():
-            yield (x, y), self._table[x][y]
-
-    def frequent_overlaps(self, n: int | None = None) -> list[tuple[tuple[H, H], int]]:
-        """
-        List the *n* most likely different tag pairs to overlap and their
-        number of overlaps. If *n* is None, then list all tag pairs.
-        """
-        return most_common(self.pairs_overlaps(), key=operator.itemgetter(1), n=n)
-
-
-class OverlapTable(GenericOverlapTable[str]):
-    """2D hash table of overlap between tag pairs
-
-    Methods allow accessing overlap values, i.e. the number of sets that two
-    tags occur in together, as well as calculating similarity metrics.
-
-    >>> table = OverlapTable({'a', 'b'}, {'b', 'c'})
-    >>> table.counter()
-    Counter({'b': 2, 'a': 1, 'c': 1})
-    >>> table.get('a', 'b')
-    1
-    >>> table.similarity('a', 'b').jaccard_index()
-    0.5
-
-    Other properties:
-        n_sets: number of input sets
-
-    >>> table.n_sets
-    2
-    """
-
-    # METHODS FOR JSON SERIALIZATION
-
-    # JSON serialization requires that keys be type str to be round-trip
-    # stable.
-
-    def _to_dict(self) -> dict:
-        """Convert self's data attributes to an equivalent dictionary.
-
-        This form can be easily serialized by ``json.JSONEncoder``.
-        """
-        return {attr: getattr(self, attr) for attr in ("_n_sets", "_table")}
-
-    def to_json_string(self, **kwds: Any) -> str:
-        """Serialize the object to a JSON formatted string."""
-        return json.dumps(self._to_dict(), **kwds)
-
-    def to_json_stream(self, file: IO[str], **kwds: Any) -> None:
-        """Serialize the object as a JSON formatted stream to fp."""
-        return json.dump(self._to_dict(), file, **kwds)
-
-    @classmethod
-    def from_json(cls: type[Table], obj: Mapping) -> Table:
-        """
-        Reconstruct the object from *obj*, a dictionary containing the
-        object's data attributes.
-        """
-        new_table = cls()
-        new_table._n_sets = obj["_n_sets"]
-        for key, counter in obj["_table"].items():
-            new_table._table[key].update(counter)
-        return new_table
+        return self.overlap_count / self.tag.count
 
 
 split_on_whitespace = re.compile(r"\S+").findall

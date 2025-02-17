@@ -684,18 +684,24 @@ def test_pipe_query_to_count(initialize_collection, query_args, expected_results
 
 
 class TestRelated:
+    _EXPECTED_HEADER = ["TAG", "TOTAL", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"]
+
     @pytest.mark.usefixtures("write_to_csv")
-    def test_no_tags(self, capsys):
-        tags = ["anytag", "任意"]
-        rc = galleries.cli.main(["-vv", "related", *tags])
-        assert rc == 0
+    @pytest.mark.parametrize(
+        ("tag", "error_expected"), [("anytag", False), ("任意", True)]
+    )
+    def test_no_tags(self, capsys, tag, error_expected):
+        rc = galleries.cli.main(["-vv", "related", tag])
         captured = capsys.readouterr()
-        for tag in tags:
-            assert tag in captured.out
+        if error_expected:
+            assert rc > 0
+            assert not captured.out
+        else:
+            assert rc == 0
+            assert captured.out.split() == self._EXPECTED_HEADER
 
     @pytest.mark.parametrize(
-        ("field", "value"),
-        [("Limit", "none"), ("SortMetric", "無効"), ("Filter", "Not a tag")],
+        ("field", "value"), [("Limit", "none"), ("SortMetric", "無効")]
     )
     def test_invalid_config_settings(self, initialize_collection, caplog, field, value):
         _edit_db_conf(db_conf_path(initialize_collection), field, value)
@@ -704,50 +710,54 @@ class TestRelated:
         assert msg_in_error_logs(caplog, value)
 
     _EXPECTED_RESULTS_0 = [
-        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
-        ["a", "5", "1.00000", "1.00000", "1.00000", "100%"],
-        ["b", "3", "0.77460", "0.60000", "1.00000", "60%"],
-        ["c", "3", "0.51640", "0.33333", "0.66667", "40%"],
-        ["d", "2", "0.31623", "0.16667", "0.50000", "20%"],
-        [],  # Blank line
-        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
-        ["b", "3", "1.00000", "1.00000", "1.00000", "100%"],
-        ["a", "5", "0.77460", "0.60000", "1.00000", "100%"],
-        ["c", "3", "0.33333", "0.20000", "0.33333", "33%"],
+        _EXPECTED_HEADER,
+        ["b", "3", "3", "1.00000", "1.00000", "1.00000", "100%"],
+        ["a", "5", "3", "0.77460", "0.60000", "1.00000", "60%"],
+        ["c", "3", "1", "0.33333", "0.20000", "0.33333", "33%"],
+    ]
+    _EXPECTED_RESULTS_1 = [
+        _EXPECTED_HEADER,
+        ["a", "5", "5", "0.91287", "0.83333", "1.00000", "100%"],
+        ["b", "3", "3", "0.70711", "0.50000", "1.00000", "100%"],
+        ["c", "3", "3", "0.70711", "0.50000", "1.00000", "100%"],
+        ["d", "2", "2", "0.57735", "0.33333", "1.00000", "100%"],
     ]
 
-    def test_results(self, write_to_csv, capsys):
+    @pytest.mark.parametrize(
+        ("args", "expected_results"),
+        [(["a", "b"], _EXPECTED_RESULTS_0), ([], _EXPECTED_RESULTS_1)],
+    )
+    def test_results(self, write_to_csv, capsys, args, expected_results):
         write_to_csv(b"Tags\na b\na b\na c\nc d\na d\na b c\n")
-        rc = galleries.cli.main(["related", "a", "b"])
+        rc = galleries.cli.main(["related", *args])
         assert rc == 0
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
-        assert results == self._EXPECTED_RESULTS_0
+        assert results == expected_results
 
     _CSV_CONTENT_1 = (
         "Tags\na b e\nb d e\na d e\na c d\na c e\n"
         "a b c d\nc d e\na b d\nc\nc d\na\na b d\n"
     )
-    _EXPECTED_RESULTS_1 = [
-        ["TAG", "COUNT", "COSINE", "JACCARD", "OVERLAP", "FREQ"],
-        ["a", "8", "0.70711", "0.50000", "1.00000", "100%"],
-        ["b", "4", "1.00000", "1.00000", "1.00000", "100%"],
-        ["d", "5", "0.67082", "0.50000", "0.75000", "75%"],
-        ["e", "3", "0.28868", "0.16667", "0.33333", "25%"],
+    _EXPECTED_RESULTS_FOR_OPTIONS = [
+        _EXPECTED_HEADER,
+        ["b", "5", "1", "0.44721", "0.20000", "1.00000", "20%"],
+        ["d", "8", "1", "0.35355", "0.12500", "1.00000", "12%"],
+        ["e", "5", "1", "0.44721", "0.20000", "1.00000", "20%"],
     ]
 
     def test_options(self, tmp_path, capsys):
         csv_file = tmp_path / "test_input.csv"
         write_utf8(csv_file, self._CSV_CONTENT_1)
         rc = galleries.cli.main(
-            ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "-w", "a", "b"]
+            ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "~a", "b"]
         )
         assert rc == 0
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
-        for line in self._EXPECTED_RESULTS_1:
+        for line in self._EXPECTED_RESULTS_FOR_OPTIONS:
             assert line in results
 
 

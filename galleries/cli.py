@@ -623,7 +623,6 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     input_file = cla.csvfile or db_config.get_path("related", "CSVName")
     limit = cla.limit
     sort_by = cla.sort
-    search_terms = cla.where or db_config.get_list("related", "Filter")
     if limit is None:
         try:
             limit = db_config.parser["related"].getint("Limit")
@@ -638,19 +637,15 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
     try:
         with _read_db(input_file, tag_fields) as reader:
-            if search_terms:
-                query = table_query.query_from_args(
-                    search_terms, reader.fieldnames, tag_fields
-                )
-                galleries = (gallery for gallery in reader if query.match(gallery))
-            else:
-                galleries = reader
-            tag_sets = (gallery.merge_tags(*tag_fields) for gallery in galleries)
-            overlap_table = relatedtag.overlap_table(tag_sets)
+            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
+            related_tags = relatedtag.get_related_tags(
+                reader, query, frozenset(tag_fields)
+            )
+            similarity_results = relatedtag.sort(related_tags, sort_by=sort_by, n=limit)
     except _CLIError as err:
         return err.status
     log.debug("Read from CSV file %r", input_file)
-    relatedtag.print_relatedtags(overlap_table, cla.tags, sort_by=sort_by, limit=limit)
+    relatedtag.print_results(similarity_results)
     return 0
 
 
@@ -806,17 +801,15 @@ def build_cla_parser() -> argparse.ArgumentParser:
     related_p = subparsers.add_parser(
         "related",
         help="list related tags",
-        description="Print frequently co-occurring tags",
+        description="Print tags frequently occuring in galleries matching TERM(s)",
     )
-    related_p.add_argument(
-        "tags", nargs="+", metavar="TAG", help="list tags similar to %(metavar)s(s)"
-    )
+    related_p.add_argument("term", metavar="TERM", nargs="*", help="term(s) of search")
     related_p.add_argument(
         "-f",
         "--field",
         metavar="NAME",
         action="append",
-        help="analyze tags from %(metavar)s(s) instead of default TagFields",
+        help="show tags from %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(
         "-i",
@@ -839,13 +832,6 @@ def build_cla_parser() -> argparse.ArgumentParser:
         type=str.lower,
         choices=relatedtag.SimilarityResult.choices(),
         help="sort results by metric",
-    )
-    related_p.add_argument(
-        "-w",
-        "--where",
-        metavar="TERM",
-        action="append",
-        help="filter galleries analyzed by search %(metavar)s(s)",
     )
     related_p.set_defaults(func=related_sc)
 

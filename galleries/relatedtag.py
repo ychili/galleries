@@ -4,84 +4,74 @@
 
 from __future__ import annotations
 
-import csv
+import collections
 import dataclasses
 import logging
-import math
 import operator
-import sys
-from collections.abc import Collection, Iterable, Mapping, MutableMapping
-from typing import IO, Any
+from collections.abc import Hashable, Iterable, Iterator, Mapping
+from typing import Any, Generic, TypeVar
 
-from . import PROG
-from .galleryms import (
-    FieldFormat,
-    OverlapTable,
-    SimilarityCalculator,
-    Tabulator,
-    TagSet,
-    most_common,
-)
+import rich.console
+import rich.table
+
+from . import PROG, util
+from .galleryms import Gallery, Query, RelatedTag, TagCount, most_common
 
 log = logging.getLogger(PROG)
 
+T = TypeVar("T")
+H = TypeVar("H", bound=Hashable)
 
-class ResultsTable:
-    def __init__(
-        self,
-        file: IO[str],
-        tabulator: Tabulator | None = None,
-        header: Mapping[str, Any] | None = None,
-    ) -> None:
-        self.file = file
-        self.tabulator = tabulator or Tabulator({})
-        self.header: Mapping[str, Any] = header or {}
-        self.formats: dict[str, str] = {}
+_INT_SPEC = {"header": str.upper, "justify": "right"}
+_FLOAT_SPEC = {"header": str.upper, "justify": "right", "formatspec": ".5f"}
+TABLE_COLUMN_SETTINGS = {
+    "tag": {"header": str.upper, "style": "bold"},
+    "total": _INT_SPEC,
+    "count": _INT_SPEC,
+    "cosine": _FLOAT_SPEC,
+    "jaccard": _FLOAT_SPEC,
+    "overlap": _FLOAT_SPEC,
+    "frequency": {
+        "header": lambda name: str(name).upper()[:4],
+        "justify": "right",
+        "formatspec": ".0%",
+    },
+}
 
-    def add_column(
-        self, name: str, field_fmt: FieldFormat, format_spec: str | None = None
-    ) -> None:
-        self.tabulator.field_fmts[name] = field_fmt
-        if format_spec is not None:
-            self.formats[name] = format_spec
 
-    def write_formatted(
-        self,
-        data: Iterable[MutableMapping[str, Any]],
-        header: Mapping[str, Any] | None = None,
-    ) -> None:
-        rows: list[Mapping[str, Any]] = []
-        if header is not None:
-            rows.append(header)
-        elif self.header:
-            rows.append(self.header)
-        for row in data:
-            for key in row:
-                if format_spec := self.formats.get(key):
-                    row[key] = format(row[key], format_spec)
-            rows.append(row)
-        for line in self.tabulator.tabulate(rows):
-            print(line, file=self.file)
+class ResultsTable(Generic[H]):
+    """A wrapper for a ``rich.table.Table``"""
 
-    def write_blank(self) -> None:
-        print(file=self.file)
+    def __init__(self, table: rich.table.Table | None = None) -> None:
+        self.columns: list[H] = []
+        self.formats: dict[H, str] = {}
+        self.table = rich.table.Table() if table is None else table
 
-    def write_csv(
-        self,
-        data: Iterable[Mapping[str, Any]],
-        fieldnames: Collection[str],
-        *,
-        write_header: bool = True,
-    ) -> None:
-        writer = csv.DictWriter(self.file, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        writer.writerows(data)
+    def add_column(self, fieldname: H, *, format_spec: str = "", **kwargs: Any) -> None:
+        """Add a column to the table.
+
+        *format_spec* will be used to ``format`` the value before printing.
+        All other keyword arguments *kwargs* will be passed to
+        ``Table.add_column``.
+        """
+        self.columns.append(fieldname)
+        if format_spec:
+            self.formats[fieldname] = format_spec
+        self.table.add_column(**kwargs)
+
+    def add_row(self, row: Mapping[H, object]) -> None:
+        """Add a row to the table."""
+        renderables: list[str] = []
+        for column in self.columns:
+            row_value = row[column]
+            renderables.append(format(row_value, self.formats.get(column, "")))
+        self.table.add_row(*renderables)
 
 
 @dataclasses.dataclass(frozen=True)
-class SimilarityResult:
-    tag: str
+class SimilarityResult(Generic[T]):
+    tag: T
+    total: int
     count: int
     cosine: float
     jaccard: float
@@ -93,99 +83,74 @@ class SimilarityResult:
         return [field.name for field in dataclasses.fields(cls)]
 
 
-def make_row(sim: SimilarityCalculator[str]) -> SimilarityResult:
+def make_row(tag: RelatedTag[T]) -> SimilarityResult[T]:
     return SimilarityResult(
-        tag=sim.tag_b.tag,
-        count=sim.tag_b.count,
-        cosine=sim.cosine_similarity(),
-        jaccard=sim.jaccard_index(),
-        overlap=sim.overlap_coefficient(),
-        frequency=sim.frequency(),
+        tag=tag.tag.tag,
+        total=tag.tag.count,
+        count=tag.overlap_count,
+        cosine=tag.cosine_similarity(),
+        jaccard=tag.jaccard_index(),
+        overlap=tag.overlap_coefficient(),
+        frequency=tag.frequency(),
     )
 
 
 def sort(
-    calculators: Iterable[SimilarityCalculator[str]],
-    sort_by: str,
-    n: int | None = None,
-) -> list[SimilarityResult]:
-    result_rows = (make_row(sim) for sim in calculators)
+    tags: Iterable[RelatedTag[T]], sort_by: str, n: int | None = None
+) -> list[SimilarityResult[T]]:
+    result_rows = [make_row(related_tag) for related_tag in tags]
+    log.debug("sorting results by: %s", sort_by)
     return most_common(result_rows, n=n, key=operator.attrgetter(sort_by))
 
 
-def query(
-    table: OverlapTable, tag: str, sort_by: str, limit: int | None = None
-) -> list[SimilarityResult]:
-    """Get similiarity results for *tag* from *table*."""
-    try:
-        return sort(table.similarities(tag), sort_by=sort_by, n=limit)
-    except KeyError:
-        nan = float("NaN")
-        return [
-            SimilarityResult(
-                tag=tag, count=0, cosine=nan, jaccard=nan, overlap=nan, frequency=nan
-            )
-        ]
-
-
-def overlap_table(tag_sets: Iterable[TagSet]) -> OverlapTable:
-    table = OverlapTable(*tag_sets)
-    if table:
-        log.info(
-            "Counted overlaps of %d 2-combinations of %d elements in %d sets "
-            "(average %.2f elements per set)",
-            math.comb(len(table), 2),
-            len(table),
-            table.n_sets,
-            sum(table.counter().values()) / table.n_sets,
+def get_related_tags(
+    galleries: Iterable[Gallery], query: Query, tag_fields: Iterable[str]
+) -> Iterator[RelatedTag[str]]:
+    """Yield tags in *tag_fields* from *galleries* matched by *query*."""
+    # Counter for tags in tag_fields from all galleries
+    total_tag_counter: collections.Counter[str] = collections.Counter()
+    # Counter for tags in tag_fields from galleries matched by query
+    related_tag_counter: collections.Counter[str] = collections.Counter()
+    # Count of galleries matched by query
+    search_count = 0
+    for gallery in galleries:
+        tag_set = gallery.merge_tags(*tag_fields)
+        total_tag_counter.update(tag_set)
+        if query.match(gallery):
+            related_tag_counter.update(tag_set)
+            search_count += 1
+    for tag, overlap_count in related_tag_counter.items():
+        yield RelatedTag(
+            TagCount(tag, total_tag_counter[tag]),
+            query=query,
+            overlap_count=overlap_count,
+            search_count=search_count,
         )
-    else:
-        log.info("No elements counted!")
-    return table
 
 
-def results_table(file: IO[str], *, effect: bool = False) -> ResultsTable:
-    """Return the ``ResultsTable`` with default settings."""
-    printer = ResultsTable(file)
-    printer.header = {
-        field.name: field.name.upper() for field in dataclasses.fields(SimilarityResult)
-    }
-    printer.header["frequency"] = "FREQ"  # shorten
-    floatfmt = (FieldFormat(7), ">7.5f")
-    printer.add_column(
-        "tag", FieldFormat(FieldFormat.REM, effect="bold" if effect else "")
-    )
-    printer.add_column("count", FieldFormat(5), ">5d")
-    printer.add_column("cosine", *floatfmt)
-    printer.add_column("jaccard", *floatfmt)
-    printer.add_column("overlap", *floatfmt)
-    printer.add_column("frequency", FieldFormat(4), ">4.0%")
+def results_table(
+    field_settings: Iterable[tuple[str, Mapping[str, Any]]] | None = None
+) -> ResultsTable[str]:
+    """Return the ``ResultsTable`` using *field_settings*.
+
+    The default is to use ``TABLE_COLUMN_SETTINGS``.
+    """
+    if field_settings is None:
+        field_settings = TABLE_COLUMN_SETTINGS.items()
+    printer: ResultsTable[str] = ResultsTable(table=rich.table.Table(box=None))
+    for fieldname, settings in field_settings:
+        settings = dict(settings)  # Copy before mutating.
+        header = settings.pop("header", str)(fieldname)
+        formatspec = settings.pop("formatspec", None)
+        printer.add_column(fieldname, format_spec=formatspec, header=header, **settings)
     return printer
 
 
-def print_relatedtags(
-    data_table: OverlapTable,
-    tag_names: Iterable[str],
-    sort_by: str = "cosine",
-    limit: int | None = None,
-    file: IO[str] | None = None,
-    printer: ResultsTable | None = None,
+def print_results(
+    related_tags: Iterable[SimilarityResult],
+    console: rich.console.Console = util.console,
 ) -> None:
-    if file is None:
-        file = sys.stdout
-    if printer is None:
-        # Disable text effects if output is not a terminal
-        # (e.g. a file or pipe)
-        printer = results_table(file, effect=file.isatty())
-    log.debug("sorting results by: %s", sort_by)
-    tag_names = list(tag_names)
-    tags_remaining = len(tag_names)
-    for tag in tag_names:
-        results = [
-            dataclasses.asdict(result)
-            for result in query(data_table, tag, sort_by=sort_by, limit=limit)
-        ]
-        printer.write_formatted(results)
-        tags_remaining -= 1
-        if tags_remaining:
-            printer.write_blank()
+    printer = results_table()
+    for result in related_tags:
+        printer.add_row(dataclasses.asdict(result))
+    console.print(printer.table)
