@@ -1,6 +1,5 @@
 """Unit tests for galleryms"""
 
-import itertools
 import operator
 import string
 import unittest
@@ -239,12 +238,13 @@ class TestRelatedTag(unittest.TestCase):
 
 
 class TestTagSet(unittest.TestCase):
-    def test_whitespace(self):
-        for char in string.whitespace:
-            with self.subTest(char=char):
-                # Constructing a TagSet from a tagstring containing a single
-                # whitespace character will produce an empty, falsy TagSet.
-                self.assertFalse(galleries.galleryms.TagSet.from_tagstring(char))
+    @hypothesis.given(chars=hypothesis.strategies.text(string.whitespace))
+    def test_whitespace(self, chars):
+        """
+        Constructing a ``TagSet`` from a tagstring containing only whitespace
+        characters will produce an empty, falsy ``TagSet``.
+        """
+        self.assertFalse(galleries.galleryms.TagSet.from_tagstring(chars))
 
     def test_apply_aliases(self):
         aliases = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
@@ -282,17 +282,9 @@ class TestSplitOnWhitespace(unittest.TestCase):
                         "Expect char to be in set of known whitespace characters.",
                     )
 
-    def test_whitespace_strings_len_2(self):
-        for pair in itertools.combinations_with_replacement(string.whitespace, 2):
-            short_string = "".join(pair)
-            with self.subTest(string=short_string):
-                self.assertFalse(galleries.galleryms.split_on_whitespace(short_string))
-
-    def test_whitespace_string_very_long(self):
-        for char in self.WHITESPACE_CHARACTERS:
-            long_string = char * 1000
-            with self.subTest(string=long_string):
-                self.assertFalse(galleries.galleryms.split_on_whitespace(long_string))
+    @hypothesis.given(hypothesis.strategies.text(WHITESPACE_CHARACTERS))
+    def test_whitespace_strings(self, chars):
+        self.assertFalse(galleries.galleryms.split_on_whitespace(chars))
 
     def test_strings(self):
         for test, expected in self._TEST_STRINGS:
