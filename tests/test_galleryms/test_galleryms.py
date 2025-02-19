@@ -246,6 +246,18 @@ class TestTagSet(unittest.TestCase):
         """
         self.assertFalse(galleries.galleryms.TagSet.from_tagstring(chars))
 
+    @hypothesis.given(
+        tag_set=hypothesis.strategies.builds(galleries.galleryms.TagSet.from_tagstring)
+    )
+    def test_roundtrip___str___from_tagstring(self, tag_set):
+        """
+        Given a ``TagSet`` created from an arbitrary string, its string
+        representation will be losslessly convertible back to a ``TagSet``.
+        """
+        self.assertEqual(
+            galleries.galleryms.TagSet.from_tagstring(str(tag_set)), tag_set
+        )
+
     def test_apply_aliases(self):
         aliases = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
         tag_set = galleries.galleryms.TagSet({"Rome", "New Amsterdam", "Tenochtitlan"})
