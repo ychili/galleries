@@ -139,10 +139,12 @@ def results_table(
         field_settings = TABLE_COLUMN_SETTINGS.items()
     printer: ResultsTable[str] = ResultsTable(table=rich.table.Table(box=None))
     for fieldname, settings in field_settings:
-        settings = dict(settings)  # Copy before mutating.
-        header = settings.pop("header", str)(fieldname)
-        formatspec = settings.pop("formatspec", None)
-        printer.add_column(fieldname, format_spec=formatspec, header=header, **settings)
+        column_kwds = dict(settings)  # Copy before mutating.
+        header = column_kwds.pop("header", str)(fieldname)
+        formatspec = column_kwds.pop("formatspec", None)
+        printer.add_column(
+            fieldname, format_spec=formatspec, header=header, **column_kwds
+        )
     return printer
 
 
