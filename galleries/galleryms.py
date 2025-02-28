@@ -330,21 +330,60 @@ class Gallery(dict[str, object]):
         return f"{type(self).__name__}({dict(self)!r})"
 
 
-class SearchTerm(abc.ABC):
-    """Base class for a search term that can match galleries"""
-
-    fields: list[str]
+class Query(abc.ABC):
+    """Base class for a search term or terms that can match galleries."""
 
     @abc.abstractmethod
-    def match(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> Any:
+    def match(self, gallery: Gallery) -> Any:
         """Return a truthy value if *gallery* is matched by this term.
 
-        Optional *cache* is a mapping of fields and field values that have
-        already been parsed by a ``SearchTerm.match`` method. *cache* will be
-        updated if a value is parsed. *gallery* will not be modified.
+        *gallery* may be updated as field data are parsed.
         """
+
+
+class LogicalSearchGroup(Query):
+    """Base class for search terms as grouped by truth function"""
+
+    def __init__(self, terms: Iterable[Query] | None = None) -> None:
+        self.terms = list(terms or [])
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.terms})"
+
+    def all_terms(self) -> Iterator[SearchTerm]:
+        """Recursively yield ``SearchTerm``s from this group."""
+        for term in self.terms:
+            if isinstance(term, LogicalSearchGroup):
+                yield from term.all_terms()
+            elif isinstance(term, SearchTerm):
+                yield term
+
+
+class ConjunctiveSearchGroup(LogicalSearchGroup):
+    """To match a gallery, any terms in this group must match."""
+
+    def match(self, gallery: Gallery) -> bool:
+        return all(t.match(gallery) for t in self.terms)
+
+
+class NegativeSearchGroup(LogicalSearchGroup):
+    """To match a gallery, any terms in this group must not match."""
+
+    def match(self, gallery: Gallery) -> bool:
+        return all(not t.match(gallery) for t in self.terms)
+
+
+class DisjunctiveSearchGroup(LogicalSearchGroup):
+    """To match a gallery, at least one term in this group must match."""
+
+    def match(self, gallery: Gallery) -> bool:
+        return any(t.match(gallery) for t in self.terms) or not self.terms
+
+
+class SearchTerm(Query):
+    """Base class for a search term that has a field or fields."""
+
+    fields: list[str]
 
     def disambiguate_fields(self, fieldnames: Sequence[str]) -> None:
         """Disambiguate this term's ``fields`` between *fieldnames*.
@@ -381,12 +420,11 @@ class SearchTerm(abc.ABC):
             arg = [arg]
         return list(arg) if arg is not None else []
 
-    def tagsets(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> Iterator[TagSet]:
-        cache = cache or {}
+    def tagsets(self, gallery: Gallery) -> Iterator[TagSet]:
         for fieldname in self.fields:
-            yield cache.setdefault(fieldname, gallery.normalize_tags(fieldname))
+            tagset = gallery.normalize_tags(fieldname)
+            gallery[fieldname] = tagset
+            yield tagset
 
 
 class TagSearchTerm(SearchTerm):
@@ -411,10 +449,8 @@ class WholeSearchTerm(TagSearchTerm):
     True
     """
 
-    def match(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> str | None:
-        for tagset in self.tagsets(gallery, cache):
+    def match(self, gallery: Gallery) -> str | None:
+        for tagset in self.tagsets(gallery):
             if self.word in tagset:
                 return self.word
         return None
@@ -434,10 +470,8 @@ class WildcardSearchTerm(TagSearchTerm):
         super().__init__(word, fields=fields)
         self.regex = re.compile(fnmatch.translate(word))
 
-    def match(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> re.Match[str] | None:
-        for tagset in self.tagsets(gallery, cache):
+    def match(self, gallery: Gallery) -> re.Match[str] | None:
+        for tagset in self.tagsets(gallery):
             for tag in tagset:
                 if match := self.regex.match(tag):
                     return match
@@ -471,15 +505,12 @@ class NumericCondition(SearchTerm):
             parameters.append(f"fields={self.fields!r}")
         return f"{type(self).__name__}({', '.join(parameters)})"
 
-    def match(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> bool:
-        cache = cache or {}
+    def match(self, gallery: Gallery) -> bool:
         values: list[float] = []
         for fieldname in self.fields:
             try:
-                value = cache.setdefault(fieldname, gallery[fieldname])
-                values.append(float(value))
+                value = float(gallery[fieldname])  # type: ignore
+                values.append(value)
             except (ValueError, TypeError):
                 # Rows with null or invalid values _will_ be excluded from
                 # results
@@ -495,64 +526,9 @@ class CardinalityCondition(NumericCondition):
     True
     """
 
-    def match(
-        self, gallery: Gallery, cache: MutableMapping[str, Any] | None = None
-    ) -> Any:
-        value = sum(len(tagset) for tagset in self.tagsets(gallery, cache))
+    def match(self, gallery: Gallery) -> Any:
+        value = sum(len(tagset) for tagset in self.tagsets(gallery))
         return self.comp_func(value, self.argument)
-
-
-class Query:
-    """Collection of ``SearchTerm``s grouped by truth function
-
-    For a query to match a gallery:
-
-      - All *conjuncts* must match.
-      - Any *negations* must not match.
-      - If any *disjuncts*, at least one must match.
-
-    If a query is empty, it matches any gallery.
-    """
-
-    def __init__(
-        self,
-        conjuncts: Iterable[SearchTerm] | None = None,
-        negations: Iterable[SearchTerm] | None = None,
-        disjuncts: Iterable[SearchTerm] | None = None,
-    ) -> None:
-        self.conjuncts = list(conjuncts or [])
-        self.negations = list(negations or [])
-        self.disjuncts = list(disjuncts or [])
-
-    def __repr__(self) -> str:
-        attrs = ", ".join(
-            f"{name}={value!r}"
-            for name in ("conjuncts", "negations", "disjuncts")
-            if (value := getattr(self, name))
-        )
-        return f"{type(self).__name__}({attrs})"
-
-    def __bool__(self) -> bool:
-        return bool(self.conjuncts or self.negations or self.disjuncts)
-
-    def match(self, gallery: Gallery) -> bool:
-        # data_cache will be modified as field data is parsed
-        data_cache: dict[str, Any] = {}
-        conjuncts = [t.match(gallery, data_cache) for t in self.conjuncts]
-        negations = [t.match(gallery, data_cache) for t in self.negations]
-        disjuncts = [t.match(gallery, data_cache) for t in self.disjuncts]
-        return (
-            all(conjuncts)
-            and not any(negations)
-            and (any(disjuncts) or not disjuncts)
-            #                   ^
-            # If disjuncts is merely empty, still return True
-        )
-
-    def all_terms(self) -> Iterator[SearchTerm]:
-        yield from self.conjuncts
-        yield from self.negations
-        yield from self.disjuncts
 
 
 class ArgumentParser:
@@ -563,7 +539,7 @@ class ArgumentParser:
 
     >>> ap = ArgumentParser(["TagField1"])
     >>> ap.parse_args(["tok1"])
-    Query(conjuncts=[WholeSearchTerm('tok1', fields=['TagField1'])])
+    ConjunctiveSearchGroup([WholeSearchTerm('tok1', fields=['TagField1'])])
     """
 
     fieldname_chars = r"a-z0-9_\-"
@@ -621,18 +597,24 @@ class ArgumentParser:
         """
         self._regex = re.compile(re_pattern, re.VERBOSE | re.IGNORECASE)
 
-    def parse_args(self, args: Iterable[str]) -> Query:
+    def parse_args(self, args: Iterable[str]) -> ConjunctiveSearchGroup:
         """Parse a series of argument tokens."""
-        conjuncts, negations, disjuncts = [], [], []
+        conjuncts = ConjunctiveSearchGroup()
+        negations = NegativeSearchGroup()
+        disjuncts = DisjunctiveSearchGroup()
         for argument in args:
             search_term, logical_operator = self.parse_argument(argument)
             if logical_operator == self.not_operator:
-                negations.append(search_term)
+                negations.terms.append(search_term)
             elif logical_operator == self.or_operator:
-                disjuncts.append(search_term)
+                disjuncts.terms.append(search_term)
             else:
-                conjuncts.append(search_term)
-        return Query(conjuncts=conjuncts, negations=negations, disjuncts=disjuncts)
+                conjuncts.terms.append(search_term)
+        if negations.terms:
+            conjuncts.terms.append(negations)
+        if disjuncts.terms:
+            conjuncts.terms.append(disjuncts)
+        return conjuncts
 
     def parse_argument(self, argument: str) -> tuple[SearchTerm, str | None]:
         """Parse a single argument token.
@@ -988,7 +970,7 @@ class RelatedTag(Generic[T]):
     >>> related_tag = RelatedTag(
     ...     TagCount("tag", count=2),
     ...     overlap_count=2, search_count=50,
-    ...     query=Query())
+    ...     query=ConjunctiveSearchGroup())
     >>> related_tag.tag.tag
     'tag'
     >>> related_tag.tag.count

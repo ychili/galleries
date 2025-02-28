@@ -162,7 +162,7 @@ def query_from_args(
     args: Iterable[str],
     fieldnames: Sequence[str],
     default_tag_fields: Iterable[str] | None = None,
-) -> gms.Query:
+) -> gms.ConjunctiveSearchGroup:
     parser = ArgumentParser(default_tag_fields=default_tag_fields)
     try:
         query = parser.parse_args(args)

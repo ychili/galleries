@@ -10,7 +10,7 @@ GALLERIES = [
 
 
 def test_get_related_tags():
-    query = galleries.galleryms.Query()
+    query = galleries.galleryms.ConjunctiveSearchGroup()
     tag_fields = {"Tags"}
     related_tags = list(
         galleries.relatedtag.get_related_tags(GALLERIES, query, tag_fields)
@@ -21,6 +21,7 @@ def test_get_related_tags():
         tag.overlap_coefficient() == 1.0 and tag.frequency() == 1.0
         for tag in related_tags
     )
+    assert all(tag.query is query for tag in related_tags)
 
 
 def test_results_table():

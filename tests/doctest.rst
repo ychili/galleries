@@ -50,10 +50,10 @@ Traceback (most recent call last):
     ...
 galleries.galleryms.ArgumentParsingError: #c
 >>> ap.parse_args(["tok1", "tok2"])
-Query(conjuncts=[WholeSearchTerm('tok1'), WholeSearchTerm('tok2')])
+ConjunctiveSearchGroup([WholeSearchTerm('tok1'), WholeSearchTerm('tok2')])
 >>> ap = ArgumentParser(["TagField1", "TagField2"])
 >>> ap.parse_args(["tok1", "~tok2"])
-Query(conjuncts=[WholeSearchTerm('tok1', fields=['TagField1', 'TagField2'])], negations=[WholeSearchTerm('tok2', fields=['TagField1', 'TagField2'])])
+ConjunctiveSearchGroup([WholeSearchTerm('tok1', fields=['TagField1', 'TagField2']), NegativeSearchGroup([WholeSearchTerm('tok2', fields=['TagField1', 'TagField2'])])])
 
 A ``Query`` can then match a ``Gallery``.
 

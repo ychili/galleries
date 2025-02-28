@@ -168,11 +168,11 @@ class TestQueryFromArgs:
         assert any_error_logs(caplog)
 
     def test_empty_args(self):
-        assert not self.func([], fieldnames=[])
+        assert not self.func([], fieldnames=[]).terms
 
     def test_no_default_tag_fields(self, caplog):
         query = self.func(["Field:A"], fieldnames=["Field"])
-        assert len(query.conjuncts) == 1
+        assert len(query.terms) == 1
         assert not any_error_logs(caplog)
         with pytest.raises(galleries.table_query.SearchTermError, match="'A'"):
             self.func(["A"], fieldnames=["Field"])
@@ -195,10 +195,12 @@ class TestQueryFromArgs:
 
     def test_valid_args(self):
         query = self.func(["+G:X"], fieldnames=["F", "G"])
-        assert len(query.disjuncts) == 1
-        term = query.disjuncts[0]
-        assert term.fields == ["G"]
+        assert len(query.terms) == 1
+        group = query.terms[0]
+        assert isinstance(group, galleries.galleryms.DisjunctiveSearchGroup)
+        term = group.terms[0]
         assert isinstance(term, galleries.galleryms.WholeSearchTerm)
+        assert term.fields == ["G"]
         assert term.word == "X"
 
 

@@ -165,18 +165,14 @@ class TestSearchTerm(unittest.TestCase):
         self.assertFalse(term.match(invalid_gallery))
 
 
-class TestQuery(unittest.TestCase):
-    def test_truthiness(self):
-        query = galleries.galleryms.Query()
-        self.assertFalse(query)
-        query = galleries.galleryms.Query([TestSearchTerm.basic_term()])
-        self.assertTrue(query)
-
+class TestLogicalSearchGroup(unittest.TestCase):
     def test_all_terms(self):
         term = TestSearchTerm.basic_term()
-        query = galleries.galleryms.Query(conjuncts=[term])
+        query = galleries.galleryms.ConjunctiveSearchGroup([term])
         self.assertEqual(list(query.all_terms()), [term])
-        query = galleries.galleryms.Query(conjuncts=[term], negations=[term])
+        query = galleries.galleryms.ConjunctiveSearchGroup(
+            [term, galleries.galleryms.NegativeSearchGroup([term])],
+        )
         self.assertEqual(list(query.all_terms()), [term, term])
 
 
