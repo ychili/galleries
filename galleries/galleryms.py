@@ -506,16 +506,16 @@ class NumericCondition(SearchTerm):
         return f"{type(self).__name__}({', '.join(parameters)})"
 
     def match(self, gallery: Gallery) -> bool:
-        values: list[float] = []
         for fieldname in self.fields:
             try:
                 value = float(gallery[fieldname])  # type: ignore
-                values.append(value)
             except (ValueError, TypeError):
                 # Rows with null or invalid values _will_ be excluded from
                 # results
                 return False
-        return any(self.comp_func(value, self.argument) for value in values)
+            if self.comp_func(value, self.argument):
+                return True
+        return False
 
 
 class CardinalityCondition(NumericCondition):
