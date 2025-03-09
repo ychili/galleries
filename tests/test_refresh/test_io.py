@@ -5,70 +5,54 @@ import pytest
 import galleries.galleryms
 import galleries.refresh
 
-# bytes(random.randrange(0x80) for _ in range(30)) =>
-RAND_DATA = [
-    b"-6\x17XD\x1dclI`E=\x7f:xV?'n}S\x0c\x06\x03eR2\x01yl",
-    b'\n5u8l\x13+(\x1c \x1e\x01"|I\x08\x079{K\x13bg%+J\x10}=6',
-    b"w~*,\x172\x0f\x1b,\x1fxiLk^&\x1d)eCyF~3\x07\x13AgSH",
-    b"\x7f<\x1d\x10c6wy9\x17+JW5SsN\\\x01Y\x18wV2\x07\x01=*\t\\",
-    b"\x0f;m*\x0bH(&d\x1az~6;RUT~(Ijym\n>Dfm\x0bv",
-    b'"*snn|\x14^Dr#^\x14\x1ah+h\x05\x1c\x06/B9\x13%Uo<M^',
-    b"7\x11ORo\x17a\x1f/5\x1f-R\x06J4X\x18fuU\x1fhY{T;=b\x0f",
+ASCII_BYTES = [
+    (
+        b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f"
+        b"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+    ),
+    b" !\"#$%&'()*+,-./0123456789:;<=>?",
+    b"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_",
+    b"`abcdefghijklmnopqrstuvwxyz{|}~\x7f",
 ]
 JSON_DATA = b'{"key": {\n  "false key": "value"\n  }\n}\n'
 
 _TAG_SET_EXPECTED_SINGLE = galleries.galleryms.TagSet(
     {
-        "xilk^&",
-        "5u8l\x13+(",
-        '\x01"|i\x08\x079{k\x13bg%+j\x10}=6w~*,\x172\x0f\x1b,',
-        "/5",
-        "cli`e=\x7f:xv?'n}s",
-        "\x10c6wy9\x17+jw5ssn\\\x01y\x18wv2\x07\x01=*",
-        "-6\x17xd",
-        "\x06\x03er2\x01yl",
-        ")ecyf~3\x07\x13agsh\x7f<",
-        "\\\x0f;m*",
-        "\x06/b9\x13%uo<m^7\x11oro\x17a",
-        ">dfm",
-        "hy{t;=b\x0f",
-        'v"*snn|\x14^dr#^\x14\x1ah+h\x05',
-        "-r\x06j4x\x18fuu",
-        "h(&d\x1az~6;rut~(ijym",
+        "\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b",
+        "\x00\x01\x02\x03\x04\x05\x06\x07\x08",
+        (
+            "!\"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnop"
+            "qrstuvwxyz[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f"
+        ),
     }
 )
 _TAG_SET_EXPECTED_MULTIPLE = galleries.galleryms.TagSet(
     {
-        "\x06\x03er2\x01yl",
-        "cli`e=\x7f:xv?'n}s",
-        "w~*,\x172\x0f\x1b,",
-        "-6\x17xd",
-        "-r\x06j4x\x18fuu",
-        "\x7f<",
-        '\x01"|i\x08\x079{k\x13bg%+j\x10}=6',
-        "/5",
-        ">dfm",
-        "\x06/b9\x13%uo<m^",
-        "\x10c6wy9\x17+jw5ssn\\\x01y\x18wv2\x07\x01=*",
-        "\\",
-        "h(&d\x1az~6;rut~(ijym",
-        ")ecyf~3\x07\x13agsh",
-        "5u8l\x13+(",
-        "hy{t;=b\x0f",
-        "v",
-        "7\x11oro\x17a",
-        '"*snn|\x14^dr#^\x14\x1ah+h\x05',
-        "xilk^&",
-        "\x0f;m*",
+        "\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b",
+        "\x00\x01\x02\x03\x04\x05\x06\x07\x08",
+        "!\"#$%&'()*+,-./0123456789:;<=>?",
+        "@abcdefghijklmnopqrstuvwxyz[\\]^_",
+        "`abcdefghijklmnopqrstuvwxyz{|}~\x7f",
     }
 )
 _JSON_EXPECTED = [("key", "{'false key': 'value'}")]
-_DESCRIPTORS_EXPECTED = frozenset(
-    {
-        galleries.galleryms.DescriptorImplication(desc)
-        for desc in ["clI`E=\x7f:xV?'n}S", "-6\x17XD", "\x06\x03eR2\x01yl"]
-    }
-)
+
+
+def _make_descriptors(*strings):
+    return frozenset(
+        {galleries.galleryms.DescriptorImplication(word) for word in strings}
+    )
+
+
+_DESCRIPTORS_EXPECTED = [
+    _make_descriptors(
+        "\x00\x01\x02\x03\x04\x05\x06\x07\x08",
+        "\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b",
+    ),
+    _make_descriptors("!\"#$%&'()*+,-./0123456789:;<=>?"),
+    _make_descriptors("@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"),
+    _make_descriptors("`abcdefghijklmnopqrstuvwxyz{|}~\x7f"),
+]
 
 
 def test_gardener_update_count(tmp_path):
@@ -84,7 +68,7 @@ def test_gardener_update_count(tmp_path):
 
 def test_get_tags_from_single_file(tmp_path):
     path = tmp_path / "tag_file_0.txt"
-    path.write_bytes(b"".join(RAND_DATA))
+    path.write_bytes(b"".join(ASCII_BYTES))
     tagset = galleries.refresh.get_tags_from_file(path)
     assert tagset == _TAG_SET_EXPECTED_SINGLE
 
@@ -92,7 +76,7 @@ def test_get_tags_from_single_file(tmp_path):
 def test_get_tags_from_multiple_files(tmp_path):
     path_data = [
         (tmp_path / f"tag_file_{i}.txt", data)
-        for i, data in enumerate(RAND_DATA, start=1)
+        for i, data in enumerate(ASCII_BYTES, start=1)
     ]
     for path, data in path_data:
         path.write_bytes(data)
@@ -102,7 +86,7 @@ def test_get_tags_from_multiple_files(tmp_path):
 
 def test_get_aliases_error(tmp_path, caplog):
     path = tmp_path / "aliases_file.json"
-    path.write_bytes(b"".join(RAND_DATA))
+    path.write_bytes(b"".join(ASCII_BYTES))
     # JSONDecodeError is caught
     aliases = galleries.refresh.get_aliases(path)
     assert not aliases
@@ -116,11 +100,15 @@ def test_get_aliases_valid(tmp_path):
     assert aliases == dict(_JSON_EXPECTED)
 
 
-def test_get_descriptor_implications(tmp_path):
+@pytest.mark.parametrize(
+    ("data", "descriptors_expected"),
+    zip(ASCII_BYTES, _DESCRIPTORS_EXPECTED, strict=True),
+)
+def test_get_descriptor_implications(tmp_path, data, descriptors_expected):
     path = tmp_path / "descriptors.asc"
-    path.write_bytes(RAND_DATA[0])
+    path.write_bytes(data)
     descriptors = galleries.refresh.get_implications(path)
-    assert descriptors == _DESCRIPTORS_EXPECTED
+    assert descriptors == descriptors_expected
 
 
 def test_get_regular_implications(tmp_path):
@@ -134,7 +122,7 @@ def test_get_regular_implications(tmp_path):
 
 def test_unknown_implications(tmp_path, caplog):
     path = tmp_path / "unknown_implications_file.spam"
-    path.write_bytes(RAND_DATA[-1])
+    path.write_bytes(ASCII_BYTES[-1])
     result = galleries.refresh.get_implications(path)
     assert not result
     assert any(
@@ -146,7 +134,7 @@ def test_unknown_implications(tmp_path, caplog):
 
 def test_tag_actions_object_invalid(tmp_path, caplog):
     path = tmp_path / "tag_actions_file.json"
-    path.write_bytes(b"".join(RAND_DATA))
+    path.write_bytes(b"".join(ASCII_BYTES))
     # JSONDecodeError is caught
     galleries.refresh.TagActionsObject().read_file(path)
     assert any(record.levelname == "ERROR" for record in caplog.records)
