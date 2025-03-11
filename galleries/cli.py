@@ -989,6 +989,10 @@ def _read_db(
         # message by closing stderr before exiting.
         sys.stderr.close()
         raise _CLIError(0) from err
+    except refresh.FolderPathError:
+        # Error is handled at higher level. Re-raise, otherwise exception is
+        # caught by 'except OSError' block below.
+        raise
     except OSError as err:
         log.error("Unable to read CSV file: %s", err)
         raise _CLIError from err
