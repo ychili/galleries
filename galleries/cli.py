@@ -153,15 +153,17 @@ class DBConfig:
     ) -> None:
         self.paths = paths
         if parser is None:
-            self.parser = configparser.ConfigParser(
-                default_section="db", interpolation=None
-            )
+            self.parser = self.default_parser()
         else:
             self.parser = parser
         self.parser.read_dict(DEFAULT_CONFIG_STATE)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(paths={self.paths}, parser={self.parser})"
+
+    @staticmethod
+    def default_parser() -> configparser.ConfigParser:
+        return configparser.ConfigParser(default_section="db", interpolation=None)
 
     def get_list(self, section: str, option: str) -> list[str]:
         """Parse semicolon-separated list value of *option* in *section*."""
