@@ -1,6 +1,7 @@
-"""Integration tests for the CLI, using pytest"""
+"""Integration and end-to-end tests for the CLI, using pytest"""
 
 import collections
+import collections.abc
 import contextlib
 import functools
 import pathlib
@@ -312,15 +313,16 @@ def write_to_csv(initialize_collection):
     return write
 
 
-def _edit_db_conf(path, field, value):
-    config_text = path.read_text(encoding="utf-8")
-    config_text = re.sub(
-        rf"^\s*{re.escape(field)}\s*[=:].*$",
-        f"{field} = {value}\n",
-        config_text,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    write_utf8(path, config_text)
+def _edit_db_conf(path, section, field, value):
+    parser = galleries.cli.DBConfig.default_parser()
+    with path.open(encoding="utf-8") as db_conf:
+        parser.read_file(db_conf, source=path.name)
+    section_mapping = parser.setdefault(section, {})
+    # Some typeshed bug?
+    assert isinstance(section_mapping, collections.abc.MutableMapping)
+    section_mapping[field] = value
+    with path.open("w", encoding="utf-8") as db_conf:
+        parser.write(db_conf)
 
 
 class TestCount:
@@ -432,7 +434,9 @@ class TestCount:
         cla_fields = ("A", "B")
         csvpath = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
         write_utf8(csvpath, self.CSV_MULTIPLE_FIELDS)
-        _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "db", "CSVName", custom_filename
+        )
         rc = galleries.cli.main(["count", *cla_fields])
         assert rc == 0
         captured = capsys.readouterr()
@@ -454,7 +458,9 @@ class TestCount:
         self, initialize_collection, capsys, conf_fields, cla_fields, fields_expected
     ):
         write_utf8(csv_path(initialize_collection), self.CSV_MULTIPLE_FIELDS)
-        _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "db", "TagFields", conf_fields
+        )
         rc = galleries.cli.main(["count", *cla_fields])
         assert rc == 0
         captured = capsys.readouterr()
@@ -527,7 +533,9 @@ class TestQuery:
         text = "Tags\r\na b c\r\nx y z\r\n"
         csvpath = initialize_collection / galleries.cli.DB_DIR_NAME / custom_filename
         write_utf8(csvpath, text)
-        _edit_db_conf(db_conf_path(initialize_collection), "CSVName", custom_filename)
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "db", "CSVName", custom_filename
+        )
         rc = galleries.cli.main(["query"])
         assert rc == 0
         assert capsys.readouterr().out == text
@@ -552,7 +560,9 @@ class TestQuery:
     ):
         csv_text = "A,B\na,b\nm,n\n"
         write_utf8(csv_path(initialize_collection), csv_text)
-        _edit_db_conf(db_conf_path(initialize_collection), "TagFields", conf_fields)
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "db", "TagFields", conf_fields
+        )
         cla_fields = (f"--field={fieldname}" for fieldname in cla_fields)
         rc = galleries.cli.main(["query", *cla_fields, *terms])
         assert rc == 0
@@ -564,7 +574,7 @@ class TestQuery:
 
     def test_invalid_format_from_config(self, initialize_collection, caplog):
         arg = "免許"
-        _edit_db_conf(db_conf_path(initialize_collection), "Format", arg)
+        _edit_db_conf(db_conf_path(initialize_collection), "query", "Format", arg)
         rc = galleries.cli.main(["query"])
         assert rc > 0
         assert msg_in_error_logs(caplog, arg)
@@ -704,7 +714,7 @@ class TestRelated:
         ("field", "value"), [("Limit", "none"), ("SortMetric", "無効")]
     )
     def test_invalid_config_settings(self, initialize_collection, caplog, field, value):
-        _edit_db_conf(db_conf_path(initialize_collection), field, value)
+        _edit_db_conf(db_conf_path(initialize_collection), "related", field, value)
         rc = galleries.cli.main(["related", ""])
         assert rc > 0
         assert msg_in_error_logs(caplog, value)
@@ -762,12 +772,131 @@ class TestRelated:
 
 
 class TestRefresh:
+    def _read_backup(self, original_path, suffix=None):
+        if suffix is None:
+            suffix = galleries.cli.DEFAULT_CONFIG_STATE["refresh"]["BackupSuffix"]
+        backup_path = original_path.with_name(original_path.name + suffix)
+        return backup_path.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("pathfunc", [csv_path, db_conf_path])
+    def test_missing_files(self, initialize_collection, caplog, pathfunc):
+        pathfunc(initialize_collection).unlink()
+        rc = galleries.cli.main(["-vv", "refresh"])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, pathfunc(initialize_collection).name)
+
     def test_simple(self, initialize_collection):
         csv_path(initialize_collection).write_bytes(b"Path,Tags\n,xYz AbC\n")
         rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
         assert rc == 0
         result = csv_path(initialize_collection).read_bytes()
         assert result == b"Path,Tags\r\n,abc xyz\r\n"
+
+    def test_missing_tag_actions_file(self, initialize_collection, caplog):
+        filename = "nonexistent.toml"
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "refresh", "TagActions", filename
+        )
+        rc = galleries.cli.main(["-vv", "refresh"])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, filename)
+
+    @pytest.mark.parametrize(
+        ("tag_actions_data", "valid"),
+        [
+            (b"", True),
+            (b"[implications]\n", True),
+            (b'[implications]\n"a"="b"\n"b"="a"', False),
+        ],
+    )
+    def test_validate(self, initialize_collection, caplog, tag_actions_data, valid):
+        filename = "tagactions.toml"
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "refresh", "TagActions", filename
+        )
+        tag_actions_path = db_conf_path(initialize_collection).with_name(filename)
+        tag_actions_path.write_bytes(tag_actions_data)
+        rc = galleries.cli.main(["-vv", "refresh", "--validate"])
+        error_logs = any(record.levelname == "ERROR" for record in caplog.records)
+        if valid:
+            assert rc == 0
+            assert not error_logs
+        else:
+            assert rc > 0
+            assert error_logs
+        assert filename in caplog.text
+
+    @staticmethod
+    def _csv_from_paths(folder_entries):
+        entries = (f"{entry},,\n" for entry in folder_entries)
+        return "".join(["Path,Count,Tags\n", *entries])
+
+    def test_folder_errors(self, initialize_collection, caplog):
+        original_csv = self._csv_from_paths(DIR_TREE)
+        print(original_csv)
+        write_utf8(csv_path(initialize_collection), original_csv)
+        rc = galleries.cli.main(["-vv", "refresh"])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, DIR_TREE[0])
+        result = csv_path(initialize_collection).read_text(encoding="utf-8")
+        assert result == original_csv, "The file should be unmodified."
+
+    @pytest.mark.parametrize("dir_tree", [DIR_TREE, sorted(DIR_TREE, key=len)])
+    def test_update_count(self, initialize_collection, caplog, dir_tree):
+        mktree(initialize_collection, dir_tree, FILE_TREE)
+        original_csv = self._csv_from_paths(dir_tree)
+        print(original_csv)
+        original_path = csv_path(initialize_collection)
+        write_utf8(original_path, original_csv)
+        rc = galleries.cli.main(["-vv", "refresh"])
+        assert rc == 0
+        assert all(folder in caplog.text for folder in dir_tree)
+        csv_result = original_path.read_bytes()
+        assert csv_result == (
+            b"Path,Count,Tags\r\nd1,0,\r\nd1/d1.1,2,\r\nd1/d1.2,0,\r\n"
+            b"d2,1,\r\nd2/d2.1,1,\r\nd3,1,\r\nd4,0,\r\n"
+        )
+        backup_result = self._read_backup(original_path)
+        assert backup_result == original_csv
+
+    SORT_FIELD_NAME = "Some Arbitrary Field"
+    SORTING_INPUT_DATA = (
+        f"Tags,{SORT_FIELD_NAME}\nxYz AbC,20\ndef,30\nabc,10\nabc deF,40\n"
+    )
+    _RESULTS_EXPECTED_ASCENDING = (
+        b"Tags,Some Arbitrary Field\r\nabc,10\r\n"
+        b"abc xyz,20\r\ndef,30\r\nabc def,40\r\n"
+    )
+    _RESULTS_EXPECTED_DESCENDING = (
+        b"Tags,Some Arbitrary Field\r\nabc def,40\r\n"
+        b"def,30\r\nabc xyz,20\r\nabc,10\r\n"
+    )
+
+    @pytest.mark.parametrize(
+        ("reverse_sort", "results_expected"),
+        [
+            ("False", _RESULTS_EXPECTED_ASCENDING),
+            ("True", _RESULTS_EXPECTED_DESCENDING),
+            # Invalid ReverseSort defaulting to ascending
+            ("ブーリアン", _RESULTS_EXPECTED_ASCENDING),
+        ],
+    )
+    def test_sorting(self, initialize_collection, reverse_sort, results_expected):
+        write_utf8(csv_path(initialize_collection), self.SORTING_INPUT_DATA)
+        set_config_value = functools.partial(
+            _edit_db_conf, db_conf_path(initialize_collection), "refresh"
+        )
+        set_config_value("SortField", self.SORT_FIELD_NAME)
+        set_config_value("ReverseSort", reverse_sort)
+        set_config_value("BackupSuffix", ".MYBACKUP")
+        rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        assert rc == 0
+        results = csv_path(initialize_collection).read_bytes()
+        assert results == results_expected
+        backup_result = self._read_backup(
+            csv_path(initialize_collection), suffix=".MYBACKUP"
+        )
+        assert backup_result == self.SORTING_INPUT_DATA
 
 
 def write_utf8(path, text):
