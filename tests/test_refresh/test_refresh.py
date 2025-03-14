@@ -21,7 +21,10 @@ class RefreshTestCase(unittest.TestCase):
 
 
 class TestGardener(RefreshTestCase):
-    _data = [{"Field1": "_extra expected", "Field2": "no"}]
+    _data = [
+        {"Field1": "_extra expected", "Field2": "no"},
+        {"Field1": "", "Field2": "no"},
+    ]
     _mask = galleries.galleryms.TagSet(["_extra"])
     _aliases = {"no": "yes"}
 
@@ -92,6 +95,21 @@ class TestGardener(RefreshTestCase):
             self.assertIsInstance(
                 gallery["Field2"], str, "Field2 not converted to TagSet"
             )
+
+    def test_unique(self):
+        self.gard.set_unique("Field1", "Field2")
+        galleries_data = list(self.galleries)
+        # One row can't have duplicates:
+        galleries_in = galleries_data[:1]
+        self.assertEqual(list(self.gard.garden_rows(galleries_in)), galleries_in)
+        # Reset data seen:
+        self.gard.set_unique("Field1", "Field2")
+        with self.assertRaises(
+            galleries.refresh.DuplicateValueError
+        ) as assert_raises_ctx:
+            list(self.gard.garden_rows(galleries_data))
+        self.assertEqual(assert_raises_ctx.exception.field, "Field2")
+        self.assertEqual(assert_raises_ctx.exception.value, "no")
 
 
 class TestTagActionsObject(RefreshTestCase):

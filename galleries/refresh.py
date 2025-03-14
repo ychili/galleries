@@ -9,6 +9,7 @@ import dataclasses
 import itertools
 import logging
 import os
+import unicodedata
 from collections import ChainMap, defaultdict
 from collections.abc import (
     Callable,
@@ -39,6 +40,13 @@ class FolderPathError(OSError):
     """Error with a path value"""
 
 
+class DuplicateValueError(Exception):
+    def __init__(self, field: str, value: str) -> None:
+        super().__init__(field, value)
+        self.field = field
+        self.value = value
+
+
 class Gardener:
     """Garden galleries."""
 
@@ -49,6 +57,7 @@ class Gardener:
         self._path_field: str = str()
         self._count_field: str = str()
         self._root_path: Path = Path()
+        self._unique_fields: dict[str, set[object]] = {}
 
     def set_update_count(
         self, path_field: str, count_field: str, root_path: gms.StrPath | None = None
@@ -100,6 +109,11 @@ class Gardener:
         for field in fields:
             self._set_tag_action(field, implicator.implicate)
 
+    def set_unique(self, *fields: str) -> None:
+        self.needed_fields.update(fields)
+        for field in fields:
+            self._unique_fields[field] = set()
+
     def garden_rows(
         self, reader: Iterable[gms.Gallery], fieldnames: Collection[str] | None = None
     ) -> Iterator[gms.Gallery]:
@@ -111,6 +125,7 @@ class Gardener:
                 if field not in fieldnames:
                     raise util.FieldNotFoundError(field)
         for gallery in reader:
+            self._check_uniqueness(gallery)
             self._do_count(gallery)
             for field, actions in self._tag_fields.items():
                 tags = gallery.normalize_tags(field)
@@ -126,6 +141,13 @@ class Gardener:
             gallery.update_count(self._count_field, folder)
         except (FileNotFoundError, NotADirectoryError) as err:
             raise FolderPathError(err) from err
+
+    def _check_uniqueness(self, gallery: gms.Gallery) -> None:
+        for field in self._unique_fields:
+            value = unicodedata.normalize("NFC", str(gallery[field]))
+            if value in self._unique_fields[field]:
+                raise DuplicateValueError(field, value)
+            self._unique_fields[field].add(value)
 
 
 @dataclasses.dataclass
