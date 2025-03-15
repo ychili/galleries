@@ -898,6 +898,21 @@ class TestRefresh:
         )
         assert backup_result == self.SORTING_INPUT_DATA
 
+    def test_unique_fields(self, initialize_collection, caplog):
+        fieldname = "Path"
+        duplicate_value = "d1"
+        csv_text = self._csv_from_paths(DIR_TREE + [duplicate_value])
+        write_utf8(csv_path(initialize_collection), csv_text)
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "refresh", "UniqueFields", fieldname
+        )
+        rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, fieldname)
+        assert msg_in_error_logs(caplog, duplicate_value)
+        result = csv_path(initialize_collection).read_text(encoding="utf-8")
+        assert result == csv_text, "The file should be unmodified."
+
 
 def write_utf8(path, text):
     return path.write_text(text, encoding="utf-8")

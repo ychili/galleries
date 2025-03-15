@@ -1319,6 +1319,17 @@ Table rows written by `refresh`_ will be sorted by this field.
 :Type: `Field name`_
 :Default value: set by `PathField`_
 
+UniqueFields
+````````````
+Fields in this list will be checked to ensure that all of their values
+are unique.
+Any duplicate value will cause `refresh`_ to exit with an error.
+Consider setting this to the value of `PathField`_ to ensure that each
+row refers to a unique gallery path.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: None
+
 TagActions
 ``````````
 If this option is set, parse listed values as paths to TagActions files.

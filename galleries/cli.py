@@ -544,6 +544,8 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     gardener.needed_fields.add(sort_field)
     if not cla.no_check:
         gardener.set_update_count(path_field, count_field, paths.collection)
+    unique_fields = db_config.get_list("refresh", "UniqueFields")
+    gardener.set_unique(*unique_fields)
     # Third, see if there are enough values to perform implication
     try:
         error_status = set_tag_actions(gardener, db_config) and 1
@@ -557,6 +559,9 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
             rows = list(gardener.garden_rows(reader))
     except refresh.FolderPathError as err:
         log.error("With %s value: %s", path_field, err)
+        return 1
+    except refresh.DuplicateValueError as err:
+        log.error("Duplicate value in %s: %s", err.field, err.value)
         return 1
     except _CLIError as err:
         return err.status
