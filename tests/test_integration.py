@@ -778,6 +778,10 @@ class TestRefresh:
         backup_path = original_path.with_name(original_path.name + suffix)
         return backup_path.read_text(encoding="utf-8")
 
+    @pytest.mark.usefixtures("initialize_collection")
+    def test_no_rows(self):
+        assert galleries.cli.main(["refresh", "--no-check"]) == 0
+
     @pytest.mark.parametrize("pathfunc", [csv_path, db_conf_path])
     def test_missing_files(self, initialize_collection, caplog, pathfunc):
         pathfunc(initialize_collection).unlink()
