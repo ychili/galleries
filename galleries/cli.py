@@ -13,6 +13,7 @@ import dataclasses
 import logging
 import os
 import shutil
+import stat
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -580,7 +581,12 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
     log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
-        util.write_galleries(rows, fieldnames=reader.fieldnames, file=filename)
+        util.write_galleries(
+            rows,
+            fieldnames=reader.fieldnames,
+            file=filename,
+            opener=opener_copy_mode(backup_file),
+        )
     except OSError as err:
         log.error("Unable to open CSV file for writing: %s", err)
         return 1
@@ -971,6 +977,19 @@ def ignore_patterns(*patterns: StrPath) -> Callable[[Any, list[str]], set[str]]:
         return names_ignored
 
     return _inner_func
+
+
+def opener_copy_mode(path: StrPath) -> Callable[[StrPath, int], int]:
+    """Return an "opener" for opening a file with the same mode as *path*."""
+    mode_bits = stat.S_IMODE(os.stat(path).st_mode)
+
+    def _opener(path: StrPath, flags: int) -> int:
+        return os.open(path, flags, mode=mode_bits)
+
+    log.debug(
+        "A custom opener was created by copying mode bits %o from %s", mode_bits, path
+    )
+    return _opener
 
 
 def join_semicolon_list(items: Iterable[str]) -> str:

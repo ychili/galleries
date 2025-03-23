@@ -235,15 +235,17 @@ def write_galleries(
     rows: Iterable[Gallery],
     fieldnames: Collection[str],
     file: os.PathLike | None = None,
+    opener: Callable[[str, int], int] | None = None,
 ) -> None:
     """Write *rows* with field names *fieldnames* in unformatted CSV.
 
     Writes to standard output or to *file*, if given.
+    The argument *opener* will be passed to ``open``'s *opener* parameter.
     """
     if file is None or file == sys.stdout:
         file_cm = contextlib.nullcontext(sys.stdout)
     else:
-        file_cm = open(file, "w", encoding="utf-8", newline="")
+        file_cm = open(file, "w", encoding="utf-8", newline="", opener=opener)
     with file_cm as outfile:
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()

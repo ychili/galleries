@@ -4,9 +4,11 @@ import collections
 import collections.abc
 import contextlib
 import functools
+import os
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 
 import pytest
@@ -23,6 +25,16 @@ run_normal = functools.partial(
 
 # Patch get_global_config_dir for all tests in this module.
 pytestmark = pytest.mark.usefixtures("global_config_dir")
+
+
+@contextlib.contextmanager
+def temp_umask(mask):
+    """Context manager that temporarily sets the process umask."""
+    oldmask = os.umask(mask)
+    try:
+        yield
+    finally:
+        os.umask(oldmask)
 
 
 def mktree(root, directories, files):
@@ -772,11 +784,13 @@ class TestRelated:
 
 
 class TestRefresh:
-    def _read_backup(self, original_path, suffix=None):
+    def backup_path(self, original_path, suffix=None):
         if suffix is None:
             suffix = galleries.cli.DEFAULT_CONFIG_STATE["refresh"]["BackupSuffix"]
-        backup_path = original_path.with_name(original_path.name + suffix)
-        return backup_path.read_text(encoding="utf-8")
+        return original_path.with_name(original_path.name + suffix)
+
+    def _read_backup(self, original_path, suffix=None):
+        return self.backup_path(original_path, suffix).read_text(encoding="utf-8")
 
     @pytest.mark.usefixtures("initialize_collection")
     def test_no_rows(self):
@@ -795,6 +809,26 @@ class TestRefresh:
         assert rc == 0
         result = csv_path(initialize_collection).read_bytes()
         assert result == b"Path,Tags\r\n,abc xyz\r\n"
+
+    @pytest.mark.skipif(
+        os.name != "posix", reason="file permissions don't work the same on non-Posix"
+    )
+    def test_file_permissions(self, initialize_collection):
+        target_mode = 0o640
+        csv_path(initialize_collection).chmod(target_mode)
+        # Must be at least one row to trigger refresh and backup:
+        csv_path(initialize_collection).write_bytes(b"Path,Tags\n,\n")
+        with temp_umask(0):
+            rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        assert rc == 0
+
+        def get_mode_bits(path):
+            return stat.S_IMODE(path.stat().st_mode)
+
+        backup_mode = get_mode_bits(self.backup_path(csv_path(initialize_collection)))
+        dbfile_mode = get_mode_bits(csv_path(initialize_collection))
+        print(f"{target_mode=:o}, {backup_mode=:o}, {dbfile_mode=:o}")
+        assert target_mode == backup_mode == dbfile_mode
 
     def test_missing_tag_actions_file(self, initialize_collection, caplog):
         filename = "nonexistent.toml"
