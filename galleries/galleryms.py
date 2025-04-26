@@ -38,6 +38,8 @@ from typing import (
     TypeVar,
 )
 
+import pyparsing as pp
+
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
@@ -563,39 +565,25 @@ class ArgumentParser:
         self.compile()
 
     def compile(self) -> None:
-        relationals = "|".join(
-            f"(?:{re.escape(exp)})" for exp in self.relationals if exp
+        field_specifier = pp.Regex(f"[{self.fieldname_chars}]+", flags=re.IGNORECASE)
+        tag = pp.Regex(f"[{self.tag_chars}{self.wildcard}]+", flags=re.IGNORECASE)
+        constant = pp.Combine(pp.Opt("-") + pp.Word(pp.nums))
+        relational_operator = pp.MatchFirst(
+            pp.Literal(exp) for exp in self.relationals if exp
         )
-        wildcard = re.escape(self.wildcard)
-        not_operator = re.escape(self.not_operator)
-        or_operator = re.escape(self.or_operator)
-        field_tag_sep = re.escape(self.field_tag_sep)
-        field_number_sep = re.escape(self.field_number_sep)
-        re_pattern = rf"""
-                (?P<logical_group> {not_operator}|{or_operator}) ?
-                                                # logical operator
-            (?: (?:
-            # NUMERIC SPECIFIER
-            (?: (?P<set_branch>
-            n \[
-            (?P<set_field> [{self.fieldname_chars}]+) ?
-                \]                              # field specifier, optional
-            ) | (?P<num_branch>
-            (?P<num_field> [{self.fieldname_chars}]+)
-                                                # field specifier, mandatory
-            ) ) {field_number_sep}
-                (?P<relation> {relationals}) ?  # relational operator
-            (?P<num> -?[0-9]+)                  # constant
-            ) | (?:
-            # TAG SPECIFIER
-            (?:
-                (?P<tag_field> [{self.fieldname_chars}]+){field_tag_sep}
-            ) ?                                 # field specifier, optional
-            (?P<tag> [{self.tag_chars}{wildcard}]+)
-                                                # search term
-            ) )
-        """
-        self._regex = re.compile(re_pattern, re.VERBOSE | re.IGNORECASE)
+        comp = pp.Opt(relational_operator)("relation") + constant("num")
+        set_field = "n[" + pp.Opt(field_specifier)("set_field") + "]"
+        set_branch = set_field + self.field_number_sep + comp
+        num_branch = field_specifier("num_field") + self.field_number_sep + comp
+        numeric_specifier = set_branch | num_branch
+        tag_field = pp.Opt(field_specifier("tag_field") + self.field_tag_sep)
+        tag_specifier = tag_field + tag("tag")
+        operand = numeric_specifier | tag_specifier
+        logical_operator = pp.Opt(
+            pp.Literal(self.not_operator) | pp.Literal(self.or_operator)
+        )
+        parser = logical_operator("logical_group") + operand
+        self._parser = parser
 
     def parse_args(self, args: Iterable[str]) -> ConjunctiveSearchGroup:
         """Parse a series of argument tokens."""
@@ -624,34 +612,41 @@ class ArgumentParser:
 
         ``ArgumentParsingError`` is raised if the token cannot be parsed.
         """
-        if match := self._regex.fullmatch(argument):
-            return self._parse_match_object(match)
-        raise ArgumentParsingError(argument)
+        try:
+            results = self._parser.parse_string(argument, parse_all=True)
+            return self._process_parse_results(results)
+        except pp.ParseException as err:
+            raise ArgumentParsingError(argument) from err
 
-    def _parse_match_object(
-        self, match: re.Match[str]
+    def _process_parse_results(
+        self, results: pp.ParseResults
     ) -> tuple[SearchTerm, str | None]:
-        logical_operator = match.group("logical_group")
-        if (num := match.group("num")) is not None:
-            if (relation := match.group("relation")) is not None:
+        def get_result(key: str) -> str | None:
+            match results.get(key):
+                case None:
+                    return None
+                case str(val):
+                    return val
+                case val:
+                    msg = f"got {val!r} of unexpected type from ParseResults.get"
+                    raise TypeError(msg)
+
+        logical_operator = get_result("logical_group")
+        if num := get_result("num"):
+            if relation := get_result("relation"):
                 relation = relation.casefold()
             comp_func = self.relationals[relation]
             constant = int(num)
-            if match.group("set_branch") is not None:
-                fieldname = match.group("set_field")
-                fields = [fieldname] if fieldname else self.default_tag_fields
-                return (
-                    CardinalityCondition(comp_func, constant, fields),
-                    logical_operator,
-                )
-            if match.group("num_branch") is not None:
-                fieldname = match.group("num_field")
+            if fieldname := get_result("num_field"):
                 return (
                     NumericCondition(comp_func, constant, fieldname),
                     logical_operator,
                 )
-        if (word := match.group("tag")) is not None:
-            fieldname = match.group("tag_field")
+            fieldname = get_result("set_field")
+            fields = [fieldname] if fieldname else self.default_tag_fields
+            return (CardinalityCondition(comp_func, constant, fields), logical_operator)
+        if word := get_result("tag"):
+            fieldname = get_result("tag_field")
             fields = [fieldname] if fieldname else self.default_tag_fields
             if self.wildcard in word:
                 word = word.replace(self.wildcard, "*")
