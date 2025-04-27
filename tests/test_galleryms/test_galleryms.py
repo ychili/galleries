@@ -302,5 +302,38 @@ class TestSplitOnWhitespace(unittest.TestCase):
                 )
 
 
+class TestArgumentParser(unittest.TestCase):
+    def setUp(self):
+        self.parser = galleries.galleryms.ArgumentParser()
+
+    INVALID_ARGUMENTS = ["", *"~+=:[]", ":a", "a:", "=a", "a=", "n[]="]
+    REQUIRED_CHARS = {
+        *string.ascii_letters,
+        *string.digits,
+        *"_-%",
+        *"İı",  # These match [a-z], because Turkish.
+    }
+
+    def test_parse_argument_failing_examples(self):
+        for argument in self.INVALID_ARGUMENTS:
+            with self.subTest(argument=argument):
+                with self.assertRaises(galleries.galleryms.ArgumentParsingError):
+                    self.parser.parse_argument(argument)
+
+    @hypothesis.given(
+        hypothesis.strategies.text(
+            hypothesis.strategies.characters(blacklist_characters=REQUIRED_CHARS)
+        )
+    )
+    def test_parse_argument_characters_failing(self, text):
+        """
+        An argument that does not contain one of these required characters
+        will fail to parse.
+        """
+        self.assertRaises(
+            galleries.galleryms.ArgumentParsingError, self.parser.parse_argument, text
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
