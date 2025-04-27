@@ -8,7 +8,9 @@ skip_gitignore = true
 
 [tool.pytest.ini_options]
 minversion = "7.1.3"
-addopts = "--import-mode=importlib --doctest-modules --doctest-glob='tests/*.rst'"
+addopts = """--import-mode=importlib \
+             --doctest-modules \
+             --doctest-glob='doctest*.rst'"""
 
 [tool.mypy]
 python_version = "3.10"
