@@ -153,6 +153,11 @@ class ImplicationGraph:
             if neighbor not in tagset:
                 self.join_descendants(tagset, neighbor)
 
+    def all_implications(self) -> Iterator[RegularImplication]:
+        for antecedent, consequents in self.graph.items():
+            for consequent in consequents:
+                yield RegularImplication(antecedent, consequent)
+
 
 class Implicator(ImplicationGraph):
     """Collection of tag implications + tag aliases"""
@@ -163,15 +168,17 @@ class Implicator(ImplicationGraph):
         aliases: MutableMapping[str, str] | None = None,
     ) -> None:
         super().__init__()
-        self.implications = set(implications or [])
         self.aliases = ChainMap(aliases or {})
         if implications is not None:
             for implication in implications:
                 self.add(implication)
 
+    @property
+    def implications(self):
+        return set(self.all_implications())
+
     def add(self, implication: RegularImplication) -> None:
         self.add_edge(implication.antecedent, implication.consequent)
-        self.implications.add(implication)
 
     def validate_implications_not_aliased(
         self,
@@ -184,7 +191,7 @@ class Implicator(ImplicationGraph):
         Return an empty list, if none found.
         """
         events: list[AliasedImplication] = []
-        for implication in self.implications:
+        for implication in self.all_implications():
             if tag := self.aliases.get(implication.antecedent):
                 events.append(
                     AliasedImplication(implication, implication.antecedent, tag)
