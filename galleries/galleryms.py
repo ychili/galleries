@@ -173,6 +173,11 @@ class Implicator(ImplicationGraph):
             for implication in implications:
                 self.add(implication)
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.graph == other.graph and self.aliases == other.aliases
+        return NotImplemented
+
     @property
     def implications(self):
         return set(self.all_implications())
