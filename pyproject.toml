@@ -32,3 +32,7 @@ check-str-concat-over-line-jumps = false
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
