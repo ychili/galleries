@@ -1,4 +1,6 @@
 graft docs
 graft tests
 
+include tox.ini
+
 global-exclude *~ *.py[cod]
