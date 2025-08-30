@@ -13,9 +13,7 @@ positive_integers = hypothesis.strategies.integers(min_value=1)
 
 
 class TestImplicationGraph(unittest.TestCase):
-    @staticmethod
-    def _make(graph):
-        return galleries.galleryms.ImplicationGraph(graph)
+    _make = staticmethod(galleries.galleryms.ImplicationGraph)
 
     def _assert_cycle(self, graph, cycle):
         ig = self._make(graph)
