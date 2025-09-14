@@ -939,7 +939,7 @@ class TestRefresh:
     def test_unique_fields(self, initialize_collection, caplog):
         fieldname = "Path"
         duplicate_value = "d1"
-        csv_text = self._csv_from_paths(DIR_TREE + [duplicate_value])
+        csv_text = self._csv_from_paths([*DIR_TREE, duplicate_value])
         write_utf8(csv_path(initialize_collection), csv_text)
         _edit_db_conf(
             db_conf_path(initialize_collection), "refresh", "UniqueFields", fieldname
