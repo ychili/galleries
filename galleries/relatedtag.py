@@ -129,7 +129,7 @@ def get_related_tags(
 
 
 def results_table(
-    field_settings: Iterable[tuple[str, Mapping[str, Any]]] | None = None
+    field_settings: Iterable[tuple[str, Mapping[str, Any]]] | None = None,
 ) -> ResultsTable[str]:
     """Return the ``ResultsTable`` using *field_settings*.
 

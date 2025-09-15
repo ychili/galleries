@@ -79,10 +79,7 @@ class TestImplicator(unittest.TestCase):
         implicator.aliases["a"] = "c"
         self.assertEqual(implicator.validate_aliases_not_aliased(), [])
         implicator.aliases["d"] = "a"
-        self.assertEqual(
-            implicator.validate_aliases_not_aliased(),
-            [("d", "a", "c")],
-        )
+        self.assertEqual(implicator.validate_aliases_not_aliased(), [("d", "a", "c")])
 
 
 class TestGallery(unittest.TestCase):
@@ -176,7 +173,7 @@ class TestLogicalSearchGroup(unittest.TestCase):
         query = galleries.galleryms.ConjunctiveSearchGroup([term])
         self.assertEqual(list(query.all_terms()), [term])
         query = galleries.galleryms.ConjunctiveSearchGroup(
-            [term, galleries.galleryms.NegativeSearchGroup([term])],
+            [term, galleries.galleryms.NegativeSearchGroup([term])]
         )
         self.assertEqual(list(query.all_terms()), [term, term])
 

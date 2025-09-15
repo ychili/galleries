@@ -270,7 +270,11 @@ class TestTraverse:
 
     @pytest.mark.parametrize(
         ("key", "value"),
-        [("PathField", "パス"), ("CountField", "数"), ("TagFields", " カラム#1;  カラム#2")],
+        [
+            ("PathField", "パス"),
+            ("CountField", "数"),
+            ("TagFields", " カラム#1;  カラム#2"),
+        ],
     )
     def test_configuration(self, tmp_path, key, value):
         root = tmp_path / "test_collection"

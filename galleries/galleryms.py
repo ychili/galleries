@@ -185,9 +185,7 @@ class Implicator(ImplicationGraph):
     def add(self, implication: RegularImplication) -> None:
         self.add_edge(implication.antecedent, implication.consequent)
 
-    def validate_implications_not_aliased(
-        self,
-    ) -> list[AliasedImplication]:
+    def validate_implications_not_aliased(self) -> list[AliasedImplication]:
         """Find instances where tags in implication have been aliased.
 
         Return a list of AliasedImplication objects, each of which contains
