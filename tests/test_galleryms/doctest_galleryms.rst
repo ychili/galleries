@@ -36,3 +36,21 @@ from manual's examples for the query command:
 [NegativeSearchGroup([WholeSearchTerm('a')]), DisjunctiveSearchGroup([WholeSearchTerm('b'), WholeSearchTerm('c')])]
 >>> parse("n[]=0")
 [CardinalityCondition(<built-in function eq>, 0)]
+
+Implication objects
+-------------------
+
+Test some properties of these objects like reconstructibility from their
+``repr``, equality, and frozenness.
+
+>>> from galleries.galleryms import RegularImplication, DescriptorImplication
+>>> reg = RegularImplication("A", "C")
+>>> eval(repr(reg)) == reg
+True
+>>> word = DescriptorImplication("word")
+>>> eval(repr(word)) == word
+True
+>>> reg.consequent = "Conclusion"
+Traceback (most recent call last):
+    ...
+dataclasses.FrozenInstanceError: cannot assign to field 'consequent'

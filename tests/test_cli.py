@@ -5,6 +5,7 @@ import dataclasses
 import operator
 import pathlib
 import re
+import sys
 
 import pytest
 
@@ -45,6 +46,15 @@ def real_db(tmp_path):
     spec.collection.mkdir()
     spec.subdir.mkdir()
     return spec
+
+
+class TestFileType:
+    def test_standard_streams(self):
+        assert galleries.cli.FileType("r")("-") == sys.stdin
+        assert galleries.cli.FileType("w")("-") == sys.stdout
+        with pytest.raises(ValueError, match="x"):
+            galleries.cli.FileType("x")("-")
+        assert galleries.cli.FileType("r")("/dev/stdin") == "/dev/stdin"
 
 
 @pytest.mark.usefixtures("global_config_dir")

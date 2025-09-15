@@ -1,5 +1,7 @@
 """Unit tests for relatedtag, using pytest"""
 
+import pytest
+
 import galleries.galleryms
 import galleries.relatedtag
 
@@ -24,8 +26,9 @@ def test_get_related_tags():
     assert all(tag.query is query for tag in related_tags)
 
 
-def test_results_table():
-    printer = galleries.relatedtag.results_table()
+@pytest.mark.parametrize("field_settings", [None, ()])
+def test_results_table(field_settings):
+    printer = galleries.relatedtag.results_table(field_settings)
     assert set(printer.formats) <= set(printer.columns)
     assert len(printer.columns) == len(printer.table.columns)
     assert not printer.table.rows

@@ -1,5 +1,7 @@
 """Tests for I/O functions of refresh, using pytest"""
 
+import logging
+
 import pytest
 
 import galleries.galleryms
@@ -138,3 +140,11 @@ def test_tag_actions_object_invalid(tmp_path, caplog):
     # JSONDecodeError is caught
     galleries.refresh.TagActionsObject().read_file(path)
     assert any(record.levelname == "ERROR" for record in caplog.records)
+
+
+def test_traverse_fs_error_with_path(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    target = "<invalid-path>"
+    root_path = tmp_path / target
+    assert not list(galleries.refresh.traverse_fs(root_path))
+    assert target in caplog.text

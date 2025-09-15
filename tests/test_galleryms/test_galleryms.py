@@ -111,6 +111,13 @@ class TestGallery(unittest.TestCase):
         path = gallery.get_folder("Field")
         self.assertEqual(path.parts, (folder_name,))
 
+    def test___repr___(self):
+        gallery = galleries.galleryms.Gallery()
+        self.assertEqual(repr(gallery), "Gallery()")
+        sentinel = object()
+        gallery["field"] = sentinel
+        self.assertEqual(repr(gallery), f"Gallery({{'field': {sentinel!r}}})")
+
 
 class TestSearchTerm(unittest.TestCase):
     def test_fields(self):
@@ -252,6 +259,13 @@ class TestTagSet(unittest.TestCase):
             galleries.galleryms.TagSet.from_tagstring(str(tag_set)), tag_set
         )
 
+    def test_apply_implications(self):
+        tags = {"Rome", "New Amsterdam", "Tenochtitlan"}
+        tag_set_1 = galleries.galleryms.TagSet(tags)
+        tag_set_1.apply_implications([])
+        # Applying no implications will leave the tag set unmodified.
+        self.assertEqual(tag_set_1, galleries.galleryms.TagSet(tags))
+
     def test_apply_aliases(self):
         aliases = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
         tag_set = galleries.galleryms.TagSet({"Rome", "New Amsterdam", "Tenochtitlan"})
@@ -330,6 +344,62 @@ class TestArgumentParser(unittest.TestCase):
         """
         self.assertRaises(
             galleries.galleryms.ArgumentParsingError, self.parser.parse_argument, text
+        )
+
+
+class TestDescriptorImplication(unittest.TestCase):
+    def test_match(self):
+        empty = galleries.galleryms.DescriptorImplication("")
+        self.assertIsNone(empty.match("_"))
+        self.assertEqual(empty.match("_a"), "a")
+        blue = galleries.galleryms.DescriptorImplication("blue")
+        self.assertIsNone(blue.match("blue_"))
+        self.assertEqual(blue.match("blue_color"), "color")
+        self.assertIsNone(blue.match("light_blue_color"))
+
+
+class TestFieldFormat(unittest.TestCase):
+    lines_strategy = hypothesis.given(
+        hypothesis.strategies.iterables(hypothesis.strategies.text())
+    )
+
+    @lines_strategy
+    def test_colorize_no_op(self, lines):
+        null = galleries.galleryms.FieldFormat(-80)
+        lines_in = list(lines)
+        lines_out = list(null.colorize(lines_in))
+        self.assertEqual(lines_in, lines_out)
+
+    @lines_strategy
+    def test_colorize_normal(self, lines):
+        blue = galleries.galleryms.FieldFormat(-80, "blue")
+        lines_in = list(lines)
+        for line_in, line_out in zip(lines_in, blue.colorize(lines_in)):
+            expected_out = f"\033[34m{line_in}\033[0m"
+            self.assertEqual(line_out, expected_out)
+
+
+class TestMostCommon(unittest.TestCase):
+    _ITERABLE = [1, 2, 3, 1, 2, 1]
+    _EXPECTED = [3, 2, 2, 1, 1, 1]
+
+    def _func(self, n=None, key=lambda item: item):
+        return galleries.galleryms.most_common(self._ITERABLE, key=key, n=n)
+
+    def test_values_of_n(self):
+        for value in (None, 0):
+            # None and 0 are equivalent arguments.
+            self.assertEqual(self._func(n=value), self._EXPECTED)
+        for i in range(1, 7):
+            self.assertEqual(self._func(n=i), self._EXPECTED[:i])
+        for i in range(-7, -1):
+            self.assertEqual(self._func(n=i), self._EXPECTED[:i])
+
+    def test_keys(self):
+        self.assertEqual(self._func(key=float), self._EXPECTED)
+        self.assertEqual(
+            galleries.galleryms.most_common("abcaba", key=lambda c: -ord(c)),
+            list("aaabbc"),
         )
 
 

@@ -233,6 +233,27 @@ class TestMain:
         )
         assert glist == result
 
+    @pytest.mark.parametrize("reverse_sort", [False, True])
+    def test_sorting(self, reverse_sort):
+        data_in = "abcaba"
+        expected_results = "aaabbc"
+
+        def gallery_gen(values):
+            for value in values:
+                yield galleries.galleryms.Gallery(Field=value)
+
+        result = galleries.table_query.sort_table(
+            gallery_gen(data_in),
+            ["Field"],
+            sort_field="Field",
+            reverse_sort=reverse_sort,
+        )
+        assert result == list(
+            gallery_gen(
+                expected_results if not reverse_sort else reversed(expected_results)
+            )
+        )
+
     def test_sort_field_not_found(self, caplog):
         with pytest.raises(galleries.table_query.SortingError, match=self._bogus_field):
             galleries.table_query.sort_table(
@@ -353,6 +374,14 @@ class TestParseRichTableSettings:
     def test_bare_field(self):
         obj = {"columns": [{"field": "A"}]}
         table = galleries.table_query.parse_rich_table_object(obj)
+        assert table.fieldnames == ["A"]
+        assert len(table.table.columns) == 1, table.table.columns
+
+    def test_invalid_column_kwargs(self, caplog):
+        obj = {"columns": [{"min_width": 40}, {"field": "A"}, None]}
+        table = galleries.table_query.parse_rich_table_object(obj)
+        assert self.assert_msg_in_warning("{'min_width': 40}", caplog)
+        assert self.assert_msg_in_warning("None", caplog)
         assert table.fieldnames == ["A"]
         assert len(table.table.columns) == 1, table.table.columns
 

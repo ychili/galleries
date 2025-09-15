@@ -1,6 +1,9 @@
 """Unit tests for util"""
 
+import io
+import sys
 import unittest
+import unittest.mock
 
 import galleries.galleryms
 import galleries.util
@@ -34,6 +37,17 @@ class TestReader(unittest.TestCase):
         self.assertEqual(exc.row, ["f", "g", "h", ""])
         self.assertEqual(exc.fieldnames, self._FIELDNAMES_OUT)
         self.assertEqual(exc.line_num, 2)
+
+
+class TestReadDB(unittest.TestCase):
+    def test_stdin(self):
+        csv_text = "F,G,H\r\nf,g,h\r\n"
+        patch_stdin = unittest.mock.patch.object(sys, "stdin", io.StringIO(csv_text))
+        with patch_stdin, galleries.util.read_db() as reader:
+            glist = list(reader)
+        self.assertEqual(
+            glist, [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})]
+        )
 
 
 class TestSorting(unittest.TestCase):
