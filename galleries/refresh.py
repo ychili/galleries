@@ -143,11 +143,11 @@ class Gardener:
             raise FolderPathError(err) from err
 
     def _check_uniqueness(self, gallery: gms.Gallery) -> None:
-        for field in self._unique_fields:
+        for field, values_seen in self._unique_fields.items():
             value = unicodedata.normalize("NFC", str(gallery[field]))
-            if value in self._unique_fields[field]:
+            if value in values_seen:
                 raise DuplicateValueError(field, value)
-            self._unique_fields[field].add(value)
+            values_seen.add(value)
 
 
 @dataclasses.dataclass
