@@ -24,7 +24,6 @@ from collections.abc import (
     MutableMapping,
     MutableSequence,
     MutableSet,
-    Sequence,
 )
 from pathlib import Path
 from typing import (
@@ -395,7 +394,7 @@ class SearchTerm(Query):
 
     fields: list[str]
 
-    def disambiguate_fields(self, fieldnames: Sequence[str]) -> None:
+    def disambiguate_fields(self, fieldnames: Iterable[str]) -> None:
         """Disambiguate this term's ``fields`` between *fieldnames*.
 
         If a field name in ``fields`` starts with the same letters as a field
