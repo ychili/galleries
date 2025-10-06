@@ -87,22 +87,18 @@ class Gardener:
         self.needed_fields.update(fields)
         for field in fields:
             self._set_tag_action(
-                field, lambda ts: gms.TagSet.apply_implications(ts, implications)
+                field, lambda ts: type(ts).apply_implications(ts, implications)
             )
 
     def set_remove_tags(self, mask: gms.TagSet, *fields: str) -> None:
         self.needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(
-                field, lambda ts: gms.TagSet.difference_update(ts, mask)
-            )
+            self._set_tag_action(field, lambda ts: type(ts).difference_update(ts, mask))
 
     def set_alias_tags(self, aliases: Mapping[str, str], *fields: str) -> None:
         self.needed_fields.update(fields)
         for field in fields:
-            self._set_tag_action(
-                field, lambda ts: gms.TagSet.apply_aliases(ts, aliases)
-            )
+            self._set_tag_action(field, lambda ts: type(ts).apply_aliases(ts, aliases))
 
     def set_implicator(self, implicator: gms.Implicator, *fields: str) -> None:
         self.needed_fields.update(fields)
