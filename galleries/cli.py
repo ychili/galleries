@@ -1004,7 +1004,7 @@ def split_semicolon_list(value: str) -> list[str]:
 
 @contextlib.contextmanager
 def _read_db(
-    file: os.PathLike | None = None, fieldnames: Iterable[str] | None = None
+    file: StrPath | Iterable[str], fieldnames: Iterable[str] | None = None
 ) -> Iterator[util.Reader]:
     """Try to read DB from *file*, raising ``_CLIError`` on error."""
     try:
@@ -1023,7 +1023,8 @@ def _read_db(
         log.error("Unable to read CSV file: %s", err)
         raise _CLIError from err
     except UnicodeDecodeError as err:
-        log.error("Unable to decode CSV file: %s: %s", err, str(file))
+        file_name = "<stdin>" if file == sys.stdin else file
+        log.error("Unable to decode CSV file: %s: %s", err, file_name)
         raise _CLIError from err
     except util.FieldNotFoundError as err:
         log.error("Field not in file: %s", err)
