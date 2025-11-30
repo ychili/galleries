@@ -248,7 +248,7 @@ class TagActionsObject:
                 )
 
     def _parse_descriptors(self, table: Mapping) -> Iterator[gms.RegularImplication]:
-        symbols: WordMultiplier = WordMultiplier()
+        symbols: WordMultiplier[str] = WordMultiplier()
         for name, words in self.extr.get_items(table, "sets"):
             symbols.add_set(name, self.extr.list(words))
         for name, elements in self.extr.get_items(table, "unions"):
