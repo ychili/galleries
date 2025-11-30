@@ -12,7 +12,7 @@ import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import rich.console
 
@@ -23,6 +23,9 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
+
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath, SupportsWrite
 
 log = logging.getLogger(PROG)
 
@@ -211,17 +214,23 @@ class StrictReader(csv.DictReader):
 
 @contextlib.contextmanager
 def read_db(
-    file: os.PathLike | None = None, fieldnames: Iterable[str] | None = None
+    file: StrOrBytesPath | Iterable[str] | None = None,
+    fieldnames: Iterable[str] | None = None,
 ) -> Iterator[Reader]:
     """Open *file*, and read DB inside a context manager.
 
+    If *file* is str, bytes, or path-like, it is treated as a path and opened
+    for reading. If *file* is not given or None, read from standard input.
     If *fieldnames* is given, ``FieldNotFoundError`` is raised if any field
     names are missing from the DB.
     """
-    if file is None or file == sys.stdin:
-        file_cm = contextlib.nullcontext(sys.stdin)
-    else:
-        file_cm = open(file, encoding="utf-8", newline="")
+    match file:
+        case str() | bytes() | os.PathLike():
+            file_cm = open(file, encoding="utf-8", newline="")
+        case None:
+            file_cm = contextlib.nullcontext(sys.stdin)
+        case _:
+            file_cm = contextlib.nullcontext(file)
     with file_cm as infile:
         reader = Reader(StrictReader(infile))
         if reader.fieldnames:
@@ -234,18 +243,22 @@ def read_db(
 def write_galleries(
     rows: Iterable[Gallery],
     fieldnames: Collection[str],
-    file: os.PathLike | None = None,
+    file: StrOrBytesPath | SupportsWrite[str] | None = None,
     opener: Callable[[str, int], int] | None = None,
 ) -> None:
     """Write *rows* with field names *fieldnames* in unformatted CSV.
 
-    Writes to standard output or to *file*, if given.
+    If *file* is str, bytes, or path-like, it is treated as a path and opened
+    for writing. If *file* is not given or None, write to standard output.
     The argument *opener* will be passed to ``open``'s *opener* parameter.
     """
-    if file is None or file == sys.stdout:
-        file_cm = contextlib.nullcontext(sys.stdout)
-    else:
-        file_cm = open(file, "w", encoding="utf-8", newline="", opener=opener)
+    match file:
+        case str() | bytes() | os.PathLike():
+            file_cm = open(file, "w", encoding="utf-8", newline="", opener=opener)
+        case None:
+            file_cm = contextlib.nullcontext(sys.stdout)
+        case _:
+            file_cm = contextlib.nullcontext(file)
     with file_cm as outfile:
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
         writer.writeheader()
