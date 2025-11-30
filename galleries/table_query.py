@@ -13,7 +13,7 @@ import shutil
 import sys
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, TextIO, TypeVar
 
 import rich.box
 import rich.console
@@ -23,6 +23,9 @@ import rich.table
 from . import PROG
 from . import galleryms as gms
 from . import util
+
+if TYPE_CHECKING:
+    from _typeshed import StrPath
 
 FormatT = TypeVar("FormatT", bound="Format")
 
@@ -233,7 +236,7 @@ def print_formatted(
         print(line, file=file)
 
 
-def parse_field_format_file(filename: gms.StrPath) -> dict[str, gms.FieldFormat]:
+def parse_field_format_file(filename: StrPath) -> dict[str, gms.FieldFormat]:
     """Parse lines in *filename*. Only return lines successfully parsed."""
     text = Path(filename).read_text(encoding="utf-8")
     max_widths = {}
@@ -274,7 +277,7 @@ def parse_field_format_file(filename: gms.StrPath) -> dict[str, gms.FieldFormat]
     return max_widths
 
 
-def parse_rich_table_file(filename: gms.StrPath) -> RichTablePrinter:
+def parse_rich_table_file(filename: StrPath) -> RichTablePrinter:
     """Read *filename* and parse Rich table settings.
 
     ``*.toml`` files will be parsed as TOML. Anything else will be parsed

@@ -17,11 +17,12 @@ import stat
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
-StrPath = str | Path
+if TYPE_CHECKING:
+    from _typeshed import StrPath
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"

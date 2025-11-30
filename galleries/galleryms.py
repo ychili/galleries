@@ -38,13 +38,12 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from _typeshed import SupportsRichComparison
+    from _typeshed import StrPath, SupportsRichComparison
 
 T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], Any]"
 )
-StrPath = str | Path
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
@@ -299,7 +298,7 @@ class Gallery(dict[str, object]):
     def get_folder(self, field: str, cwd: StrPath = ".") -> Path:
         """Get the ``Path`` value from *field* relative to *cwd*."""
         name = self[field]
-        if isinstance(name, StrPath):
+        if isinstance(name, (str, Path)):
             return Path(cwd, name)
         raise TypeError(name)
 
