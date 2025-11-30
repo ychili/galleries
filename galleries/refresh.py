@@ -8,7 +8,6 @@ import contextlib
 import dataclasses
 import itertools
 import logging
-import os
 import unicodedata
 from collections import ChainMap, defaultdict
 from collections.abc import (
@@ -22,11 +21,14 @@ from collections.abc import (
 )
 from collections.abc import Set as AbstractSet
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from . import PROG
 from . import galleryms as gms
 from . import util
+
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath, StrPath
 
 T = TypeVar("T")
 KT = TypeVar("KT")
@@ -60,7 +62,7 @@ class Gardener:
         self._unique_fields: dict[str, set[object]] = {}
 
     def set_update_count(
-        self, path_field: str, count_field: str, root_path: gms.StrPath | None = None
+        self, path_field: str, count_field: str, root_path: StrPath | None = None
     ) -> None:
         self.needed_fields.update([path_field, count_field])
         self._do_count = self._update_count
@@ -173,7 +175,7 @@ class TagActionsObject:
         # For each pair x:P, P is the set of pools that contain field x.
         self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
 
-    def read_file(self, filename: os.PathLike, file_format: str | None = None) -> None:
+    def read_file(self, filename: StrPath, file_format: str | None = None) -> None:
         """Read *filename* and parse tag actions based on its file extension.
 
         ``*.toml`` files will be parsed as TOML. Anything else will be parsed
@@ -381,7 +383,7 @@ def check_mapping(obj: object, default: type[Mapping] = dict) -> Mapping:
     return obj
 
 
-def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
+def get_implications(filename: StrPath) -> frozenset[gms.BaseImplication]:
     """Read *filename* and parse implications based on its file extension."""
     extensions = ("dat", "txt", "asc", "list")
     path = Path(filename)
@@ -402,12 +404,12 @@ def get_implications(filename: os.PathLike) -> frozenset[gms.BaseImplication]:
     return frozenset()
 
 
-def get_aliases(filename: os.PathLike) -> dict[str, str]:
+def get_aliases(filename: StrOrBytesPath) -> dict[str, str]:
     data = check_mapping(util.load_from_json(filename))
     return {str(alias): str(tag) for alias, tag in data.items()}
 
 
-def get_tags_from_file(*filepaths: os.PathLike) -> gms.TagSet:
+def get_tags_from_file(*filepaths: StrPath) -> gms.TagSet:
     """
     Merge (union) whitespaced-separated tags from files in *filepaths* into one
     ``TagSet``.

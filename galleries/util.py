@@ -265,7 +265,7 @@ def write_galleries(
         writer.writerows(rows)
 
 
-def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
+def load_from_toml(filename: StrOrBytesPath) -> dict[str, Any]:
     """
     Do not attempt :mod:`tomllib` import until this function is called.
     """
@@ -277,7 +277,7 @@ def load_from_toml(filename: os.PathLike) -> dict[str, Any]:
             return {}
 
 
-def load_from_json(filename: os.PathLike) -> Any:
+def load_from_json(filename: StrOrBytesPath) -> Any:
     with open(filename, "rb") as file:
         try:
             return json.load(file)
