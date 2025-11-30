@@ -187,9 +187,9 @@ class TagActionsObject:
             load = util.load_from_toml
         log.debug("Loading TagActionsObject from file: %s", filename)
         obj = load(path)
-        self.update(obj, source=path)
+        self.update(obj, source=str(path))
 
-    def update(self, obj: object, source: os.PathLike | None = None) -> None:
+    def update(self, obj: object, source: str | None = None) -> None:
         self.extr = util.ObjectExtractor(source=source)
         obj = self.extr.dict(obj)
         if not obj:

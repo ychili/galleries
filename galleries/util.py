@@ -51,7 +51,7 @@ class ObjectExtractor:
 
     def __init__(
         self,
-        source: os.PathLike | None = None,
+        source: str | None = None,
         logger: logging.Logger | logging.LoggerAdapter | None = None,
     ) -> None:
         self.source = source or "<???>"
