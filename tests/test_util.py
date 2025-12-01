@@ -40,14 +40,21 @@ class TestReader(unittest.TestCase):
 
 
 class TestReadDB(unittest.TestCase):
-    def test_stdin(self):
-        csv_text = "F,G,H\r\nf,g,h\r\n"
+    CSV_LINES = ["F,G,H\r\n", "f,g,h\r\n"]
+    _EXPECTED_OUT = [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})]
+
+    def test_file_stdin(self):
+        csv_text = "".join(self.CSV_LINES)
         patch_stdin = unittest.mock.patch.object(sys, "stdin", io.StringIO(csv_text))
         with patch_stdin, galleries.util.read_db() as reader:
             glist = list(reader)
-        self.assertEqual(
-            glist, [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})]
-        )
+        self.assertEqual(glist, self._EXPECTED_OUT)
+
+    def test_file_iterable_lines(self):
+        iterable_lines = iter(self.CSV_LINES)
+        with galleries.util.read_db(iterable_lines) as reader:
+            glist = list(reader)
+        self.assertEqual(glist, self._EXPECTED_OUT)
 
 
 class TestSorting(unittest.TestCase):
