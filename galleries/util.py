@@ -266,9 +266,6 @@ def write_galleries(
 
 
 def load_from_toml(filename: StrOrBytesPath) -> dict[str, Any]:
-    """
-    Do not attempt :mod:`tomllib` import until this function is called.
-    """
     with open(filename, "rb") as file:
         try:
             return tomllib.load(file)
