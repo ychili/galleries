@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (
-    "Callable[[SupportsRichComparison, SupportsRichComparison], Any]"
+    "Callable[[SupportsRichComparison, SupportsRichComparison], object]"
 )
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
@@ -342,7 +342,7 @@ class Query(abc.ABC):
     """Base class for a search term or terms that can match galleries."""
 
     @abc.abstractmethod
-    def match(self, gallery: Gallery) -> Any:
+    def match(self, gallery: Gallery) -> object:
         """Return a truthy value if *gallery* is matched by this term.
 
         *gallery* may be updated as field data are parsed.
@@ -486,20 +486,10 @@ class WildcardSearchTerm(TagSearchTerm):
         return None
 
 
-class NumericCondition(SearchTerm):
-    """Search term that compares its argument to numbers in fields
-
-    If a field value cannot be converted to a ``float``, the gallery will not
-    be matched.
-
-    >>> term = NumericCondition(operator.gt, 3, fields=["Count"])
-    >>> term.match(Gallery(Count="4"))
-    True
-    """
-
+class BaseNumericCondition(SearchTerm, Generic[T]):
     def __init__(
         self,
-        comp_func: BinaryCompFunc,
+        comp_func: Callable[[SupportsRichComparison, SupportsRichComparison], T],
         argument: SupportsRichComparison,
         fields: str | Iterable[str] | None = None,
     ) -> None:
@@ -512,6 +502,18 @@ class NumericCondition(SearchTerm):
         if self.fields:
             parameters.append(f"fields={self.fields!r}")
         return f"{type(self).__name__}({', '.join(parameters)})"
+
+
+class NumericCondition(BaseNumericCondition):
+    """Search term that compares its argument to numbers in fields
+
+    If a field value cannot be converted to a ``float``, the gallery will not
+    be matched.
+
+    >>> term = NumericCondition(operator.gt, 3, fields=["Count"])
+    >>> term.match(Gallery(Count="4"))
+    True
+    """
 
     def match(self, gallery: Gallery) -> bool:
         for fieldname in self.fields:
@@ -526,7 +528,7 @@ class NumericCondition(SearchTerm):
         return False
 
 
-class CardinalityCondition(NumericCondition):
+class CardinalityCondition(BaseNumericCondition, Generic[T]):
     """Search term that compares its argument to the sum of tag set sizes
 
     >>> term = CardinalityCondition(operator.lt, 8, fields=["Tags"])
@@ -534,7 +536,7 @@ class CardinalityCondition(NumericCondition):
     True
     """
 
-    def match(self, gallery: Gallery) -> Any:
+    def match(self, gallery: Gallery) -> T:
         value = sum(len(tagset) for tagset in self.tagsets(gallery))
         return self.comp_func(value, self.argument)
 
