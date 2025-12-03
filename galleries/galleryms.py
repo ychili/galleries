@@ -467,21 +467,30 @@ class WholeSearchTerm(TagSearchTerm):
 class WildcardSearchTerm(TagSearchTerm):
     """Search term that matches tags in part, using wildcard characters
 
-    Uses :module:`fnmatch`, which supports Unix shell-style wildcards
+    Uses :mod:`fnmatch`, which supports Unix shell-style wildcards
 
     >>> term = WildcardSearchTerm("tok*", ["Tags"])
     >>> bool(term.match(Gallery(Tags="tok1")))
     True
     """
 
-    def __init__(self, word: str, fields: str | Iterable[str] | None = None) -> None:
-        super().__init__(word, fields=fields)
-        self.regex = re.compile(fnmatch.translate(word))
+    @property
+    def word(self) -> str:
+        return self._word
+
+    @word.setter
+    def word(self, value: str):
+        self._word = value
+        self._regex = re.compile(fnmatch.translate(value))
+
+    @property
+    def regex(self) -> re.Pattern[str]:
+        return self._regex
 
     def match(self, gallery: Gallery) -> re.Match[str] | None:
         for tagset in self.tagsets(gallery):
             for tag in tagset:
-                if match := self.regex.match(tag):
+                if match := self._regex.match(tag):
                     return match
         return None
 
