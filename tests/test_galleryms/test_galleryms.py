@@ -159,12 +159,47 @@ class TestSearchTerm(unittest.TestCase):
         with self.assertRaises(galleries.galleryms.MultipleCandidatesError):
             term.disambiguate_fields(ambiguous)
 
+    def test_whole_search_term(self):
+        term = self.basic_term()
+        matching_gallery = galleries.galleryms.Gallery(Tags="tok1")
+        self.assertEqual(term.match(matching_gallery), "tok1")
+        gallery_with_empty_tagset = galleries.galleryms.Gallery(Tags="")
+        self.assertIsNone(term.match(gallery_with_empty_tagset))
+
+    def test_wildcard_search_term(self):
+        term = galleries.galleryms.WildcardSearchTerm("*", fields="tags")
+        gallery = galleries.galleryms.Gallery()
+        self.assertRaises(KeyError, term.match, gallery)
+        tag_set = galleries.galleryms.TagSet()
+        gallery["tags"] = tag_set
+        self.assertIsNone(term.match(gallery))
+        tag_set.add("0")
+        match_result = term.match(gallery)
+        assert match_result
+        self.assertEqual(match_result.group(0), "0")
+        term.word = "1"
+        self.assertIsNone(term.match(gallery))
+        tag_set.add("1")
+        self.assertTrue(term.match(gallery))
+
     def test_numeric_condition(self):
         term = galleries.galleryms.NumericCondition(operator.eq, 15, fields="area")
         normal_gallery = galleries.galleryms.Gallery(area="15.159")
         self.assertFalse(term.match(normal_gallery))
         invalid_gallery = galleries.galleryms.Gallery(area="alphanum")
         self.assertFalse(term.match(invalid_gallery))
+
+    def test_cardinality_condition(self):
+        sentinel = object()
+
+        def compare(enclosed, cardinality):
+            return sentinel if enclosed == cardinality else None
+
+        term = galleries.galleryms.CardinalityCondition(compare, 4, fields="tags")
+        gallery = galleries.galleryms.Gallery(tags="0 1 2 3")
+        self.assertIs(term.match(gallery), sentinel)
+        term.argument = -1
+        self.assertFalse(term.match(gallery))
 
 
 class TestLogicalSearchGroup(unittest.TestCase):
