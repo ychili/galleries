@@ -14,7 +14,7 @@ def global_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     Return the path object for the temporary global config directory.
     """
 
-    def mock_global_config_dir():
+    def mock_global_config_dir() -> Path:
         return tmp_path / "mock_global_config_dir"
 
     monkeypatch.setattr(galleries.cli, "get_global_config_dir", mock_global_config_dir)

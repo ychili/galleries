@@ -177,7 +177,7 @@ class Implicator(ImplicationGraph):
         return NotImplemented
 
     @property
-    def implications(self):
+    def implications(self) -> set[RegularImplication]:
         return set(self.all_implications())
 
     def add(self, implication: RegularImplication) -> None:
@@ -479,7 +479,7 @@ class WildcardSearchTerm(TagSearchTerm):
         return self._word
 
     @word.setter
-    def word(self, value: str):
+    def word(self, value: str) -> None:
         self._word = value
         self._regex = re.compile(fnmatch.translate(value))
 
