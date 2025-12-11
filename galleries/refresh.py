@@ -165,15 +165,19 @@ class TagActionsObject:
     fields.
     """
 
-    extr: util.ObjectExtractor
-
-    def __init__(self, default_tag_fields: Iterable[str] | None = None) -> None:
+    def __init__(
+        self,
+        obj: object | None = None,
+        default_tag_fields: Iterable[str] | None = None,
+        extr: util.ObjectExtractor | None = None,
+    ) -> None:
         self.default_tag_fields = frozenset(default_tag_fields or [])
         # A pool is the set of tag actions that apply to a given set of fields
         self._pools: dict[frozenset[str], _TagActionsContainer] = {}
         # A field's spec is the set of pools that apply to a given field
         # For each pair x:P, P is the set of pools that contain field x.
         self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
+        self.update(obj or {}, extr=extr)
 
     def read_file(self, filename: StrPath, file_format: str | None = None) -> None:
         """Read *filename* and parse tag actions based on its file extension.
@@ -189,10 +193,10 @@ class TagActionsObject:
             load = util.load_from_toml
         log.debug("Loading TagActionsObject from file: %s", filename)
         obj = load(path)
-        self.update(obj, source=str(path))
+        self.update(obj, extr=util.ObjectExtractor(source=str(path)))
 
-    def update(self, obj: object, source: str | None = None) -> None:
-        self.extr = util.ObjectExtractor(source=source)
+    def update(self, obj: object, extr: util.ObjectExtractor | None = None) -> None:
+        self.extr = extr or util.ObjectExtractor()
         obj = self.extr.dict(obj)
         if not obj:
             return

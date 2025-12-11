@@ -96,8 +96,7 @@ Test the ``refresh.Gardener``.
 Test the ``refresh.TagActionsObject``.
 
 >>> from galleries.refresh import TagActionsObject
->>> tao = TagActionsObject()
->>> tao.update({"implications": {"car": "vehicle"}})
+>>> tao = TagActionsObject({"implications": {"car": "vehicle"}})
 >>> tao.get_implicator().implications
 {RegularImplication('car', 'vehicle')}
 >>> tao.update({"aliases": {"forest": "tree"}})
