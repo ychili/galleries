@@ -160,7 +160,7 @@ class FieldMismatchError(Exception):
         self.row = row
         self.fieldnames = fieldnames
         self.line_num = line_num
-        self.args = (row, fieldnames, line_num)
+        super().__init__(row, fieldnames, line_num)
 
 
 class ExtraFieldError(FieldMismatchError):
