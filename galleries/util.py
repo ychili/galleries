@@ -190,7 +190,7 @@ class StrictReader(csv.DictReader):
     def __next__(self) -> Gallery:
         if self.line_num == 0:
             # Used only for its side effect.
-            self.fieldnames  # pylint: disable=pointless-statement
+            self.fieldnames  # noqa: B018
             # If self.fieldnames is None then StopIteration will be raised on
             # the next line.
         row = next(self.reader)
