@@ -14,7 +14,6 @@ import operator
 import os
 import re
 import textwrap
-import warnings
 from collections import ChainMap, defaultdict
 from collections.abc import (
     Callable,
@@ -45,6 +44,7 @@ BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], object]"
 )
 TagSetT = TypeVar("TagSetT", bound="TagSet")
+FieldFormatT = TypeVar("FieldFormatT", bound="FieldFormat")
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
 
@@ -734,21 +734,22 @@ class RegularImplication(BaseImplication):
         return None
 
 
+@dataclasses.dataclass
 class FieldFormat:
     """Specify output formatting for a field in a table.
 
-    Parameters:
-        width: maximum width to which column will be wrapped
+    Args:
+        width: maximum width to which column will be wrapped.
             An argument with a value of FieldFormat.REMAINING_SPACE means
             the column will receive the horizontal space remaining after the
             other columns have been wrapped.
-        fg: foreground color, i.e. font color
-        bg: background color
-        effect: text effect
-
-    Available colors and effects are listed in FieldFormat.COLORS and
-    FieldFormat.EFFECTS, respectively.
+        sgr: ECMA-48 Select Graphic Rendition sequence.
+            Sets display attributes. Several attributes can be set in the same
+            sequence, separated by semicolons.
     """
+
+    width: int
+    sgr: str = ""
 
     REMAINING_SPACE = REM = -1
 
@@ -783,21 +784,31 @@ class FieldFormat:
         "invert": "7",
     }
 
-    def __init__(
-        self, width: int, fg: str = "", bg: str = "", effect: str = ""
-    ) -> None:
-        self.width = width
-        self._fg = fg
-        self.fg = self.COLORS[fg][0]
-        self._bg = bg
-        self.bg = self.COLORS[bg][1]
-        self._effect = effect
-        try:
-            self.effect = self.EFFECTS[effect]
-        except KeyError:
-            self.effect = str(effect)
-            warnings.warn(f"using string value of argument {self.effect!r}")
-        self.sgr = ";".join(s for s in (self.effect, self.fg, self.bg) if s)
+    @classmethod
+    def from_names(
+        cls: type[FieldFormatT],
+        width: int,
+        fg: str = "",
+        bg: str = "",
+        effect: str = "",
+    ) -> FieldFormatT:
+        """Construct using named colors and effects.
+
+        Args:
+            width: same as __init__.
+            fg: foreground color, i.e. font color.
+            bg: background color.
+            effect: text effect.
+
+        Available colors and effects are listed in FieldFormat.COLORS and
+        FieldFormat.EFFECTS, respectively.
+
+        """
+        fg = cls.COLORS[fg][0]
+        bg = cls.COLORS[bg][0]
+        effect = cls.EFFECTS.get(effect, str(effect))
+        sgr = ";".join(s for s in (fg, bg, effect) if s)
+        return cls(width, sgr)
 
     def colorize(self, lines: Iterable[str]) -> Iterator[str]:
         for line in lines:
@@ -805,18 +816,6 @@ class FieldFormat:
                 yield line
             else:
                 yield f"\033[{self.sgr}m{line}\033[0m"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
-        return NotImplemented
-
-    def __repr__(self) -> str:
-        kwargs = {"fg": self._fg, "bg": self._bg, "effect": self._effect}
-        args_str = ", ".join(
-            [repr(self.width)] + [f"{kw}={arg!r}" for kw, arg in kwargs.items() if arg]
-        )
-        return f"{type(self).__name__}({args_str})"
 
 
 class Tabulator:

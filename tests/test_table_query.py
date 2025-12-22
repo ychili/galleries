@@ -135,9 +135,9 @@ class TestParseFieldFormatFile:
         """
         path = tmp_write_text("optionals.txt", text)
         assert self.func(path) == {
-            "FieldA": galleries.galleryms.FieldFormat(width=10, bg="black"),
+            "FieldA": galleries.galleryms.FieldFormat.from_names(width=10, bg="black"),
             "FieldB": galleries.galleryms.FieldFormat(width=20),
-            "FieldC": galleries.galleryms.FieldFormat(
+            "FieldC": galleries.galleryms.FieldFormat.from_names(
                 width=galleries.galleryms.FieldFormat.REMAINING_SPACE,
                 fg="bright white",
                 effect="bold",

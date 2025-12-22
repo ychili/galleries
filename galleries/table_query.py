@@ -271,7 +271,9 @@ def parse_field_format_file(filename: StrPath) -> dict[str, gms.FieldFormat]:
         bg_color = next(optionals, "").lower()
         effect = next(optionals, "").lower()
         try:
-            max_widths[fieldname] = gms.FieldFormat(width, fg_color, bg_color, effect)
+            max_widths[fieldname] = gms.FieldFormat.from_names(
+                width, fg_color, bg_color, effect
+            )
         except KeyError as err:
             log.error("%s:%d: Bad color argument: %s", filename, lineno, err)
     return max_widths

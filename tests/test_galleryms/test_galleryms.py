@@ -108,7 +108,7 @@ class TestGallery(unittest.TestCase):
         path = gallery.get_folder("Field")
         self.assertEqual(path.parts, (folder_name,))
 
-    def test___repr___(self):
+    def test___repr__(self):
         gallery = galleries.galleryms.Gallery()
         self.assertEqual(repr(gallery), "Gallery()")
         sentinel = object()
@@ -391,20 +391,34 @@ class TestDescriptorImplication(unittest.TestCase):
 
 
 class TestFieldFormat(unittest.TestCase):
-    lines_strategy = hypothesis.given(
-        hypothesis.strategies.iterables(hypothesis.strategies.text())
+    @hypothesis.given(
+        hypothesis.strategies.text().filter(
+            lambda s: s not in galleries.galleryms.FieldFormat.COLORS
+        )
     )
+    def test_unknown_arguments(self, key):
+        # Unknown color arguments raise KeyError:
+        with self.assertRaises(KeyError):
+            galleries.galleryms.FieldFormat.from_names(-80, fg=key)
+        with self.assertRaises(KeyError):
+            galleries.galleryms.FieldFormat.from_names(-80, bg=key)
+        # Unknown effect arguments are accepted:
+        self.assertIn(
+            key, galleries.galleryms.FieldFormat.from_names(-80, effect=key).sgr
+        )
 
-    @lines_strategy
+    lines_strategy = hypothesis.strategies.iterables(hypothesis.strategies.text())
+
+    @hypothesis.given(lines_strategy)
     def test_colorize_no_op(self, lines):
         null = galleries.galleryms.FieldFormat(-80)
         lines_in = list(lines)
         lines_out = list(null.colorize(lines_in))
         self.assertEqual(lines_in, lines_out)
 
-    @lines_strategy
+    @hypothesis.given(lines_strategy)
     def test_colorize_normal(self, lines):
-        blue = galleries.galleryms.FieldFormat(-80, "blue")
+        blue = galleries.galleryms.FieldFormat.from_names(-80, "blue")
         lines_in = list(lines)
         for line_in, line_out in zip(lines_in, blue.colorize(lines_in)):
             expected_out = f"\033[34m{line_in}\033[0m"
