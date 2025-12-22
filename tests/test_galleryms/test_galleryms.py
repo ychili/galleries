@@ -85,7 +85,7 @@ class TestImplicator(unittest.TestCase):
 class TestGallery(unittest.TestCase):
     def test_merge_tags(self):
         values = ["a b c", "d", galleries.galleryms.TagSet("abc")]
-        gallery = galleries.galleryms.Gallery(zip("FGH", values))
+        gallery = galleries.galleryms.Gallery(zip("FGH", values, strict=True))
         tags = gallery.merge_tags(*"FGH")
         self.assertEqual(tags, galleries.galleryms.TagSet("abcd"))
 
@@ -406,7 +406,7 @@ class TestFieldFormat(unittest.TestCase):
     def test_colorize_normal(self, lines):
         blue = galleries.galleryms.FieldFormat(-80, "blue")
         lines_in = list(lines)
-        for line_in, line_out in zip(lines_in, blue.colorize(lines_in)):
+        for line_in, line_out in zip(lines_in, blue.colorize(lines_in), strict=True):
             expected_out = f"\033[34m{line_in}\033[0m"
             self.assertEqual(line_out, expected_out)
 
