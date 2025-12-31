@@ -56,8 +56,8 @@ class Gardener:
         self.needed_fields: set[str] = set()
         self._tag_fields: dict[str, list[Callable[[gms.TagSet], None]]] = {}
         self._do_count: Callable[[gms.Gallery], None] = lambda *args, **kwds: None
-        self._path_field: str = str()
-        self._count_field: str = str()
+        self._path_field: str = ""
+        self._count_field: str = ""
         self._root_path: Path = Path()
         self._unique_fields: dict[str, set[object]] = {}
 
