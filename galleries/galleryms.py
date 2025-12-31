@@ -27,7 +27,6 @@ from collections.abc import (
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
-    Any,
     ClassVar,
     Generic,
     NamedTuple,
@@ -37,7 +36,12 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from _typeshed import StrPath, SupportsRichComparison
+    from _typeshed import (
+        ConvertibleToInt,
+        StrPath,
+        SupportsGetItem,
+        SupportsRichComparison,
+    )
 
 T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (
@@ -45,6 +49,7 @@ BinaryCompFunc: TypeAlias = (
 )
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 FieldFormatT = TypeVar("FieldFormatT", bound="FieldFormat")
+_IndexT = TypeVar("_IndexT", bound=str | int)
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
 
@@ -818,29 +823,29 @@ class FieldFormat:
                 yield f"\033[{self.sgr}m{line}\033[0m"
 
 
-class Tabulator:
+class Tabulator(Generic[_IndexT]):
     """Wrap columns of text.
 
-    Parameters:
-        field_fmts: mapping of field (column) names to a FieldFormat object
+    Args:
+        field_fmts: mapping of field (column) names to a FieldFormat object.
             Use integer keys if your rows data are sequences rather than
             dicts. Integer values will be interpreted as FieldFormat widths.
         total_width: all columns will fit inside this width (e.g., the width
-            of your terminal window)
-        padding: number of spaces between each column
-        left_margin: number of spaces before the first column
-        right_margin: number of spaces after the last column
+            of your terminal window).
+        padding: number of spaces between each column.
+        left_margin: number of spaces before the first column.
+        right_margin: number of spaces after the last column.
     """
 
     def __init__(
         self,
-        field_fmts: Mapping[str, FieldFormat],
+        field_fmts: Mapping[_IndexT, FieldFormat | ConvertibleToInt],
         total_width: int = 80,
         padding: int = 2,
         left_margin: int = 1,
         right_margin: int = 1,
     ) -> None:
-        self.field_fmts = {
+        self.field_fmts: dict[_IndexT, FieldFormat] = {
             field: self._rectify_format(field_fmts[field]) for field in field_fmts
         }
         self.total_width = total_width
@@ -848,7 +853,7 @@ class Tabulator:
         self.left_margin = left_margin
         self.right_margin = right_margin
 
-    def _wrappers(self) -> dict[str, textwrap.TextWrapper]:
+    def _wrappers(self) -> dict[_IndexT, textwrap.TextWrapper]:
         """Create TextWrapper objects for fields with known max width.
 
         _wrappers is *not* ordered like field_fmts is.
@@ -859,25 +864,27 @@ class Tabulator:
             if fmt.width != FieldFormat.REMAINING_SPACE
         }
 
-    def tabulate(self, rows: Iterable[Mapping[str, Any]]) -> Iterator[str]:
+    def tabulate(
+        self, rows: Iterable[SupportsGetItem[_IndexT, object]]
+    ) -> Iterator[str]:
         """Yield one line of table at a time.
 
-        Parameter:
-            rows: an iterable of text rows
+        Args:
+            rows: an iterable of text rows.
                 Each text row can be: a sequence of strings (indexed by
                 integer) or a mapping of field (column) names to a string
                 (where order is therefore unimportant).
 
         Yields:
-            One str for each line of resulting table
+            One str for each line of resulting table.
                 If rows is empty, yield nothing.
         """
         wrappers = self._wrappers()
 
         # Wrap to max widths
-        wrapped_rows: list[dict[str, str | list[str]]] = []
+        wrapped_rows: list[dict[_IndexT, str | list[str]]] = []
         for row in rows:
-            new_row: dict[str, str | list[str]] = {}
+            new_row: dict[_IndexT, str | list[str]] = {}
             for field, fmt in self.field_fmts.items():
                 text = str(row[field])
                 max_width = fmt.width
@@ -896,7 +903,7 @@ class Tabulator:
             return
 
         # Calculate actual widths after wrapping once
-        sizes: dict[str, int] = {}
+        sizes: dict[_IndexT, int] = {}
         n_remaining_cols = 0
         for field, fmt in self.field_fmts.items():
             # Record the longest line in each wrapped column
@@ -941,7 +948,7 @@ class Tabulator:
                 if isinstance(cell, str):
                     row[field] = wrappers[field].wrap(cell)
 
-        # wrapped_rows is now List[Dict[str, List[str]]]
+        # wrapped_rows is now List[Dict[_IndexT, List[str]]]
         # sizes contains widths of each column
 
         # Left justify each cell, then colorize adding 0-width characters
@@ -968,7 +975,7 @@ class Tabulator:
                 yield out
 
     @staticmethod
-    def _rectify_format(val: Any) -> FieldFormat:
+    def _rectify_format(val: FieldFormat | ConvertibleToInt) -> FieldFormat:
         """Pass int-able values into a FieldFormat object."""
         if not isinstance(val, FieldFormat):
             # Do not catch ValueError, TypeError

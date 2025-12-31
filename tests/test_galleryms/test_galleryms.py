@@ -425,6 +425,20 @@ class TestFieldFormat(unittest.TestCase):
             self.assertEqual(line_out, expected_out)
 
 
+class TestTabulator(unittest.TestCase):
+    def test_integer_indices(self):
+        ff = {0: galleries.galleryms.FieldFormat(10)}
+        tabulator = galleries.galleryms.Tabulator(ff)
+        rows = iter(
+            [
+                ["Lorem ipsum dolor sit amet, consectetur adipiscing elit"],
+                ["Ut enim ad minim veniam, quis nostrud exercitation"],
+                ["Excepteur sint occaecat cupidatat non proident"],
+            ]
+        )
+        self.assertEqual(len(list(tabulator.tabulate(rows))), 19)
+
+
 class TestMostCommon(unittest.TestCase):
     _ITERABLE = [1, 2, 3, 1, 2, 1]
     _EXPECTED = [3, 2, 2, 1, 1, 1]
