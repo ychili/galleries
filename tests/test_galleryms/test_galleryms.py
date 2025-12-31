@@ -438,6 +438,19 @@ class TestTabulator(unittest.TestCase):
         )
         self.assertEqual(len(list(tabulator.tabulate(rows))), 19)
 
+    def test_format_rectification(self):
+        tabulator = galleries.galleryms.Tabulator({0: 10})
+        self.assertEqual(tabulator.field_fmts, {0: galleries.galleryms.FieldFormat(10)})
+
+    def test_tabulate_empty_input(self):
+        tabulator = galleries.galleryms.Tabulator({0: 10})
+        self.assertFalse(list(tabulator.tabulate(iter([]))))
+
+    def test_tabulate_empty_values(self):
+        tabulator = galleries.galleryms.Tabulator({0: 10})
+        rows = iter([[""], [""], ["12345"], [""]])
+        self.assertEqual(len(list(tabulator.tabulate(rows))), 4)
+
 
 class TestMostCommon(unittest.TestCase):
     _ITERABLE = [1, 2, 3, 1, 2, 1]
