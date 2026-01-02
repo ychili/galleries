@@ -458,7 +458,7 @@ def validate_tag_actions(implicator: gms.Implicator) -> int:
             "" if len(ai_events) == 1 else "s",
         )
         errors += len(ai_events)
-    if cycle := implicator.find_cycle():
+    if cycle := implicator.graph.find_cycle():
         log.error(
             "Tag implication cannot create a circular relation with "
             "another tag implication: %s",

@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         ConvertibleToInt,
         StrPath,
         SupportsGetItem,
+        SupportsItems,
         SupportsRichComparison,
     )
 
@@ -73,158 +74,6 @@ class AliasedImplication(NamedTuple):
     implication: RegularImplication
     antecedent: str
     consequent: str
-
-
-class ImplicationGraph:
-    """Directed acyclic graph of tag implications
-
-    >>> graph = ImplicationGraph({'a': {'b'}, 'b': {'c'}})
-    >>> sorted(graph.descendants_of('a'))
-    ['b', 'c']
-    >>> tagset = TagSet(['d'])
-    >>> graph.join_descendants(tagset, 'a')
-    >>> sorted(tagset)
-    ['a', 'b', 'c', 'd']
-    """
-
-    def __init__(self, graph: Mapping[str, Iterable[str]] | None = None) -> None:
-        self.graph: defaultdict[str, TagSet] = defaultdict(TagSet)
-        if graph is not None:
-            for node, consequents in graph.items():
-                self.add_edge(node, *consequents)
-
-    def add_edge(self, antecedent: str, *consequent: str) -> None:
-        self.graph[antecedent].update(consequent)
-
-    def _traverse(
-        self, node: str, stack: MutableSequence[str], seen: MutableSet[str]
-    ) -> str | None:
-        """Recursive function to visit each node in the graph"""
-        # Mark current node as visited and add to recursion stack
-        seen.add(node)
-        stack.append(node)
-        # If any neighbor is visited and in recursion stack
-        # then graph is cyclic
-        for neighbor in self.graph[node]:
-            if neighbor not in seen:
-                if cycle_0 := self._traverse(neighbor, stack, seen):
-                    return cycle_0
-            elif neighbor in stack:
-                return neighbor
-        # Pop node from stack -- its descendants are free of cycles
-        stack.pop()
-        return None
-
-    def find_cycle(self) -> list[str] | None:
-        """Find cycles in the graph. Return ``None`` if no cycles found.
-
-        If multiple cycles exist, only one will be returned.
-        The cycle is returned as a list of nodes, such that each node is, in
-        the graph, an immediate predecessor of the next node in the list.
-        The first and last node in the list will be the same, to make it clear
-        that it is cyclic.
-        """
-        # We don't expect to exceed max recursion depth
-        nodes_seen = TagSet()
-        recursion_stack: list[str] = []
-        for node in list(self.graph):
-            if node not in nodes_seen and (
-                cycle_0 := self._traverse(node, recursion_stack, nodes_seen)
-            ):
-                return [*recursion_stack[recursion_stack.index(cycle_0) :], cycle_0]
-        return None
-
-    def tags_implied_by(self, tag: str) -> TagSet:
-        """Get children of *tag* from graph without creating default entry."""
-        return self.graph.get(tag, TagSet())
-
-    def descendants_of(self, tag: str) -> TagSet:
-        current_tags = self.tags_implied_by(tag)
-        descendants = current_tags
-        while current_tags:
-            new_tags = TagSet()
-            for implied_tag in current_tags:
-                new_tags.update(self.tags_implied_by(implied_tag))
-            descendants.update(new_tags)
-            current_tags = new_tags
-        return descendants
-
-    def join_descendants(self, tagset: TagSet, tag: str) -> None:
-        """Add *tag* and its descendants to *tagset*."""
-        tagset.add(tag)
-        for neighbor in self.graph[tag]:
-            if neighbor not in tagset:
-                self.join_descendants(tagset, neighbor)
-
-    def all_implications(self) -> Iterator[RegularImplication]:
-        for antecedent, consequents in self.graph.items():
-            for consequent in consequents:
-                yield RegularImplication(antecedent, consequent)
-
-
-class Implicator(ImplicationGraph):
-    """Collection of tag implications + tag aliases"""
-
-    def __init__(
-        self,
-        implications: Iterable[RegularImplication] | None = None,
-        aliases: MutableMapping[str, str] | None = None,
-    ) -> None:
-        super().__init__()
-        self.aliases = ChainMap(aliases or {})
-        if implications is not None:
-            for implication in implications:
-                self.add(implication)
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.graph == other.graph and self.aliases == other.aliases
-        return NotImplemented
-
-    @property
-    def implications(self) -> set[RegularImplication]:
-        return set(self.all_implications())
-
-    def add(self, implication: RegularImplication) -> None:
-        self.add_edge(implication.antecedent, implication.consequent)
-
-    def validate_implications_not_aliased(self) -> list[AliasedImplication]:
-        """Find instances where tags in implication have been aliased.
-
-        Return a list of AliasedImplication objects, each of which contains
-        an implication, a member tag of which has been aliased, and the two
-        tags in the tag alias.
-        Return an empty list, if none found.
-        """
-        events: list[AliasedImplication] = []
-        for implication in self.all_implications():
-            if tag := self.aliases.get(implication.antecedent):
-                events.append(
-                    AliasedImplication(implication, implication.antecedent, tag)
-                )
-            if tag := self.aliases.get(implication.consequent):
-                events.append(
-                    AliasedImplication(implication, implication.consequent, tag)
-                )
-        return events
-
-    def validate_aliases_not_aliased(self) -> list[TransitiveAliases]:
-        """Find instances in aliases where a -> b && b -> c.
-
-        Return a list of 3-tuples, of which each element is a tag in the
-        transitive relation, in the order a -> b -> c.
-        Return an empty list, if none found.
-        """
-        events: list[TransitiveAliases] = []
-        for alias, tag in self.aliases.items():
-            if other_tag := self.aliases.get(tag):
-                events.append(TransitiveAliases((alias, tag, other_tag)))
-        return events
-
-    def implicate(self, tagset: TagSet) -> None:
-        tagset.apply_aliases(self.aliases)
-        for tag in list(tagset):
-            self.join_descendants(tagset, tag)
 
 
 class TagSet(set[str]):
@@ -279,6 +128,162 @@ class TagSet(set[str]):
             if alias in self:
                 self.remove(alias)
                 self.add(tag)
+
+
+class ImplicationGraph(defaultdict[str, TagSet]):
+    """Directed acyclic graph of tag implications
+
+    >>> graph = ImplicationGraph({'a': {'b'}, 'b': {'c'}})
+    >>> sorted(graph.descendants_of('a'))
+    ['b', 'c']
+    >>> tagset = TagSet(['d'])
+    >>> graph.join_descendants(tagset, 'a')
+    >>> sorted(tagset)
+    ['a', 'b', 'c', 'd']
+    """
+
+    def __init__(self, graph: SupportsItems[str, Iterable[str]] | None = None) -> None:
+        super().__init__(TagSet)
+        if graph is not None:
+            for node, consequents in graph.items():
+                self.add_edge(node, *consequents)
+
+    def add_edge(self, antecedent: str, *consequent: str) -> None:
+        self[antecedent].update(consequent)
+
+    def _traverse(
+        self, node: str, stack: MutableSequence[str], seen: MutableSet[str]
+    ) -> str | None:
+        """Recursive function to visit each node in the graph"""
+        # Mark current node as visited and add to recursion stack
+        seen.add(node)
+        stack.append(node)
+        # If any neighbor is visited and in recursion stack
+        # then graph is cyclic
+        for neighbor in self[node]:
+            if neighbor not in seen:
+                if cycle_0 := self._traverse(neighbor, stack, seen):
+                    return cycle_0
+            elif neighbor in stack:
+                return neighbor
+        # Pop node from stack -- its descendants are free of cycles
+        stack.pop()
+        return None
+
+    def find_cycle(self) -> list[str] | None:
+        """Find cycles in the graph. Return ``None`` if no cycles found.
+
+        If multiple cycles exist, only one will be returned.
+        The cycle is returned as a list of nodes, such that each node is, in
+        the graph, an immediate predecessor of the next node in the list.
+        The first and last node in the list will be the same, to make it clear
+        that it is cyclic.
+        """
+        # We don't expect to exceed max recursion depth
+        nodes_seen = TagSet()
+        recursion_stack: list[str] = []
+        for node in list(self):
+            if node not in nodes_seen and (
+                cycle_0 := self._traverse(node, recursion_stack, nodes_seen)
+            ):
+                return [*recursion_stack[recursion_stack.index(cycle_0) :], cycle_0]
+        return None
+
+    def tags_implied_by(self, tag: str) -> TagSet:
+        """Get children of *tag* from graph without creating default entry."""
+        return self.get(tag, TagSet())
+
+    def descendants_of(self, tag: str) -> TagSet:
+        current_tags = self.tags_implied_by(tag)
+        descendants = current_tags
+        while current_tags:
+            new_tags = TagSet()
+            for implied_tag in current_tags:
+                new_tags.update(self.tags_implied_by(implied_tag))
+            descendants.update(new_tags)
+            current_tags = new_tags
+        return descendants
+
+    def join_descendants(self, tagset: TagSet, tag: str) -> None:
+        """Add *tag* and its descendants to *tagset*."""
+        tagset.add(tag)
+        for neighbor in self[tag]:
+            if neighbor not in tagset:
+                self.join_descendants(tagset, neighbor)
+
+    def add_implication(self, implication: RegularImplication) -> None:
+        self.add_edge(implication.antecedent, implication.consequent)
+
+    def all_implications(self) -> Iterator[RegularImplication]:
+        for antecedent, consequents in self.items():
+            for consequent in consequents:
+                yield RegularImplication(antecedent, consequent)
+
+
+class Implicator:
+    """Collection of tag implications + tag aliases"""
+
+    def __init__(
+        self,
+        implications: Iterable[RegularImplication] | None = None,
+        aliases: MutableMapping[str, str] | None = None,
+        graph: ImplicationGraph | None = None,
+    ) -> None:
+        self.graph = ImplicationGraph(graph or {})
+        self.aliases = ChainMap(aliases or {})
+        if implications is not None:
+            for implication in implications:
+                self.add(implication)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.graph == other.graph and self.aliases == other.aliases
+        return NotImplemented
+
+    @property
+    def implications(self) -> set[RegularImplication]:
+        return set(self.graph.all_implications())
+
+    def add(self, implication: RegularImplication) -> None:
+        self.graph.add_implication(implication)
+
+    def validate_implications_not_aliased(self) -> list[AliasedImplication]:
+        """Find instances where tags in implication have been aliased.
+
+        Return a list of AliasedImplication objects, each of which contains
+        an implication, a member tag of which has been aliased, and the two
+        tags in the tag alias.
+        Return an empty list, if none found.
+        """
+        events: list[AliasedImplication] = []
+        for implication in self.graph.all_implications():
+            if tag := self.aliases.get(implication.antecedent):
+                events.append(
+                    AliasedImplication(implication, implication.antecedent, tag)
+                )
+            if tag := self.aliases.get(implication.consequent):
+                events.append(
+                    AliasedImplication(implication, implication.consequent, tag)
+                )
+        return events
+
+    def validate_aliases_not_aliased(self) -> list[TransitiveAliases]:
+        """Find instances in aliases where a -> b && b -> c.
+
+        Return a list of 3-tuples, of which each element is a tag in the
+        transitive relation, in the order a -> b -> c.
+        Return an empty list, if none found.
+        """
+        events: list[TransitiveAliases] = []
+        for alias, tag in self.aliases.items():
+            if other_tag := self.aliases.get(tag):
+                events.append(TransitiveAliases((alias, tag, other_tag)))
+        return events
+
+    def implicate(self, tagset: TagSet) -> None:
+        tagset.apply_aliases(self.aliases)
+        for tag in list(tagset):
+            self.graph.join_descendants(tagset, tag)
 
 
 class Gallery(dict[str, object]):
