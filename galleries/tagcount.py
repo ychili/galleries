@@ -10,7 +10,7 @@ import logging
 import statistics
 from collections.abc import Iterable
 
-from . import PROG
+from . import PROG, util
 from .galleryms import TagSet
 
 log = logging.getLogger(PROG)
@@ -37,6 +37,7 @@ def count(tag_sets: Iterable[TagSet], *, reverse: bool = False) -> int:
 
 def summarize(tag_sets: Iterable[TagSet]) -> int:
     """Print statistical summary of *tag_sets*."""
+    print = util.console.print
     tag_sets = list(tag_sets)
     print("TOTALS")
     print(f"  galleries   {len(tag_sets)}")
