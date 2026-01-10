@@ -151,3 +151,24 @@ we can at least use to test for regressions.
            exercitation
  Caramel   Excepteur sint occaecat cupidatat non      0.9948266942576306
            proident
+
+Test count summarize
+--------------------
+
+Given an argument to *tag_sets* with no tag sets or tag sets with
+no tags in them, ``tagcount.summarize`` should print an abbreviated
+version of the statistical summary.
+
+>>> from galleries.tagcount import summarize
+>>> summarize([])
+TOTALS
+  galleries   0
+  tags        0
+  unique_tags 0
+0
+>>> summarize([set()])
+TOTALS
+  galleries   1
+  tags        0
+  unique_tags 0
+0

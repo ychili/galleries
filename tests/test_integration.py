@@ -373,7 +373,19 @@ class TestCount:
         assert len(lines) == 5
         assert lines[0].split() == ["3", "a"]
 
-    def test_summarize(self, input_args_tags_only, capsys):
+    @pytest.mark.usefixtures("write_to_csv")
+    def test_summarize_no_tags(self, capsys):
+        rc = galleries.cli.main(["count", "--summarize"])
+        assert rc == 0
+        lines = capsys.readouterr().out.splitlines()
+        assert lines == [
+            "TOTALS",
+            "  galleries   0",
+            "  tags        0",
+            "  unique_tags 0",
+        ]
+
+    def test_summarize_tags(self, input_args_tags_only, capsys):
         rc = galleries.cli.main(["count", "--summarize", *input_args_tags_only])
         assert rc == 0
         captured = capsys.readouterr()

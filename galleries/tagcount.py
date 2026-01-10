@@ -44,6 +44,8 @@ def summarize(tag_sets: Iterable[TagSet]) -> int:
     total_tags = sum(counts)
     print(f"  tags        {total_tags}")
     print(f"  unique_tags {len(counts)}")
+    if not counts:
+        return 0
     print("AVERAGES")
     print(f"  galleries_per_tag {total_tags / len(counts)}")
     print(f"  tags_per_gallery  {total_tags / len(tag_sets)}")
