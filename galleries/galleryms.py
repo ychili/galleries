@@ -220,7 +220,7 @@ class ImplicationGraph(defaultdict[str, TagSet]):
                 yield RegularImplication(antecedent, consequent)
 
 
-class Implicator:
+class Implicator:  # noqa: PLW1641
     """Collection of tag implications + tag aliases"""
 
     def __init__(

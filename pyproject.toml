@@ -30,6 +30,9 @@ select = [
     "C4",     # flake8-comprehensions
     "UP",     # pyupgrade
     "D419",   # empty-docstring
+    "PLC",    # Pylint convention
+    "PLE",    # Pylint error
+    "PLW",    # Pylint warning
 ]
 
 [tool.pyright]
