@@ -241,42 +241,44 @@ def parse_field_format_file(filename: StrPath) -> dict[str, gms.FieldFormat]:
     text = Path(filename).read_text(encoding="utf-8")
     max_widths = {}
     for lineno, line in enumerate(text.splitlines(), start=1):
-        args = shlex.split(line, comments=True)
-        if not args:
-            continue
-        if len(args) < 2:
-            log.error(
-                "%s:%d: Fieldname argument %s without width argument",
-                filename,
-                lineno,
-                args[0],
-            )
-            continue
-        fieldname = args[0]
-        if "REM" in args[1].upper():
-            width = gms.FieldFormat.REMAINING_SPACE
-        else:
-            try:
-                width = locale.atoi(args[1])
-            except ValueError:
-                log.error(
-                    "%s:%d: Could not convert width argument %s to integer",
-                    filename,
-                    lineno,
-                    args[1],
-                )
-                continue
-        optionals = iter(args[2:])
-        fg_color = next(optionals, "").lower()
-        bg_color = next(optionals, "").lower()
-        effect = next(optionals, "").lower()
         try:
-            max_widths[fieldname] = gms.FieldFormat.from_names(
-                width, fg_color, bg_color, effect
-            )
-        except KeyError as err:
-            log.error("%s:%d: Bad color argument: %s", filename, lineno, err)
+            instruction = _field_format_from_text(line)
+        except ValueError as err:
+            log.error("%s:%d: %s", filename, lineno, err)
+            continue
+        if not instruction:
+            continue
+        fieldname, field_format = instruction
+        max_widths[fieldname] = field_format
     return max_widths
+
+
+def _field_format_from_text(line: str) -> tuple[str, gms.FieldFormat] | None:
+    args = shlex.split(line, comments=True)
+    if not args:
+        return None
+    if len(args) < 2:
+        raise ValueError(f"Fieldname argument {args[0]} without width argument")
+    fieldname = args[0]
+    if "REM" in args[1].upper():
+        width = gms.FieldFormat.REMAINING_SPACE
+    else:
+        try:
+            width = locale.atoi(args[1])
+        except ValueError as err:
+            msg = f"Could not convert width argument {args[1]} to integer"
+            raise ValueError(msg) from err
+    optionals = iter(args[2:])
+    fg_color = next(optionals, "").lower()
+    bg_color = next(optionals, "").lower()
+    effect = next(optionals, "").lower()
+    try:
+        return (
+            fieldname,
+            gms.FieldFormat.from_names(width, fg_color, bg_color, effect),
+        )
+    except KeyError as err:
+        raise ValueError(f"Bad color argument: {err}") from err
 
 
 def parse_rich_table_file(filename: StrPath) -> RichTablePrinter:
