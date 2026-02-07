@@ -1,9 +1,13 @@
 """Unit tests for util"""
 
+import csv
 import io
 import sys
 import unittest
 import unittest.mock
+
+import hypothesis
+import hypothesis.strategies
 
 import galleries.galleryms
 import galleries.util
@@ -55,6 +59,28 @@ class TestReadDB(unittest.TestCase):
         with galleries.util.read_db(iterable_lines) as reader:
             glist = list(reader)
         self.assertEqual(glist, self._EXPECTED_OUT)
+
+    # Python >3.10 will accept a nul in CSV without error.
+    # <https://github.com/python/cpython/pull/28808>
+    @hypothesis.example(["\x00"])
+    @hypothesis.example(['"'])
+    @hypothesis.given(hypothesis.strategies.iterables(hypothesis.strategies.text()))
+    def test_roundtrip_read_db_write_galleries(self, csv_lines):
+        # Fuzz read_db to find valid CSV.
+        try:
+            with galleries.util.read_db(csv_lines) as reader_0:
+                try:
+                    glist = list(reader_0)
+                except galleries.util.FieldMismatchError:
+                    hypothesis.reject()
+        except csv.Error:
+            hypothesis.reject()
+        # Then, write and read the data again to test round-trip consistency.
+        buf = io.StringIO()
+        galleries.util.write_galleries(glist, reader_0.fieldnames, buf)
+        buf.seek(0)
+        with galleries.util.read_db(buf) as reader_1:
+            self.assertEqual(glist, list(reader_1))
 
 
 class TestSorting(unittest.TestCase):
