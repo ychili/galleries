@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import contextlib
+import csv
 import dataclasses
 import logging
 import os
@@ -1020,7 +1021,7 @@ def _read_db(
         # Error is handled at higher level. Re-raise, otherwise exception is
         # caught by 'except OSError' block below.
         raise
-    except OSError as err:
+    except (OSError, csv.Error) as err:
         log.error("Unable to read CSV file: %s", err)
         raise _CLIError from err
     except UnicodeDecodeError as err:
