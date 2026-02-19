@@ -53,8 +53,8 @@ class TestFileType:
         assert galleries.cli.FileType("r")("-") == sys.stdin
         assert galleries.cli.FileType("w")("-") == sys.stdout
         with pytest.raises(ValueError, match="x"):
-            galleries.cli.FileType("x")("-")
-        assert galleries.cli.FileType("r")("/dev/stdin") == "/dev/stdin"
+            galleries.cli.FileType("x")("-")  # type: ignore
+        assert galleries.cli.FileType("r")("/dev/stdin") == pathlib.Path("/dev/stdin")
 
 
 @pytest.mark.usefixtures("global_config_dir")

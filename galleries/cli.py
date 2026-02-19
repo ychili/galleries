@@ -18,7 +18,7 @@ import stat
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
@@ -50,19 +50,21 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
     "related": {"SortMetric": "cosine", "Filter": "", "Limit": 20},
 }
 
+
 log = logging.getLogger(PROG)
 
 
 class FileType:
-    """
-    Reduced version of ``argparse.FileType``. Only checks for special argument
+    """Reduced version of ``argparse.FileType``.
+
+    Only checks for special argument
     "-" meaning stdin (for mode "r") or stdout (for mode "w").
     """
 
-    def __init__(self, mode: str = "r") -> None:
+    def __init__(self, mode: Literal["r", "w"] = "r") -> None:
         self.mode = mode
 
-    def __call__(self, string: str) -> str | TextIO:
+    def __call__(self, string: str) -> Path | TextIO:
         if string == "-":
             if "r" in self.mode:
                 return sys.stdin
@@ -70,7 +72,7 @@ class FileType:
                 return sys.stdout
             msg = f"argument '-' with mode {self.mode}"
             raise ValueError(msg)
-        return string
+        return Path(string)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.mode!r})"
