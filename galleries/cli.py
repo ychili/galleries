@@ -18,7 +18,7 @@ import stat
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO
+from typing import TYPE_CHECKING, Any, Literal, TextIO, TypedDict
 
 from . import PROG, __version__, refresh, relatedtag, table_query, tagcount, util
 
@@ -52,6 +52,61 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
 
 
 log = logging.getLogger(PROG)
+
+
+class _OpSettings(TypedDict):
+    tag_fields: list[str]
+
+
+class _ReadOpSettings(_OpSettings):
+    input_file: Path | TextIO
+
+
+class _ReadWriteOpSettings(_OpSettings):
+    collection_root: Path
+    path_field: str
+    count_field: str
+
+
+class TraverseSettings(_ReadWriteOpSettings):
+    output_file: Path | TextIO
+    force: bool
+    leaves_only: bool
+
+
+class CountSettings(_ReadOpSettings):
+    summarize: bool
+
+
+class QuerySettings(_ReadOpSettings):
+    term: list[str]
+    sort_field: str | None
+    reverse_sort: bool
+    format: table_query.Format
+    auto_format: table_query.Format
+    field_formats: Path
+    rich_table: Path
+
+
+class RefreshSettings(_ReadWriteOpSettings):
+    input_file: Path
+    backup_suffix: str
+    sort_field: str
+    reverse_sort: bool
+    unique_fields: list[str]
+    implicating_fields: set[str]
+    no_check: bool
+    validate: bool
+    implications: list[Path]
+    aliases: list[Path]
+    removals: list[Path]
+    tag_actions: list[Path]
+
+
+class RelatedSettings(_ReadOpSettings):
+    limit_results: int | None
+    sort_metric: str
+    term: list[str]
 
 
 class FileType:
@@ -410,15 +465,37 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     db_config = paths.acquire_db_config()
     if not db_config:
         return 1
-    filename = cla.output
-    if not filename:
-        filename = db_config.get_path("db", "CSVName")
-        if not cla.force and filename.exists():
-            log.error("Refusing to overwrite existing CSV file: %s", filename)
-            return 1
+    settings = traverse_settings(cla, db_config)
+    return traverse_op(settings)
+
+
+def traverse_settings(cla: argparse.Namespace, db_config: DBConfig) -> TraverseSettings:
+    """Merge settings for traverse operation."""
+    output_file = cla.output or db_config.get_path("db", "CSVName")
     path_field = db_config.parser["db"]["PathField"]
     count_field = db_config.parser["db"]["CountField"]
     tag_fields = db_config.get_list("db", "TagFields")
+
+    return TraverseSettings(
+        output_file=output_file,
+        collection_root=db_config.paths.collection,
+        force=cla.force,
+        leaves_only=cla.leaves,
+        path_field=path_field,
+        count_field=count_field,
+        tag_fields=tag_fields,
+    )
+
+
+def traverse_op(settings: TraverseSettings) -> int:
+    """Traverse operation"""
+    filename = settings["output_file"]
+    if isinstance(filename, Path) and not settings["force"] and filename.exists():
+        log.error("Refusing to overwrite existing CSV file: %s", filename)
+        return 1
+    path_field = settings["path_field"]
+    count_field = settings["count_field"]
+    tag_fields = settings["tag_fields"]
     fieldnames = [path_field, count_field, *tag_fields]
     log.debug(
         "path field: %r; count field: %r; tag fields: %r",
@@ -427,10 +504,10 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         tag_fields,
     )
     galleries = refresh.traverse_main(
-        paths.collection,
+        settings["collection_root"],
         path_field=path_field,
         count_field=count_field,
-        leaves_only=cla.leaves,
+        leaves_only=settings["leaves_only"],
     )
     try:
         util.write_galleries(galleries, fieldnames=fieldnames, file=filename)
@@ -446,11 +523,26 @@ def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Count sub-command"""
     db_config = config.get_collections().find_collection(cla.collection).get_db_config()
-    filename = cla.csvfile or db_config.get_path("db", "CSVName")
+    settings = count_settings(cla, db_config)
+    return count_op(settings)
+
+
+def count_settings(cla: argparse.Namespace, db_config: DBConfig) -> CountSettings:
+    """Merge settings for count operation."""
+    input_file = cla.csvfile or db_config.get_path("db", "CSVName")
     tag_fields = cla.fields or db_config.get_list("count", "TagFields")
-    func = tagcount.summarize if cla.summarize else tagcount.count
+
+    return CountSettings(
+        input_file=input_file, tag_fields=tag_fields, summarize=cla.summarize
+    )
+
+
+def count_op(settings: CountSettings) -> int:
+    """Count operation"""
+    tag_fields = settings["tag_fields"]
+    func = tagcount.summarize if settings["summarize"] else tagcount.count
     try:
-        with _read_db(filename, tag_fields) as reader:
+        with _read_db(settings["input_file"], tag_fields) as reader:
             tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
             return func(tag_sets)
     except _CLIError as err:
@@ -460,20 +552,68 @@ def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Query sub-command"""
     db_config = config.get_collections().find_collection(cla.collection).get_db_config()
-    filename = cla.csvfile or db_config.get_path("db", "CSVName")
-    tag_fields = cla.field or db_config.get_list("query", "TagFields")
     try:
-        output_formatter = _query_output_formatter(cla, db_config)
+        settings = query_settings(cla, db_config)
+    except _CLIError as err:
+        return err.status
+    return query_op(settings)
+
+
+def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySettings:
+    """Merge settings for query operation."""
+    input_file = cla.csvfile or db_config.get_path("db", "CSVName")
+    tag_fields = cla.field or db_config.get_list("query", "TagFields")
+    fmt: table_query.Format | None = cla.format
+    if cla.field_formats:
+        fmt = table_query.Format.FORMAT
+    elif cla.rich_table:
+        fmt = table_query.Format.RICH
+    if fmt is None:
+        try:
+            fmt = table_query.Format(db_config.parser["query"]["Format"].lower())
+        except ValueError as err:
+            log.error("Invalid configuration setting: %s", err)
+            raise _CLIError from err
+    try:
+        auto_fmt = table_query.Format(db_config.parser["query"]["AutoFormat"].lower())
+    except ValueError as err:
+        log.error("Invalid configuration setting: %s", err)
+        raise _CLIError from err
+    if auto_fmt not in {table_query.Format.FORMAT, table_query.Format.RICH}:
+        log.error("Invalid configuration setting for AutoFormat: %s", fmt.value)
+        raise _CLIError
+    fmts_file = Path(cla.field_formats or db_config.get_path("query", "FieldFormats"))
+    table_file = Path(cla.rich_table or db_config.get_path("query", "RichTable"))
+
+    return QuerySettings(
+        term=cla.term,
+        sort_field=cla.sort,
+        reverse_sort=cla.reverse,
+        format=fmt,
+        field_formats=fmts_file,
+        rich_table=table_file,
+        auto_format=auto_fmt,
+        input_file=input_file,
+        tag_fields=tag_fields,
+    )
+
+
+def query_op(settings: QuerySettings) -> int:
+    """Query operation"""
+    try:
+        output_formatter = _query_output_formatter(settings)
     except _CLIError as err:
         return err.status
     try:
-        with _read_db(filename) as reader:
-            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
+        with _read_db(settings["input_file"]) as reader:
+            query = table_query.query_from_args(
+                settings["term"], reader.fieldnames, settings["tag_fields"]
+            )
             galleries = table_query.sort_table(
                 (gallery for gallery in reader if query.match(gallery)),
                 reader.fieldnames,
-                sort_field=cla.sort,
-                reverse_sort=cla.reverse,
+                sort_field=settings["sort_field"],
+                reverse_sort=settings["reverse_sort"],
             )
             table_query.print_table(galleries, reader.fieldnames, output_formatter)
     except _CLIError as err:
@@ -482,49 +622,35 @@ def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 
 def _query_output_formatter(
-    cla: argparse.Namespace, config: DBConfig
+    settings: QuerySettings,
 ) -> table_query.TablePrinter | None:
-    """Sub-function of ``query_sc``
+    """Sub-function of ``query_op``
 
     Return a ``TablePrinter`` that can print galleries, or return ``None``
     if no formatting was requested.
     """
-    fmt = cla.format
-    if cla.field_formats:
-        fmt = table_query.Format.FORMAT
-    elif cla.rich_table:
-        fmt = table_query.Format.RICH
-    if fmt is None:
-        try:
-            fmt = table_query.Format(config.parser["query"]["Format"].lower())
-        except ValueError as err:
-            log.error("Invalid configuration setting: %s", err)
-            raise _CLIError from err
+    fmt = settings["format"]
     if fmt == table_query.Format.AUTO:
         if sys.stdout.isatty():
-            try:
-                fmt = table_query.Format(config.parser["query"]["AutoFormat"].lower())
-            except ValueError as err:
-                log.error("Invalid configuration setting: %s", err)
-                raise _CLIError from err
-            if fmt not in {table_query.Format.FORMAT, table_query.Format.RICH}:
-                log.error("Invalid configuration setting for AutoFormat: %s", fmt.value)
-                raise _CLIError
+            fmt = settings["auto_format"]
         else:
             fmt = table_query.Format.NONE
-    if fmt == table_query.Format.FORMAT or cla.field_formats:
-        fmts_file = cla.field_formats or config.get_path("query", "FieldFormats")
+    if fmt == table_query.Format.FORMAT:
         try:
-            field_fmts = table_query.parse_field_format_file(fmts_file)
+            field_fmts = table_query.parse_field_format_file(settings["field_formats"])
         except OSError as err:
             log.error("Unable to read FieldFormats file: %s", err)
             raise _CLIError from err
         except UnicodeDecodeError as err:
-            log.error("Unable to decode FieldFormats file: %s: %s", err, str(fmts_file))
+            log.error(
+                "Unable to decode FieldFormats file: %s: %s",
+                err,
+                settings["field_formats"],
+            )
             raise _CLIError from err
         return table_query.FormattedTablePrinter(field_fmts)
-    if fmt == table_query.Format.RICH or cla.rich_table:
-        table_file = cla.rich_table or config.get_path("query", "RichTable")
+    if fmt == table_query.Format.RICH:
+        table_file = settings["rich_table"]
         return table_query.parse_rich_table_file(table_file)
     # fmt == table_query.Format.NONE
     return None
@@ -536,31 +662,75 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     db_config = paths.acquire_db_config()
     if not db_config:
         return 1
-    gardener = refresh.Gardener()
-    # First, acquire all "guaranteed" values.
-    filename = db_config.get_path("db", "CSVName")
+    settings = refresh_settings(cla, db_config)
+    return refresh_op(settings)
+
+
+def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSettings:
+    """Merge settings for refresh operation."""
+    input_file = db_config.get_path("db", "CSVName")
     tag_fields = db_config.get_list("refresh", "TagFields")
-    gardener.set_normalize_tags(*tag_fields)
     backup_suffix = cla.suffix or db_config.parser["refresh"]["BackupSuffix"]
-    # Second, acquire values for Update file count, if requested
     path_field = db_config.parser["refresh"]["PathField"]
     count_field = db_config.parser["refresh"]["CountField"]
     sort_field = db_config.parser["refresh"].get("SortField", path_field)
-    gardener.needed_fields.add(sort_field)
-    if not cla.no_check:
-        gardener.set_update_count(path_field, count_field, paths.collection)
     unique_fields = db_config.get_list("refresh", "UniqueFields")
-    gardener.set_unique(*unique_fields)
-    # Third, see if there are enough values to perform implication
+    implications = db_config.get_multi_paths("refresh", "Implications")
+    aliases = db_config.get_multi_paths("refresh", "Aliases")
+    removals = db_config.get_multi_paths("refresh", "Removals")
+    unified = db_config.get_multi_paths("refresh", "TagActions")
+    implicating_fields = db_config.get_implicating_fields()
     try:
-        error_status = set_tag_actions(gardener, db_config) and 1
+        reverse = bool(db_config.parser["refresh"].getboolean("ReverseSort"))
+    except ValueError as err:
+        log.warning(
+            "Invalid configuration setting for ReverseSort (defaulting to False): %s",
+            err,
+        )
+        reverse = False
+
+    return RefreshSettings(
+        input_file=input_file,
+        collection_root=db_config.paths.collection,
+        tag_fields=tag_fields,
+        backup_suffix=backup_suffix,
+        path_field=path_field,
+        count_field=count_field,
+        sort_field=sort_field,
+        reverse_sort=reverse,
+        unique_fields=unique_fields,
+        implications=implications,
+        aliases=aliases,
+        removals=removals,
+        tag_actions=unified,
+        implicating_fields=implicating_fields,
+        no_check=cla.no_check,
+        validate=cla.validate,
+    )
+
+
+def refresh_op(settings: RefreshSettings) -> int:
+    """Refresh operation"""
+    gardener = refresh.Gardener()
+    filename = settings["input_file"]
+    gardener.set_normalize_tags(*settings["tag_fields"])
+    sort_field = settings["sort_field"]
+    gardener.needed_fields.add(sort_field)
+    path_field = settings["path_field"]
+    if not settings["no_check"]:
+        gardener.set_update_count(
+            path_field, settings["count_field"], settings["collection_root"]
+        )
+    gardener.set_unique(*settings["unique_fields"])
+    try:
+        error_status = set_tag_actions(gardener, settings) and 1
     except (OSError, UnicodeDecodeError) as err:
         log.error("Unable to read tag file: %s", err)
         return 1
-    if cla.validate or error_status:
+    if settings["validate"] or error_status:
         return error_status
     try:
-        with _read_db(filename, gardener.needed_fields) as reader:
+        with _read_db(settings["input_file"], gardener.needed_fields) as reader:
             rows = list(gardener.garden_rows(reader))
     except refresh.FolderPathError as err:
         log.error("With %s value: %s", path_field, err)
@@ -572,17 +742,11 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
         return err.status
     if not rows:
         return 0
-    try:
-        reverse = db_config.parser["refresh"].getboolean("ReverseSort")
-    except ValueError as err:
-        log.warning(
-            "Invalid configuration setting for ReverseSort (defaulting to False): %s",
-            err,
-        )
-        reverse = False
     log.debug("Sorting by field: %s", sort_field)
-    rows.sort(key=util.alphanum_getter(sort_field), reverse=bool(reverse))
-    backup_file = filename.replace(filename.with_name(filename.name + backup_suffix))
+    rows.sort(key=util.alphanum_getter(sort_field), reverse=settings["reverse_sort"])
+    backup_file = filename.replace(
+        filename.with_name(filename.name + settings["backup_suffix"])
+    )
     log.info("Backed up '%s' -> '%s'", filename, backup_file)
     try:
         util.write_galleries(
@@ -598,26 +762,23 @@ def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     return 0
 
 
-def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
-    """Sub-function of ``refresh_sc``
+def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> int:
+    """Sub-function of ``refresh_op``
 
     Responsible for loading tag actions/implications from file and adding them
     to the gardener.
     """
-    implications = config.get_multi_paths("refresh", "Implications")
-    aliases = config.get_multi_paths("refresh", "Aliases")
-    removals = config.get_multi_paths("refresh", "Removals")
-    unified = config.get_multi_paths("refresh", "TagActions")
-    implicating_fields = config.get_implicating_fields()
-    for filename in aliases:
+    implicating_fields = settings["implicating_fields"]
+    for filename in settings["aliases"]:
         gardener.set_alias_tags(refresh.get_aliases(filename), *implicating_fields)
-    for filename in implications:
+    for filename in settings["implications"]:
         gardener.set_imply_tags(refresh.get_implications(filename), *implicating_fields)
-    if removals:
+    if settings["removals"]:
         gardener.set_remove_tags(
-            refresh.get_tags_from_file(*removals), *implicating_fields
+            refresh.get_tags_from_file(*settings["removals"]), *implicating_fields
         )
     tao = refresh.TagActionsObject(default_tag_fields=implicating_fields)
+    unified = settings["tag_actions"]
     for filename in unified:
         tao.read_file(filename)
     errors = 0
@@ -627,7 +788,9 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
         gardener.set_implicator(implic, *fields)
     if unified:
         # List paths as DB-relative.
-        paths = join_semicolon_list(config.get_list("refresh", "TagActions"))
+        paths = join_semicolon_list(
+            str(p.relative_to(settings["collection_root"])) for p in unified
+        )
         msg = "Found %d logical error%s in TagActions files: %s"
         log.info(msg, errors, "" if errors == 1 else "s", paths)
     return errors
@@ -636,29 +799,57 @@ def set_tag_actions(gardener: refresh.Gardener, config: DBConfig) -> int:
 def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Related sub-command"""
     db_config = config.get_collections().find_collection(cla.collection).get_db_config()
+    try:
+        settings = related_settings(cla, db_config)
+    except _CLIError as err:
+        return err.status
+    return related_op(settings)
+
+
+def related_settings(cla: argparse.Namespace, db_config: DBConfig) -> RelatedSettings:
+    """Merge settings for related operation."""
     tag_fields = cla.field or db_config.get_list("related", "TagFields")
     input_file = cla.csvfile or db_config.get_path("related", "CSVName")
-    limit = cla.limit
-    sort_by = cla.sort
+    limit: int | None = cla.limit
+    sort_by: str | None = cla.sort
     if limit is None:
         try:
             limit = db_config.parser["related"].getint("Limit")
         except ValueError as err:
             log.error("Invalid configuration setting for Limit: %s", err)
-            return 1
+            raise _CLIError from err
     if sort_by is None:
         sort_by = db_config.parser["related"]["SortMetric"].lower()
         if sort_by not in relatedtag.SimilarityResult.choices():
             log.error("Invalid configuration setting for SortMetric: %s", sort_by)
-            return 1
+            raise _CLIError
 
+    return RelatedSettings(
+        input_file=input_file,
+        tag_fields=tag_fields,
+        limit_results=limit,
+        sort_metric=sort_by,
+        term=cla.term,
+    )
+
+
+def related_op(settings: RelatedSettings) -> int:
+    """Related operation"""
+    input_file = settings["input_file"]
+    tag_fields = settings["tag_fields"]
     try:
         with _read_db(input_file, tag_fields) as reader:
-            query = table_query.query_from_args(cla.term, reader.fieldnames, tag_fields)
+            query = table_query.query_from_args(
+                settings["term"], reader.fieldnames, tag_fields
+            )
             related_tags = relatedtag.get_related_tags(
                 reader, query, frozenset(tag_fields)
             )
-            similarity_results = relatedtag.sort(related_tags, sort_by=sort_by, n=limit)
+            similarity_results = relatedtag.sort(
+                related_tags,
+                sort_by=settings["sort_metric"],
+                n=settings["limit_results"],
+            )
     except _CLIError as err:
         return err.status
     log.debug("Read from CSV file %r", input_file)
