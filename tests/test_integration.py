@@ -14,6 +14,7 @@ import subprocess
 import pytest
 
 import galleries.cli
+import galleries.cli.lib
 
 SUBCOMMANDS = [None, "init", "traverse", "count", "query", "refresh", "related"]
 DIR_TREE = ["d1", "d1/d1.1", "d1/d1.2", "d2", "d2/d2.1", "d3", "d4"]
@@ -288,7 +289,7 @@ class TestTraverse:
         csvpath = root / galleries.cli.DB_DIR_NAME / "custom.csv"
         assert csvpath.is_file()
         headers = csvpath.read_text(encoding="utf-8").strip().split(",")
-        fieldnames = galleries.cli.split_semicolon_list(value)
+        fieldnames = galleries.cli.lib.split_semicolon_list(value)
         for field in fieldnames:
             assert field in headers
 
@@ -298,7 +299,7 @@ def csv_path(root):
     return (
         root
         / galleries.cli.DB_DIR_NAME
-        / galleries.cli.DEFAULT_CONFIG_STATE["db"]["CSVName"]
+        / galleries.cli.lib.DEFAULT_CONFIG_STATE["db"]["CSVName"]
     )
 
 
@@ -330,7 +331,7 @@ def write_to_csv(initialize_collection):
 
 
 def _edit_db_conf(path, section, field, value):
-    parser = galleries.cli.DBConfig.default_parser()
+    parser = galleries.cli.lib.DBConfig.default_parser()
     with path.open(encoding="utf-8") as db_conf:
         parser.read_file(db_conf, source=path.name)
     section_mapping = parser.setdefault(section, {})
@@ -802,7 +803,7 @@ class TestRelated:
 class TestRefresh:
     def backup_path(self, original_path, suffix=None):
         if suffix is None:
-            suffix = galleries.cli.DEFAULT_CONFIG_STATE["refresh"]["BackupSuffix"]
+            suffix = galleries.cli.lib.DEFAULT_CONFIG_STATE["refresh"]["BackupSuffix"]
         return original_path.with_name(original_path.name + suffix)
 
     def _read_backup(self, original_path, suffix=None):

@@ -11,6 +11,7 @@ import pytest
 
 import galleries
 import galleries.cli
+import galleries.cli.lib
 
 _STD_CONFIGPARSER_ERRORS = [
     # text, exception expected
@@ -38,10 +39,10 @@ def write_to_collections(real_path):
 def real_db(tmp_path):
     """Create and return an unconfigured collection inside ``tmp_path``."""
     collection_path = tmp_path / "test_collection"
-    spec = galleries.cli.collection_path_spec(
+    spec = galleries.cli.lib.collection_path_spec(
         collection_path=collection_path,
-        subdir_name=galleries.cli.DB_DIR_NAME,
-        config_name=galleries.cli.DB_CONFIG_NAME,
+        subdir_name=galleries.cli.lib.DB_DIR_NAME,
+        config_name=galleries.cli.lib.DB_CONFIG_NAME,
     )
     spec.collection.mkdir()
     spec.subdir.mkdir()
@@ -107,7 +108,7 @@ class TestGlobalConfig:
         )
         assert len(finder.collections_added()) == 2
         assert finder.default_name is None
-        for key, value in galleries.cli.DEFAULT_PATH_SPEC.items():
+        for key, value in galleries.cli.lib.DEFAULT_PATH_SPEC.items():
             assert finder.default_settings[key] == value
 
     def test_collection_missing_root(self, write_to_collections, caplog):
@@ -329,7 +330,7 @@ class TestCollectionFinding:
 @pytest.mark.usefixtures("global_config_dir")
 class TestDBConfig:
     def test_minimal_example(self, tmp_path, caplog):
-        spec = galleries.cli.collection_path_spec(
+        spec = galleries.cli.lib.collection_path_spec(
             tmp_path,
             subdir_name=galleries.cli.DB_DIR_NAME,
             config_name=galleries.cli.DB_CONFIG_NAME,
@@ -341,7 +342,7 @@ class TestDBConfig:
         assert str(spec.config) in caplog.text
 
     def test_empty_config(self, tmp_path, caplog):
-        spec = galleries.cli.collection_path_spec(
+        spec = galleries.cli.lib.collection_path_spec(
             tmp_path,
             subdir_name=galleries.cli.DB_DIR_NAME,
             config_name=galleries.cli.DB_CONFIG_NAME,
@@ -355,13 +356,13 @@ class TestDBConfig:
 
     @pytest.mark.parametrize("caseless", [str, str.lower])
     def test_default_values(self, tmp_path, caseless):
-        spec = galleries.cli.collection_path_spec(
+        spec = galleries.cli.lib.collection_path_spec(
             tmp_path,
             subdir_name=galleries.cli.DB_DIR_NAME,
             config_name=galleries.cli.DB_CONFIG_NAME,
         )
         cfg = spec.get_db_config()
-        for section in galleries.cli.DEFAULT_CONFIG_STATE.keys():
+        for section in galleries.cli.lib.DEFAULT_CONFIG_STATE.keys():
             # These keys are inherited by all sections,
             # so their values should not vary by section.
             assert cfg.get_path(section, caseless("CSVName")) == spec.subdir / "db.csv"
@@ -452,12 +453,12 @@ def test_get_global_config_dir(monkeypatch, env_key, env_val, name_expected):
         monkeypatch.setenv(var, "")
     if env_key:
         monkeypatch.setenv(env_key, env_val)
-    result = galleries.cli.get_global_config_dir()
+    result = galleries.cli.lib.get_global_config_dir()
     assert result.name == name_expected
 
 
 def test_split_semicolon_list():
-    func = galleries.cli.split_semicolon_list
+    func = galleries.cli.lib.split_semicolon_list
     assert not func("")
     assert func("1") == ["1"]
     assert func("1;") == ["1"]

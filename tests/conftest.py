@@ -9,7 +9,7 @@ import galleries.cli
 
 @pytest.fixture
 def global_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Reroute calls to ``galleries.cli.get_global_config_dir`` to tmp_path.
+    """Reroute calls to ``galleries.cli.lib.get_global_config_dir`` to tmp_path.
 
     Return the path object for the temporary global config directory.
     """
@@ -17,7 +17,9 @@ def global_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     def mock_global_config_dir() -> Path:
         return tmp_path / "mock_global_config_dir"
 
-    monkeypatch.setattr(galleries.cli, "get_global_config_dir", mock_global_config_dir)
+    monkeypatch.setattr(
+        galleries.cli.lib, "get_global_config_dir", mock_global_config_dir
+    )
     return mock_global_config_dir()
 
 
