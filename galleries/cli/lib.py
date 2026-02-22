@@ -120,7 +120,11 @@ class GlobalConfig:
         except configparser.InterpolationError as err:
             log.warning("Ignoring collection [%s]: %s", section, err)
             return None
-        collection_path = Path(root).expanduser()
+        try:
+            collection_path = Path(root).expanduser()
+        except RuntimeError as err:
+            log.warning("Error with Root path: %s: %s", root, err)
+            collection_path = Path(root)
         if not collection_path.is_absolute():
             log.warning(
                 "Ignoring collection [%s]: Root is not an absolute path: %s",
