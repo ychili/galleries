@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO, TypedDict
 
 from .. import PROG, refresh, relatedtag, table_query, tagcount, util
-from .lib import DBConfig, GlobalConfig, join_semicolon_list
+from .lib import CollectionFinder, DBConfig, GlobalConfig, join_semicolon_list
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
@@ -35,6 +35,13 @@ class _ReadWriteOpSettings(_OpSettings):
     collection_root: Path
     path_field: str
     count_field: str
+
+
+class InitSettings(TypedDict):
+    root_dir: Path
+    template_dir: Path | None
+    path_finder: CollectionFinder
+    bare: bool
 
 
 class TraverseSettings(_ReadWriteOpSettings):
@@ -95,8 +102,24 @@ def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
     """Init sub-command"""
-    err_msg = "Unable to init"
     root = Path(cla.directory or cla.collection or Path.cwd())
+    maybe_template_dir = cla.template or (
+        global_config.options["init"].get("TemplateDir")
+    )
+    template_dir = Path(maybe_template_dir) if maybe_template_dir else None
+    settings = InitSettings(
+        root_dir=root,
+        template_dir=template_dir,
+        path_finder=global_config.get_collections(),
+        bare=cla.bare,
+    )
+    return init_op(settings)
+
+
+def init_op(settings: InitSettings) -> int:
+    """Init operation"""
+    err_msg = "Unable to init"
+    root = settings["root_dir"]
     if not root.is_dir():
         try:
             root.mkdir(parents=True, exist_ok=False)
@@ -104,7 +127,7 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
             log.error("%s: Failed to create root directory: %s", err_msg, err)
             return 1
         log.info("Created root directory: %s", root)
-    paths = global_config.get_collections().find_collection(str(root))
+    paths = settings["path_finder"].find_collection(str(root))
     if paths.config.exists():
         log.error(
             "%s: Refusing to overwrite existing configuration file: %s",
@@ -112,12 +135,12 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
             paths.config,
         )
         return 1
-    if cla.bare:
+    if settings["bare"]:
         paths.subdir.mkdir(exist_ok=True)
         paths.config.touch(exist_ok=False)
         log.info("Created empty configuration file: %s", paths.config)
         return 0
-    if template_dir := cla.template or global_config.options["init"].get("TemplateDir"):
+    if template_dir := settings["template_dir"]:
         template_dir = Path(template_dir).expanduser()
         if not template_dir.is_dir():
             log.error("%s: TemplateDir is not a directory: %s", err_msg, template_dir)
