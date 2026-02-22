@@ -233,11 +233,7 @@ class TestCollectionFinding:
         assert len(finder.collections_added()) == 1
         path = finder.find_collection(None)
         self._test_collection_path_spec_objecthood(path)
-        assert path.name == "1"
-        assert path.collection == root
-        db_dir_name = root / galleries.cli.DB_DIR_NAME
-        assert path.subdir == db_dir_name
-        assert path.config == db_dir_name / galleries.cli.DB_CONFIG_NAME
+        self._assert_paths_are_defaults(path, root)
 
     def test_valid_cwd(self, write_to_collections, changedir, monkeypatch):
         root = changedir / "root1"
@@ -249,22 +245,36 @@ class TestCollectionFinding:
         assert len(finder.collections_added()) == 1
         path = finder.find_collection(None)
         self._test_collection_path_spec_objecthood(path)
-        assert path.name == "1"
-        assert path.collection == root
-        db_dir_name = root / galleries.cli.DB_DIR_NAME
-        assert path.subdir == db_dir_name
-        assert path.config == db_dir_name / galleries.cli.DB_CONFIG_NAME
+        self._assert_paths_are_defaults(path, root)
 
-    # find_collection resolves the path, so it should be able to look up by
-    # full path (str) or by basename (operator.attrgetter("name")).
-    @pytest.mark.parametrize("arg_func", [str, operator.attrgetter("name")])
-    def test_valid_collection_path(self, write_to_collections, changedir, arg_func):
+    def test_valid_collection_path_hash(self, write_to_collections, changedir):
         root = changedir / "root1"
         write_to_collections(f"[1]\nRoot={root}\n")
         finder = self.func()
         assert len(finder.collections_added()) == 1
+        path = finder.find_collection(str(root))
+        self._assert_paths_are_defaults(path, root)
+
+    # We change directory, so find_collection should be able to look up by
+    # full path (str) or by basename (operator.attrgetter("name")).
+    @pytest.mark.parametrize("arg_func", [str, operator.attrgetter("name")])
+    def test_valid_collection_path_samefile(
+        self, write_to_collections, changedir, arg_func
+    ):
+        root = changedir / "root1"
+        root.mkdir()
+        link = changedir / "collection alias"
+        link.symlink_to(root, target_is_directory=True)
+        write_to_collections(f"[1]\nRoot={link}\n")
+
+        finder = self.func()
+        assert len(finder.collections_added()) == 1
         path = finder.find_collection(arg_func(root))
-        assert path.name == "1"
+        # Paths use the collection arg as root, not the configured root:
+        self._assert_paths_are_defaults(path, pathlib.Path(arg_func(root)))
+
+    def _assert_paths_are_defaults(self, path, root, collection_name="1"):
+        assert path.name == collection_name
         assert path.collection == root
         db_dir_name = root / galleries.cli.DB_DIR_NAME
         assert path.subdir == db_dir_name

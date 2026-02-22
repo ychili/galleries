@@ -210,6 +210,13 @@ class CollectionPathSpec:
     def get_db_path(self, filename: StrPath) -> Path:
         return self.subdir / filename
 
+    def with_root(self, collection: StrPath) -> CollectionPathSpec:
+        """Return new path spec with the same names rooted in *collection*."""
+        root = Path(collection)
+        new_subdir = root / self.subdir.name
+        new_config = new_subdir / self.config.name
+        return CollectionPathSpec(self.name, root, new_subdir, new_config)
+
     # In acquire_db_config and get_db_config, don't try to handle and recover
     # from configparser errors. The parser will not be in a readable state.
     # Log the error and re-raise the exception.
@@ -288,12 +295,29 @@ class CollectionFinder:
             return prefix_match
         return None
 
+    def _lookup_collection_by_path(self, path: Path) -> CollectionPathSpec | None:
+        """Look up *path*, first by hash, then by samefile equivalence."""
+        if hash_lookup := self._collection_paths.get(path):
+            return hash_lookup
+        for configured_path, spec in self._collection_paths.items():
+            try:
+                same_file = path.samefile(configured_path)
+            except OSError as err:
+                same_file = False
+                log.debug("path cannot be accessed: %s", err)
+            if same_file:
+                log.debug("arg is samefile as collection path: %s", spec)
+                # Since an explicit collection path was passed, use that path
+                # as the collection root.
+                return spec.with_root(path)
+        return None
+
     def find_collection(self, arg: str | None = None) -> CollectionPathSpec:
         """Return the path spec determined by *arg*."""
         if arg:
             return self._lookup_collection(arg)
         cwd = Path.cwd()
-        if path_lookup := self._collection_paths.get(cwd):
+        if path_lookup := self._lookup_collection_by_path(cwd):
             log.debug("cwd matches collection path: %s", path_lookup)
             return path_lookup
         if self.default_name:
@@ -308,8 +332,8 @@ class CollectionFinder:
     def _lookup_collection(self, arg: str) -> CollectionPathSpec:
         if name_lookup := self._disambiguate_collection_name(arg):
             return name_lookup
-        path = Path(arg).resolve()
-        if path_lookup := self._collection_paths.get(path):
+        path = Path(arg)
+        if path_lookup := self._lookup_collection_by_path(path):
             log.debug("arg matches collection path: %s", path_lookup)
             return path_lookup
         as_path = self.anonymous_collection(arg)
