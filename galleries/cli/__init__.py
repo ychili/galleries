@@ -27,13 +27,7 @@ def main(args: Sequence[str] | None = None) -> int:
     args_ns = build_cla_parser().parse_args(args)
     set_logging_level(args_ns, global_config)
     log.debug(args_ns)
-    try:
-        return args_ns.func(args_ns, global_config)
-    except configparser.Error as err:
-        log.debug(
-            "A configparser.Error is causing cli.main to exit with error: %s", err
-        )
-        return 1
+    return args_ns.func(args_ns, global_config)
 
 
 def build_cla_parser() -> argparse.ArgumentParser:

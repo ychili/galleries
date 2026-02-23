@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import contextlib
 import csv
+import functools
 import logging
 import os
 import shutil
@@ -12,13 +14,18 @@ import stat
 import sys
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TextIO, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TextIO, TypedDict, TypeVar
 
 from .. import PROG, refresh, relatedtag, table_query, tagcount, util
 from .lib import CollectionFinder, DBConfig, GlobalConfig, join_semicolon_list
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
+
+
+P = ParamSpec("P")
+ArgsT = TypeVar("ArgsT", bound=argparse.Namespace)
+SettingsT = TypeVar("SettingsT")
 
 log = logging.getLogger(PROG)
 
@@ -91,6 +98,26 @@ class _CLIError(Exception):
     def __init__(self, status: int = 1) -> None:
         super().__init__(status)
         self.status = status
+
+
+def _sc_runner(sc_func: Callable[P, int]) -> Callable[P, int]:
+    """Run sub-command function, handling exceptions."""
+
+    @functools.wraps(sc_func)
+    def run(*args: P.args, **kwargs: P.kwargs) -> int:
+        try:
+            return sc_func(*args, **kwargs)
+        except _CLIError as err:
+            return err.status
+        except configparser.Error as err:
+            log.debug(
+                "A configparser.Error is causing %r to exit with error: %s",
+                sc_func,
+                err,
+            )
+            return 1
+
+    return run
 
 
 def path_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
@@ -173,14 +200,10 @@ def init_op(settings: InitSettings) -> int:
     return 0
 
 
+@_sc_runner
 def traverse_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Traverse sub-command"""
-    paths = config.get_collections().find_collection(cla.collection)
-    db_config = paths.acquire_db_config()
-    if not db_config:
-        return 1
-    settings = traverse_settings(cla, db_config)
-    return traverse_op(settings)
+    return _run_op(cla, config, traverse_settings, traverse_op, get_db_config="acquire")
 
 
 def traverse_settings(cla: argparse.Namespace, db_config: DBConfig) -> TraverseSettings:
@@ -234,11 +257,10 @@ def traverse_op(settings: TraverseSettings) -> int:
     return 0
 
 
+@_sc_runner
 def count_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Count sub-command"""
-    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
-    settings = count_settings(cla, db_config)
-    return count_op(settings)
+    return _run_op(cla, config, count_settings, count_op)
 
 
 def count_settings(cla: argparse.Namespace, db_config: DBConfig) -> CountSettings:
@@ -255,22 +277,15 @@ def count_op(settings: CountSettings) -> int:
     """Count operation"""
     tag_fields = settings["tag_fields"]
     func = tagcount.summarize if settings["summarize"] else tagcount.count
-    try:
-        with _read_db(settings["input_file"], tag_fields) as reader:
-            tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
-            return func(tag_sets)
-    except _CLIError as err:
-        return err.status
+    with _read_db(settings["input_file"], tag_fields) as reader:
+        tag_sets = (gallery.merge_tags(*tag_fields) for gallery in reader)
+        return func(tag_sets)
 
 
+@_sc_runner
 def query_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Query sub-command"""
-    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
-    try:
-        settings = query_settings(cla, db_config)
-    except _CLIError as err:
-        return err.status
-    return query_op(settings)
+    return _run_op(cla, config, query_settings, query_op)
 
 
 def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySettings:
@@ -314,24 +329,18 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
 
 def query_op(settings: QuerySettings) -> int:
     """Query operation"""
-    try:
-        output_formatter = _query_output_formatter(settings)
-    except _CLIError as err:
-        return err.status
-    try:
-        with _read_db(settings["input_file"]) as reader:
-            query = table_query.query_from_args(
-                settings["term"], reader.fieldnames, settings["tag_fields"]
-            )
-            galleries = table_query.sort_table(
-                (gallery for gallery in reader if query.match(gallery)),
-                reader.fieldnames,
-                sort_field=settings["sort_field"],
-                reverse_sort=settings["reverse_sort"],
-            )
-            table_query.print_table(galleries, reader.fieldnames, output_formatter)
-    except _CLIError as err:
-        return err.status
+    output_formatter = _query_output_formatter(settings)
+    with _read_db(settings["input_file"]) as reader:
+        query = table_query.query_from_args(
+            settings["term"], reader.fieldnames, settings["tag_fields"]
+        )
+        galleries = table_query.sort_table(
+            (gallery for gallery in reader if query.match(gallery)),
+            reader.fieldnames,
+            sort_field=settings["sort_field"],
+            reverse_sort=settings["reverse_sort"],
+        )
+        table_query.print_table(galleries, reader.fieldnames, output_formatter)
     return 0
 
 
@@ -370,14 +379,10 @@ def _query_output_formatter(
     return None
 
 
+@_sc_runner
 def refresh_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Refresh sub-command"""
-    paths = config.get_collections().find_collection(cla.collection)
-    db_config = paths.acquire_db_config()
-    if not db_config:
-        return 1
-    settings = refresh_settings(cla, db_config)
-    return refresh_op(settings)
+    return _run_op(cla, config, refresh_settings, refresh_op, get_db_config="acquire")
 
 
 def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSettings:
@@ -452,8 +457,6 @@ def refresh_op(settings: RefreshSettings) -> int:
     except refresh.DuplicateValueError as err:
         log.error("Duplicate value in %s: %s", err.field, err.value)
         return 1
-    except _CLIError as err:
-        return err.status
     if not rows:
         return 0
     log.debug("Sorting by field: %s", sort_field)
@@ -510,14 +513,10 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
     return errors
 
 
+@_sc_runner
 def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
     """Related sub-command"""
-    db_config = config.get_collections().find_collection(cla.collection).get_db_config()
-    try:
-        settings = related_settings(cla, db_config)
-    except _CLIError as err:
-        return err.status
-    return related_op(settings)
+    return _run_op(cla, config, related_settings, related_op)
 
 
 def related_settings(cla: argparse.Namespace, db_config: DBConfig) -> RelatedSettings:
@@ -551,21 +550,14 @@ def related_op(settings: RelatedSettings) -> int:
     """Related operation"""
     input_file = settings["input_file"]
     tag_fields = settings["tag_fields"]
-    try:
-        with _read_db(input_file, tag_fields) as reader:
-            query = table_query.query_from_args(
-                settings["term"], reader.fieldnames, tag_fields
-            )
-            related_tags = relatedtag.get_related_tags(
-                reader, query, frozenset(tag_fields)
-            )
-            similarity_results = relatedtag.sort(
-                related_tags,
-                sort_by=settings["sort_metric"],
-                n=settings["limit_results"],
-            )
-    except _CLIError as err:
-        return err.status
+    with _read_db(input_file, tag_fields) as reader:
+        query = table_query.query_from_args(
+            settings["term"], reader.fieldnames, tag_fields
+        )
+        related_tags = relatedtag.get_related_tags(reader, query, frozenset(tag_fields))
+        similarity_results = relatedtag.sort(
+            related_tags, sort_by=settings["sort_metric"], n=settings["limit_results"]
+        )
     log.debug("Read from CSV file %r", input_file)
     relatedtag.print_results(similarity_results)
     return 0
@@ -604,6 +596,25 @@ def opener_copy_mode(path: StrPath) -> Callable[[StrPath, int], int]:
         "A custom opener was created by copying mode bits %o from %s", mode_bits, path
     )
     return _opener
+
+
+def _run_op(
+    cla: ArgsT,
+    config: GlobalConfig,
+    settings_func: Callable[[ArgsT, DBConfig], SettingsT],
+    op_func: Callable[[SettingsT], int],
+    get_db_config: Literal["get", "acquire"] = "get",
+) -> int:
+    """Get or acquire configuration, and run *op_func*."""
+    paths = config.get_collections().find_collection(cla.collection)
+    if get_db_config == "acquire":
+        db_config = paths.acquire_db_config()
+        if not db_config:
+            return 1
+    else:
+        db_config = paths.get_db_config()
+    settings = settings_func(cla, db_config)
+    return op_func(settings)
 
 
 @contextlib.contextmanager
