@@ -11,12 +11,14 @@ import os
 import sys
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO
+from typing import TYPE_CHECKING, Any, Literal, TextIO, TypeVar
 
 from .. import PROG
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
+
+PathSpecT = TypeVar("PathSpecT", bound="CollectionPathSpec")
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
@@ -210,12 +212,14 @@ class CollectionPathSpec:
     def get_db_path(self, filename: StrPath) -> Path:
         return self.subdir / filename
 
-    def with_root(self, collection: StrPath) -> CollectionPathSpec:
+    def with_root(self: PathSpecT, collection: StrPath) -> PathSpecT:
         """Return new path spec with the same names rooted in *collection*."""
         root = Path(collection)
         new_subdir = root / self.subdir.name
         new_config = new_subdir / self.config.name
-        return CollectionPathSpec(self.name, root, new_subdir, new_config)
+        return dataclasses.replace(
+            self, collection=root, subdir=new_subdir, config=new_config
+        )
 
     # In acquire_db_config and get_db_config, don't try to handle and recover
     # from configparser errors. The parser will not be in a readable state.
