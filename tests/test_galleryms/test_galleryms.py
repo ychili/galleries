@@ -5,11 +5,11 @@ import string
 import unittest
 
 import hypothesis
-import hypothesis.strategies
+import hypothesis.strategies as st
 
 import galleries.galleryms
 
-positive_integers = hypothesis.strategies.integers(min_value=1)
+positive_integers = st.integers(min_value=1)
 
 
 class TestImplicationGraph(unittest.TestCase):
@@ -271,7 +271,7 @@ class TestRelatedTag(unittest.TestCase):
 
 
 class TestTagSet(unittest.TestCase):
-    @hypothesis.given(chars=hypothesis.strategies.text(string.whitespace))
+    @hypothesis.given(chars=st.text(string.whitespace))
     def test_whitespace(self, chars):
         """
         Constructing a ``TagSet`` from a tagstring containing only whitespace
@@ -279,9 +279,7 @@ class TestTagSet(unittest.TestCase):
         """
         self.assertFalse(galleries.galleryms.TagSet.from_tagstring(chars))
 
-    @hypothesis.given(
-        tag_set=hypothesis.strategies.builds(galleries.galleryms.TagSet.from_tagstring)
-    )
+    @hypothesis.given(tag_set=st.builds(galleries.galleryms.TagSet.from_tagstring))
     def test_roundtrip___str___from_tagstring(self, tag_set):
         """
         Given a ``TagSet`` created from an arbitrary string, its string
@@ -334,7 +332,7 @@ class TestSplitOnWhitespace(unittest.TestCase):
                         "Expect char to be in set of known whitespace characters.",
                     )
 
-    @hypothesis.given(hypothesis.strategies.text(WHITESPACE_CHARACTERS))
+    @hypothesis.given(st.text(WHITESPACE_CHARACTERS))
     def test_whitespace_strings(self, chars):
         self.assertFalse(galleries.galleryms.split_on_whitespace(chars))
 
@@ -364,11 +362,7 @@ class TestArgumentParser(unittest.TestCase):
                 with self.assertRaises(galleries.galleryms.ArgumentParsingError):
                     self.parser.parse_argument(argument)
 
-    @hypothesis.given(
-        hypothesis.strategies.text(
-            hypothesis.strategies.characters(blacklist_characters=REQUIRED_CHARS)
-        )
-    )
+    @hypothesis.given(st.text(st.characters(blacklist_characters=REQUIRED_CHARS)))
     def test_parse_argument_characters_failing(self, text):
         """
         An argument that does not contain one of these required characters
@@ -392,9 +386,7 @@ class TestDescriptorImplication(unittest.TestCase):
 
 class TestFieldFormat(unittest.TestCase):
     @hypothesis.given(
-        hypothesis.strategies.text().filter(
-            lambda s: s not in galleries.galleryms.FieldFormat.COLORS
-        )
+        st.text().filter(lambda s: s not in galleries.galleryms.FieldFormat.COLORS)
     )
     def test_unknown_arguments(self, key):
         # Unknown color arguments raise KeyError:
@@ -407,7 +399,7 @@ class TestFieldFormat(unittest.TestCase):
             key, galleries.galleryms.FieldFormat.from_names(-80, effect=key).sgr
         )
 
-    lines_strategy = hypothesis.strategies.iterables(hypothesis.strategies.text())
+    lines_strategy = st.iterables(st.text())
 
     @hypothesis.given(lines_strategy)
     def test_colorize_no_op(self, lines):

@@ -7,7 +7,7 @@ import unittest
 import unittest.mock
 
 import hypothesis
-import hypothesis.strategies
+import hypothesis.strategies as st
 
 import galleries.galleryms
 import galleries.util
@@ -64,7 +64,7 @@ class TestReadDB(unittest.TestCase):
     # <https://github.com/python/cpython/pull/28808>
     @hypothesis.example(["\x00"])
     @hypothesis.example(['"'])
-    @hypothesis.given(hypothesis.strategies.iterables(hypothesis.strategies.text()))
+    @hypothesis.given(st.iterables(st.text()))
     def test_roundtrip_read_db_write_galleries(self, csv_lines):
         # Fuzz read_db to find valid CSV.
         try:
