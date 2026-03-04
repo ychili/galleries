@@ -6,19 +6,34 @@ from __future__ import annotations
 
 import collections
 import itertools
-import logging
 import statistics
 from collections.abc import Iterable
 
-from . import PROG, util
+from . import util
 from .galleryms import TagSet
 
-log = logging.getLogger(PROG)
 
+def tag_counts(
+    tag_sets: Iterable[TagSet], tags: Iterable[str] | None = None
+) -> collections.Counter[str]:
+    """Return a counter of unique tags in *tag_sets*.
 
-def tag_counts(tag_sets: Iterable[TagSet]) -> collections.Counter[str]:
-    """Return a counter of unique tags in *tag_sets*."""
-    return collections.Counter(itertools.chain.from_iterable(tag_sets))
+    If *tags* is not None, the counter will contain only the counts of the
+    tags from *tags* (which may be zero if the tag is not present in
+    *tag_sets*).
+
+    >>> c = tag_counts([TagSet("abcd"), TagSet("def")])
+    >>> max(c.values())
+    2
+    >>> tag_counts(tag_sets=[], tags=["a"])
+    Counter({'a': 0})
+    """
+    all_tags = itertools.chain.from_iterable(tag_sets)
+    if tags is None:
+        return collections.Counter(all_tags)
+    counts = collections.Counter(dict.fromkeys(tags, 0))
+    counts.update(tag for tag in all_tags if tag in counts)
+    return counts
 
 
 def count(tag_sets: Iterable[TagSet], *, reverse: bool = False) -> int:
