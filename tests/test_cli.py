@@ -264,7 +264,11 @@ class TestCollectionFinding:
         root = changedir / "root1"
         root.mkdir()
         link = changedir / "collection alias"
-        link.symlink_to(root, target_is_directory=True)
+        try:
+            link.symlink_to(root, target_is_directory=True)
+        except OSError as err:
+            # os.symlink will fail on Windows without the right permissions.
+            pytest.skip(str(err))
         write_to_collections(f"[1]\nRoot={link}\n")
 
         finder = self.func()
