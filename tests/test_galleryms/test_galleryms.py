@@ -294,7 +294,9 @@ class TestTagSet(unittest.TestCase):
         """
         self.assertFalse(galleries.galleryms.TagSet.from_tagstring(chars))
 
-    @hypothesis.given(tag_set=st.builds(galleries.galleryms.TagSet.from_tagstring))
+    @hypothesis.given(
+        tag_set=st.builds(galleries.galleryms.TagSet.from_tagstring, st.text())
+    )
     def test_roundtrip___str___from_tagstring(self, tag_set):
         """
         Given a ``TagSet`` created from an arbitrary string, its string

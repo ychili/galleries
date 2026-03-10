@@ -34,9 +34,11 @@ from . import util
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsWrite
+    from typing_extensions import Self
 
 FieldSortSpec = tuple[gms.FieldKeyFunc[gms.Gallery], bool]
-FormatT = TypeVar("FormatT", bound="Format")
+StrT = TypeVar("StrT", bound=str)
+
 
 DEFAULT_BOX = rich.box.SIMPLE
 
@@ -76,7 +78,7 @@ class Format(enum.Enum):
         return str(self)
 
     @classmethod
-    def argparse(cls: type[FormatT], s: str) -> FormatT | str:
+    def argparse(cls, s: StrT) -> Self | StrT:
         try:
             return cls[s.upper()]
         except KeyError:

@@ -45,15 +45,14 @@ if TYPE_CHECKING:
         SupportsItems,
         SupportsRichComparison,
     )
+    from typing_extensions import Self
 
 T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], object]"
 )
 KeyFunc: TypeAlias = "Callable[[T], SupportsRichComparison]"
-TagSetT = TypeVar("TagSetT", bound="TagSet")
 LogicalSearchGroupT = TypeVar("LogicalSearchGroupT", bound="LogicalSearchGroup")
-FieldFormatT = TypeVar("FieldFormatT", bound="FieldFormat")
 _IndexT = TypeVar("_IndexT", bound=str | int)
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
 
@@ -91,14 +90,14 @@ class TagSet(set[str]):
     """
 
     @classmethod
-    def from_tagstring(cls: type[TagSetT], tagstring: str) -> TagSetT:
+    def from_tagstring(cls, tagstring: str) -> Self:
         """Construct from string with whitespace-separated tags"""
         return cls(split_on_whitespace(tagstring.lower()))
 
     def __str__(self) -> str:
         return " ".join(sorted(self))
 
-    def implied_tags(self: TagSetT, implications: Iterable[BaseImplication]) -> TagSetT:
+    def implied_tags(self, implications: Iterable[BaseImplication]) -> Self:
         consequents = type(self)()
         for implication in implications:
             for tag in self:
@@ -107,7 +106,7 @@ class TagSet(set[str]):
                     break
         return consequents
 
-    def aliased_tags(self: TagSetT, aliases: SupportsItems[str, str]) -> TagSetT:
+    def aliased_tags(self, aliases: SupportsItems[str, str]) -> Self:
         """Return a new set with aliased tags replaced by real tags."""
         tagset = type(self)(self.copy())
         tagset.apply_aliases(aliases)
@@ -851,12 +850,8 @@ class FieldFormat:
 
     @classmethod
     def from_names(
-        cls: type[FieldFormatT],
-        width: int,
-        fg: str = "",
-        bg: str = "",
-        effect: str = "",
-    ) -> FieldFormatT:
+        cls, width: int, fg: str = "", bg: str = "", effect: str = ""
+    ) -> Self:
         """Construct using named colors and effects.
 
         Args:
