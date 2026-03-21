@@ -98,7 +98,7 @@ def make_row(tag: RelatedTag[T]) -> SimilarityResult[T]:
 def sort(
     tags: Iterable[RelatedTag[T]], sort_by: str, n: int | None = None
 ) -> list[SimilarityResult[T]]:
-    result_rows = [make_row(related_tag) for related_tag in tags]
+    result_rows = map(make_row, tags)
     log.debug("sorting results by: %s", sort_by)
     return most_common(result_rows, n=n, key=operator.attrgetter(sort_by))
 
