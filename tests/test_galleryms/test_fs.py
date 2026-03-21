@@ -25,6 +25,12 @@ def make_folder(tmp_path):
     return _make_folder
 
 
+make_folder_parametrize = pytest.mark.parametrize(
+    ("n_regular_files", "n_hidden_files", "n_directories"),
+    list(itertools.product((0, 9), repeat=3)),
+)
+
+
 class TestGallery:
     _FOLDER_NAME = "testgallery"
 
@@ -53,10 +59,7 @@ class TestGallery:
             gallery.check_folder("Path", cwd=tmp_path)
         assert tmp_path / self._FOLDER_NAME in raises_ctx.value.args
 
-    @pytest.mark.parametrize(
-        ("n_regular_files", "n_hidden_files", "n_directories"),
-        itertools.product((0, 9), repeat=3),
-    )
+    @make_folder_parametrize
     def test_update_count(
         self, gallery, make_folder, n_regular_files, n_hidden_files, n_directories
     ):
@@ -78,3 +81,24 @@ class TestGallery:
         gallery.update_count("Count", folder)
         repeat = gallery["Count"]
         assert repeat == result, (repeat, result)
+
+
+class TestIncludeFile:
+    _FOLDER_NAME = "testfolder"
+
+    @make_folder_parametrize
+    def test_paths(self, make_folder, n_regular_files, n_hidden_files, n_directories):
+        """Ensure ``include_file`` works with ``Path`` objects."""
+        path = make_folder(
+            n_regular_files,
+            n_hidden_files,
+            n_directories,
+            folder_name=self._FOLDER_NAME,
+        )
+        found_contents = list(path.joinpath(self._FOLDER_NAME).iterdir())
+        filtered_contents = [
+            entry for entry in found_contents if galleries.galleryms.include_file(entry)
+        ]
+        print(found_contents)
+        print(filtered_contents)
+        assert len(filtered_contents) == n_regular_files

@@ -332,14 +332,11 @@ class Gallery(dict[str, object]):
     def update_count(self, field: str, folder_path: Path) -> None:
         """Update *field* with number of files in *folder_path*.
 
-        The count does not include files with names that start with a dot.
+        Entries are filtered by the function ``include_file`` which excludes
+        files with names that start with a dot.
         """
         with os.scandir(folder_path) as scandir_it:
-            count = sum(
-                1
-                for entry in scandir_it
-                if not entry.name.startswith(".") and entry.is_file()
-            )
+            count = sum(1 for entry in scandir_it if include_file(entry))
         self[field] = count
 
     def __repr__(self) -> str:
@@ -1032,6 +1029,11 @@ class RelatedTag(Generic[T]):
 
 
 split_on_whitespace = re.compile(r"\S+").findall
+
+
+def include_file(path: Path | os.DirEntry) -> bool:
+    """Return True if *path* should be included in a gallery's count."""
+    return not path.name.startswith(".") and path.is_file()
 
 
 def distribute(n: int, k: int) -> list[int]:
