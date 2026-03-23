@@ -6,6 +6,7 @@ import operator
 import pathlib
 import re
 import sys
+import unittest.mock
 
 import pytest
 
@@ -132,6 +133,24 @@ class TestGlobalConfig:
             if record.levelname == "WARNING"
         )
         assert len(finder.collections_added()) == 0
+
+    def test_expanduser_error(self, monkeypatch, write_to_collections, caplog):
+        mock = unittest.mock.MagicMock(
+            pathlib.Path.expanduser, side_effect=RuntimeError
+        )
+        monkeypatch.setattr(galleries.cli.lib.Path, "expanduser", mock)
+        path_text = "~brian/Pictures/"
+        colle_text = f"[1]\nRoot: {path_text}\n"
+        write_to_collections(colle_text)
+        finder = self.func().get_collections()
+        assert any(
+            path_text in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
+        mock.assert_called_once()
+        # path_text is not an absolute path, so it is rejected.
+        assert not finder.collections_added()
 
     def test_collection_settings(self, write_to_collections, caplog):
         colle_text = "[DEFAULT]\nGalleriesDir=.db\n[1]\nRoot=//imaginary/\n"
