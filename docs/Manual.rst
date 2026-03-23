@@ -474,7 +474,9 @@ General options
     Select *COLLECTION*, either by collection name or by path to the
     collection's root directory.
 
-    Default: value of global.\ `Default`_.
+    Default:
+    value of environment variable ``GALLERIES_COLLECTION``, if it is set,
+    otherwise value of global.\ `Default`_.
 
 -q, --quiet
     Turn off verbose output.
@@ -488,7 +490,9 @@ General options
 Selecting a collection
 ----------------------
 
-If a *COLLECTION* argument to ``--collection`` is given,
+If a *COLLECTION* argument to ``--collection`` is given
+or if the environment variable ``GALLERIES_COLLECTION`` is set
+with a non-empty value *COLLECTION*,
 the selected collection will be one of the following (in order):
 
 - a section name in the `Global collection paths file`_ that starts

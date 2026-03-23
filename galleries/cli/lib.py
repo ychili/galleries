@@ -419,6 +419,13 @@ def read_global_configuration() -> GlobalConfig:
     return parser
 
 
+def environ_get(key: str) -> str | None:
+    value = os.environ.get(key)
+    if value is not None:
+        log.debug("picked up an environment variable: %s='%s'", key, value)
+    return value
+
+
 def join_semicolon_list(items: Iterable[str]) -> str:
     return "; ".join(items)
 

@@ -84,17 +84,20 @@ def test_help(capsys):
             assert subcmd in captured.out
 
 
-@pytest.mark.parametrize(
-    ("argv", "expected"),
-    [
-        ([], pathlib.Path.cwd),
-        (["-c", "/any/string"], lambda: pathlib.Path("/any/string")),
-    ],
-)
-def test_path_cmd(capsys, argv, expected):
+@pytest.mark.parametrize("argv", [[], ["-c", "/any/string"]])
+@pytest.mark.parametrize("env_var", [None, "from_environment"])
+def test_path_cmd(monkeypatch, capsys, argv, env_var):
+    if env_var is not None:
+        monkeypatch.setenv("GALLERIES_COLLECTION", env_var)
     rc = galleries.cli.main(argv)
     assert rc == 0
-    assert capsys.readouterr().out.strip() == str(expected())
+    text_out = capsys.readouterr().out.strip()
+    if argv:
+        assert text_out == argv[-1]
+    elif env_var:
+        assert text_out == env_var
+    else:
+        assert text_out == str(pathlib.Path.cwd())
 
 
 class TestInit:

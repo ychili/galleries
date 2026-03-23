@@ -11,7 +11,7 @@ from .. import PROG, __version__, relatedtag, table_query
 from . import ops
 from .lib import DB_CONFIG_NAME as DB_CONFIG_NAME
 from .lib import DB_DIR_NAME as DB_DIR_NAME
-from .lib import FileType, read_global_configuration, set_logging_level
+from .lib import FileType, environ_get, read_global_configuration, set_logging_level
 
 log = logging.getLogger(PROG)
 
@@ -226,7 +226,11 @@ def build_cla_parser() -> argparse.ArgumentParser:
     general_opts.add_argument(
         "-c",
         "--collection",
-        help="select collection, either by name or by path (default is current directory)",
+        default=environ_get("GALLERIES_COLLECTION"),
+        help=(
+            "select collection, either by name or by path"
+            " (default is ${GALLERIES_COLLECTION} or current directory)"
+        ),
     )
     verbosity = general_opts.add_mutually_exclusive_group()
     verbosity.add_argument(
