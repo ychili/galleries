@@ -281,10 +281,8 @@ class TestPrintFormatted:
         [({}, []), ({"FieldA": galleries.galleryms.FieldFormat(79)}, [" a", " a"])],
     )
     def test_successful(self, capsys, field_formats, expected_out):
-        # For some reason, it is important that file=sys.stdout be specified
-        # in the body of the test function in order for capsys to work.
         galleries.table_query.print_formatted(
-            rows=_gallery_gen(), field_formats=field_formats, file=sys.stdout
+            rows=_gallery_gen(), field_formats=field_formats
         )
         captured = capsys.readouterr()
         assert captured.out.splitlines() == expected_out

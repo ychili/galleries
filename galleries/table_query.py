@@ -10,10 +10,9 @@ import locale
 import logging
 import shlex
 import shutil
-import sys
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import rich.box
 import rich.console
@@ -25,7 +24,7 @@ from . import galleryms as gms
 from . import util
 
 if TYPE_CHECKING:
-    from _typeshed import StrPath
+    from _typeshed import StrPath, SupportsWrite
 
 FormatT = TypeVar("FormatT", bound="Format")
 
@@ -92,13 +91,13 @@ class FormattedTablePrinter(TablePrinter):
     def __init__(
         self,
         field_formats: dict[str, gms.FieldFormat],
-        file: TextIO | None = sys.stdout,
+        file: SupportsWrite[str] | None = None,
     ) -> None:
         self.field_formats = field_formats
         self.file = file
 
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
-        print_formatted(galleries, self.field_formats)
+        print_formatted(galleries, self.field_formats, self.file)
 
     def check_fields(self, fieldnames: Collection[str]) -> None:
         for field in self.field_formats:
@@ -227,7 +226,7 @@ def print_table(
 def print_formatted(
     rows: Iterable[gms.Gallery],
     field_formats: Mapping[str, gms.FieldFormat],
-    file: TextIO = sys.stdout,
+    file: SupportsWrite[str] | None = None,
 ) -> None:
     """Write *rows* to *file* in wrapped columns."""
     max_width = shutil.get_terminal_size().columns
