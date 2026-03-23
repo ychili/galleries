@@ -12,6 +12,13 @@ addopts = """--import-mode=importlib \
              --doctest-modules \
              --doctest-glob='doctest*.rst'"""
 
+[tool.coverage.run]
+branch = true
+source = [
+    "galleries",
+    "tests",
+]
+
 [tool.mypy]
 python_version = "3.10"
 implicit_optional = false
