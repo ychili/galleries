@@ -19,6 +19,7 @@ _STD_CONFIGPARSER_ERRORS = [
     ("[global]\n[global]\n", configparser.DuplicateSectionError),
     ("default = myabbrev\n", configparser.MissingSectionHeaderError),
     ("[global]\ndefault=Is\ndefault=Isn't\n", configparser.DuplicateOptionError),
+    ("[global]\ndefault=\nbarnard", configparser.ParsingError),
 ]
 
 
