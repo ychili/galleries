@@ -302,13 +302,13 @@ class TestParseRichTableSettings:
         path = tmp_path / "null"
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
 
     def test_empty_file(self, tmp_write_text, caplog):
         path = tmp_write_text("empty.txt", "")
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
         assert any(record.levelname == "WARNING" for record in caplog.records)
         assert path.name in caplog.text
 
@@ -320,7 +320,7 @@ class TestParseRichTableSettings:
         path = tmp_write_text(filename, text)
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
         assert any_error_logs(caplog)
         assert path.name in caplog.text
 
@@ -339,7 +339,7 @@ class TestParseRichTableSettings:
     def test_table_settings_box(self, caplog, boxarg, box_expected):
         obj = {"table": {"box": boxarg, "unexpected": True}}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert table.table.box == box_expected
+        assert table.table_kwds["box"] == box_expected
         assert not any_error_logs(caplog)
 
     @pytest.mark.parametrize(
@@ -360,28 +360,27 @@ class TestParseRichTableSettings:
             assert self.assert_msg_in_warning(str(value), caplog)
         else:
             result = value
-            assert table.table.show_header == result
+            assert table.table_kwds["show_header"] == result
 
     def test_no_columns(self, caplog):
         obj = {"columns": {}}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert "columns" in caplog.text
-        assert not table.fieldnames
-        assert not table.table.columns
+        assert not table.field_columns
 
     def test_bare_field(self):
         obj = {"columns": [{"field": "A"}]}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert table.fieldnames == ["A"]
-        assert len(table.table.columns) == 1, table.table.columns
+        assert table.fieldnames == {"A"}
+        assert len(table.field_columns) == 1, table.field_columns
 
     def test_invalid_column_kwargs(self, caplog):
         obj = {"columns": [{"min_width": 40}, {"field": "A"}, None]}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert self.assert_msg_in_warning("{'min_width': 40}", caplog)
         assert self.assert_msg_in_warning("None", caplog)
-        assert table.fieldnames == ["A"]
-        assert len(table.table.columns) == 1, table.table.columns
+        assert table.fieldnames == {"A"}
+        assert len(table.field_columns) == 1, table.field_columns
 
     def test_unexpected_column_kwarg(self, caplog):
         obj = {"columns": [{"field": "A", "class": None}]}
@@ -401,15 +400,14 @@ class TestParseRichTableSettings:
 class TestRichTablePrinter:
     def test_default_rich_table(self):
         printer = galleries.table_query.parse_rich_table_object({})
-        assert not printer.fieldnames
+        assert not printer.field_columns
         assert printer.console is galleries.util.console
         assert printer.add_fields
-        assert printer.table.box == galleries.table_query.DEFAULT_BOX
-        assert not printer.table.columns
+        assert printer.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
 
     def test_add_fields(self):
         printer = galleries.table_query.parse_rich_table_object({})
-        fieldnames = list("ABCD")
+        fieldnames = frozenset("ABCD")
         printer.check_fields(fieldnames)
         assert printer.fieldnames == fieldnames
 
@@ -440,9 +438,9 @@ class TestRichTablePrinter:
             printer.print(_gallery_gen())
 
     def test_print_bad_table(self):
-        table = rich.table.Table()
-        table.add_column(-1)  # type: ignore
-        printer = galleries.table_query.RichTablePrinter(table, ["FieldA"])
+        column = rich.table.Column(-1)  # type: ignore
+        field_columns = {"FieldA": column}
+        printer = galleries.table_query.RichTablePrinter(field_columns=field_columns)
         with pytest.raises(galleries.table_query.FormatterError):
             printer.print(_gallery_gen())
 
