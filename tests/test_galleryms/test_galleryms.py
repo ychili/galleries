@@ -1,5 +1,6 @@
 """Unit tests for galleryms"""
 
+import itertools
 import operator
 import string
 import unittest
@@ -480,6 +481,62 @@ class TestMostCommon(unittest.TestCase):
             galleries.galleryms.most_common("abcaba", key=lambda c: -ord(c)),
             list("aaabbc"),
         )
+
+
+class TestMultiSort(unittest.TestCase):
+    _STUDENTS = [
+        ("Terry", "history", 4.0),
+        ("Guiseppe", "Italian", 3.85),
+        ("Mariolini", "Italian", 3.5),
+        ("Francesco", "Italian", 3.9),
+        ("Helmut", "German", 4.0),
+    ]
+
+    def test_complex_sort(self):
+        major_then_gpa = galleries.galleryms.multisort(
+            self._STUDENTS,
+            ((lambda v: v[1].casefold(), False), (operator.itemgetter(2), False)),
+        )
+        self.assertIsInstance(major_then_gpa, list)
+        self.assertEqual(
+            [student[0] for student in major_then_gpa],
+            ["Helmut", "Terry", "Mariolini", "Guiseppe", "Francesco"],
+        )
+
+    students = st.sampled_from(_STUDENTS)
+
+    @hypothesis.given(
+        xs=st.iterables(st.integers())
+        | st.lists(students)
+        | st.iterables(students)
+        | st.sets(students),
+        reverse=st.booleans(),
+    )
+    def test_invariants_with_spec(self, xs, reverse):
+        # Empty spec results in returning the iterable unchanged.
+        result_unchanged = galleries.galleryms.multisort(xs, [])
+        self.assertIs(result_unchanged, xs)
+        # Non-empty spec results in a list being returned,
+        # regardless of xs type.
+        sort_spec = (lambda v: v, reverse)
+        result_sorted = galleries.galleryms.multisort(xs, [sort_spec])
+        self.assertIsInstance(result_sorted, list)
+        # And the result is in fact sorted.
+        for x, y in itertools.pairwise(result_sorted):
+            if reverse:
+                self.assertGreaterEqual(x, y, result_sorted)
+            else:
+                self.assertLessEqual(x, y, result_sorted)
+
+    @hypothesis.given(
+        xs=st.lists(st.integers()), reverse=st.booleans(), n_sorts=st.integers(0, 100)
+    )
+    def test_idempotent(self, xs, reverse, n_sorts):
+        """Applying the same sort spec more than once won't change the result."""
+        sort_spec = (lambda v: v, reverse)  # spec is constant.
+        result = galleries.galleryms.multisort(xs, [sort_spec] * 1)
+        repeat = galleries.galleryms.multisort(xs, [sort_spec] * n_sorts)
+        self.assertEqual(result, repeat)
 
 
 if __name__ == "__main__":

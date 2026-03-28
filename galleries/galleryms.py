@@ -24,6 +24,7 @@ from collections.abc import (
     MutableMapping,
     MutableSequence,
     MutableSet,
+    Reversible,
 )
 from pathlib import Path
 from typing import (
@@ -49,6 +50,7 @@ T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], object]"
 )
+KeyFunc: TypeAlias = "Callable[[T], SupportsRichComparison]"
 TagSetT = TypeVar("TagSetT", bound="TagSet")
 LogicalSearchGroupT = TypeVar("LogicalSearchGroupT", bound="LogicalSearchGroup")
 FieldFormatT = TypeVar("FieldFormatT", bound="FieldFormat")
@@ -1109,13 +1111,29 @@ def distribute(n: int, k: int) -> list[int]:
     return arr
 
 
-def most_common(
-    it: Iterable[T], key: Callable[[T], SupportsRichComparison], n: int | None = None
-) -> list[T]:
+def most_common(it: Iterable[T], key: KeyFunc[T], n: int | None = None) -> list[T]:
     n = 0 if n is None else n
     if n <= 0:
-        commons = sorted(it, key=key, reverse=True)
+        commons = dispatch_sort(it, key=key, reverse=True)
         if n < 0:
             return commons[:n]
         return commons
     return heapq.nlargest(n, it, key=key)
+
+
+def multisort(
+    xs: Iterable[T], spec: Reversible[tuple[KeyFunc[T], bool]]
+) -> Iterable[T]:
+    """Sort *xs* on n-ary keys contained in *spec*."""
+    for keyfunc, reverse in reversed(spec):
+        xs = dispatch_sort(xs, key=keyfunc, reverse=reverse)
+    return xs
+
+
+def dispatch_sort(
+    xs: Iterable[T], *, key: KeyFunc[T], reverse: bool = False
+) -> list[T]:
+    if isinstance(xs, list):
+        xs.sort(key=key, reverse=reverse)
+        return xs
+    return sorted(xs, key=key, reverse=reverse)
