@@ -116,7 +116,14 @@ class TestGallery(unittest.TestCase):
         self.assertEqual(repr(gallery), f"Gallery({{'field': {sentinel!r}}})")
 
 
-class TestSearchTerm(unittest.TestCase):
+class QueryTestCase(unittest.TestCase):
+    @staticmethod
+    def basic_term():
+        """Basic search term with one field argument"""
+        return galleries.galleryms.WholeSearchTerm("tok1", fields=["Tags"])
+
+
+class TestSearchTerm(QueryTestCase):
     def test_fields(self):
         # A search term with no fields will never match anything
         term = galleries.galleryms.WildcardSearchTerm("*tok*")
@@ -133,11 +140,6 @@ class TestSearchTerm(unittest.TestCase):
         gallery_2 = galleries.galleryms.Gallery({"tags": "tak2"})
         # gallery_2 does not match
         self.assertIs(term.match(gallery_2), None)
-
-    @staticmethod
-    def basic_term():
-        """Basic search term with one field argument"""
-        return galleries.galleryms.WholeSearchTerm("tok1", fields=["Tags"])
 
     def test_disambiguate_fields_valid(self):
         term = self.basic_term()
@@ -202,15 +204,27 @@ class TestSearchTerm(unittest.TestCase):
         self.assertFalse(term.match(gallery))
 
 
-class TestLogicalSearchGroup(unittest.TestCase):
+class TestLogicalSearchGroup(QueryTestCase):
     def test_all_terms(self):
-        term = TestSearchTerm.basic_term()
+        term = self.basic_term()
         query = galleries.galleryms.ConjunctiveSearchGroup([term])
         self.assertEqual(list(query.all_terms()), [term])
         query = galleries.galleryms.ConjunctiveSearchGroup(
             [term, galleries.galleryms.NegativeSearchGroup([term])]
         )
         self.assertEqual(list(query.all_terms()), [term, term])
+
+    def test_unsupported_operands(self):
+        for op in galleries.galleryms.Query.__and__, galleries.galleryms.Query.__or__:
+            with self.subTest(op=op), self.assertRaisesRegex(TypeError, "None"):
+                op(self.basic_term(), None)  # type: ignore
+
+    def test_inversion_of_disjunction(self):
+        term = self.basic_term()
+        query = galleries.galleryms.DisjunctiveSearchGroup([term])
+        negation = ~query
+        self.assertEqual(query.terms, [term])
+        self.assertEqual(negation.terms, [term])
 
 
 class TestRelatedTag(unittest.TestCase):

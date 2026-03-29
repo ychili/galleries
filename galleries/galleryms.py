@@ -49,6 +49,7 @@ BinaryCompFunc: TypeAlias = (
     "Callable[[SupportsRichComparison, SupportsRichComparison], object]"
 )
 TagSetT = TypeVar("TagSetT", bound="TagSet")
+LogicalSearchGroupT = TypeVar("LogicalSearchGroupT", bound="LogicalSearchGroup")
 FieldFormatT = TypeVar("FieldFormatT", bound="FieldFormat")
 _IndexT = TypeVar("_IndexT", bound=str | int)
 TransitiveAliases = NewType("TransitiveAliases", tuple[str, str, str])
@@ -355,6 +356,29 @@ class Query(abc.ABC):
         *gallery* may be updated as field data are parsed.
         """
 
+    def _merge_like_groups(
+        self, other: Query, result_type: type[LogicalSearchGroupT]
+    ) -> LogicalSearchGroupT:
+        # Not needed for correctness, but keep reprs in a simpler form.
+        terms: list[Query] = []
+        terms.extend(self.terms if isinstance(self, result_type) else [self])
+        terms.extend(other.terms if isinstance(other, result_type) else [other])
+        return result_type(terms)
+
+    def __and__(self, other: Query) -> ConjunctiveSearchGroup:
+        if not isinstance(other, Query):
+            raise TypeError(f"Cannot & a Query with {other!r}")
+        return self._merge_like_groups(other, ConjunctiveSearchGroup)
+
+    def __or__(self, other: Query) -> DisjunctiveSearchGroup:
+        if not isinstance(other, Query):
+            raise TypeError(f"Cannot | a Query with {other!r}")
+        return self._merge_like_groups(other, DisjunctiveSearchGroup)
+
+    def __invert__(self) -> LogicalSearchGroup:
+        # A NegativeSearchGroup with one term will simply negate that term.
+        return NegativeSearchGroup((self,))
+
 
 class LogicalSearchGroup(Query):
     """Base class for search terms as grouped by truth function"""
@@ -375,24 +399,55 @@ class LogicalSearchGroup(Query):
 
 
 class ConjunctiveSearchGroup(LogicalSearchGroup):
-    """To match a gallery, any terms in this group must match."""
+    """To match a gallery, any terms in this group must match.
+
+    Conjunctive search groups can also be created using '&'.
+
+    >>> term = WholeSearchTerm('tok1')
+    >>> term & term
+    ConjunctiveSearchGroup([WholeSearchTerm('tok1'), WholeSearchTerm('tok1')])
+    """
 
     def match(self, gallery: Gallery) -> bool:
         return all(t.match(gallery) for t in self.terms)
 
 
 class NegativeSearchGroup(LogicalSearchGroup):
-    """To match a gallery, any terms in this group must not match."""
+    """To match a gallery, any terms in this group must not match.
+
+    Search terms can be negated using '~'.
+
+    >>> term = WholeSearchTerm('tok1')
+    >>> ~term
+    NegativeSearchGroup([WholeSearchTerm('tok1')])
+    >>> ~(~term)
+    DisjunctiveSearchGroup([WholeSearchTerm('tok1')])
+    """
 
     def match(self, gallery: Gallery) -> bool:
         return all(not t.match(gallery) for t in self.terms)
 
+    def __invert__(self) -> DisjunctiveSearchGroup:
+        # Disjunction is the negation of logical NOR.
+        return DisjunctiveSearchGroup(self.terms)
+
 
 class DisjunctiveSearchGroup(LogicalSearchGroup):
-    """To match a gallery, at least one term in this group must match."""
+    """To match a gallery, at least one term in this group must match.
+
+    Disjunctive search groups can also be created using '|'.
+
+    >>> term = WholeSearchTerm('tok1')
+    >>> term | term
+    DisjunctiveSearchGroup([WholeSearchTerm('tok1'), WholeSearchTerm('tok1')])
+    """
 
     def match(self, gallery: Gallery) -> bool:
         return any(t.match(gallery) for t in self.terms) or not self.terms
+
+    def __invert__(self) -> NegativeSearchGroup:
+        # Logical NOR is the negation of disjunction.
+        return NegativeSearchGroup(self.terms)
 
 
 class SearchTerm(Query):
