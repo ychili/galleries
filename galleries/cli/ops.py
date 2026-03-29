@@ -74,8 +74,7 @@ class QuerySettings(_ReadOpSettings):
 class RefreshSettings(_ReadWriteOpSettings):
     input_file: Path
     backup_suffix: str
-    sort_field: str
-    reverse_sort: bool
+    sort_spec: list[tuple[str, bool]]
     unique_fields: list[str]
     implicating_fields: set[str]
     no_check: bool
@@ -392,21 +391,13 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
     backup_suffix = cla.suffix or db_config.parser["refresh"]["BackupSuffix"]
     path_field = db_config.parser["refresh"]["PathField"]
     count_field = db_config.parser["refresh"]["CountField"]
-    sort_field = db_config.parser["refresh"].get("SortField", path_field)
+    sort_spec = db_config.sort_spec("refresh", path_field)
     unique_fields = db_config.get_list("refresh", "UniqueFields")
     implications = db_config.get_multi_paths("refresh", "Implications")
     aliases = db_config.get_multi_paths("refresh", "Aliases")
     removals = db_config.get_multi_paths("refresh", "Removals")
     unified = db_config.get_multi_paths("refresh", "TagActions")
     implicating_fields = db_config.get_implicating_fields()
-    try:
-        reverse = bool(db_config.parser["refresh"].getboolean("ReverseSort"))
-    except ValueError as err:
-        log.warning(
-            "Invalid configuration setting for ReverseSort (defaulting to False): %s",
-            err,
-        )
-        reverse = False
 
     return RefreshSettings(
         input_file=input_file,
@@ -415,8 +406,7 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
         backup_suffix=backup_suffix,
         path_field=path_field,
         count_field=count_field,
-        sort_field=sort_field,
-        reverse_sort=reverse,
+        sort_spec=sort_spec,
         unique_fields=unique_fields,
         implications=implications,
         aliases=aliases,
@@ -433,8 +423,8 @@ def refresh_op(settings: RefreshSettings) -> int:
     gardener = refresh.Gardener()
     filename = settings["input_file"]
     gardener.set_normalize_tags(*settings["tag_fields"])
-    sort_field = settings["sort_field"]
-    gardener.needed_fields.add(sort_field)
+    sort_spec = settings["sort_spec"]
+    gardener.needed_fields.update(field for field, _ in sort_spec)
     path_field = settings["path_field"]
     if not settings["no_check"]:
         gardener.set_update_count(
@@ -459,8 +449,7 @@ def refresh_op(settings: RefreshSettings) -> int:
         return 1
     if not rows:
         return 0
-    log.debug("Sorting by field: %s", sort_field)
-    rows.sort(key=util.alphanum_getter(sort_field), reverse=settings["reverse_sort"])
+    util.sort_by_field(rows, prepare_sort_spec(sort_spec))
     backup_file = filename.replace(
         filename.with_name(filename.name + settings["backup_suffix"])
     )
@@ -511,6 +500,18 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
         msg = "Found %d logical error%s in TagActions files: %s"
         log.info(msg, errors, "" if errors == 1 else "s", paths)
     return errors
+
+
+def prepare_sort_spec(
+    specs: Iterable[tuple[str, bool]],
+) -> list[tuple[util.KeyFunc, bool]]:
+    """Log and transform sort specs."""
+    specs_out: list[tuple[util.KeyFunc, bool]] = []
+    msg = "Sorting by [%d]: %s, %s"
+    for idx, (fieldname, reverse) in enumerate(specs):
+        log.debug(msg, idx, fieldname, "descending" if reverse else "ascending")
+        specs_out.append((util.field_key_func(fieldname), reverse))
+    return specs_out
 
 
 @_sc_runner

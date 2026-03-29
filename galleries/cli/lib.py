@@ -6,6 +6,7 @@ import argparse
 import configparser
 import contextlib
 import dataclasses
+import itertools
 import logging
 import os
 import sys
@@ -168,6 +169,21 @@ class DBConfig:
     def default_parser() -> configparser.ConfigParser:
         return configparser.ConfigParser(default_section="db", interpolation=None)
 
+    def _convert_to_boolean(self, value: str) -> bool:
+        if value.lower() not in self.parser.BOOLEAN_STATES:
+            raise ValueError(f"Not a boolean: {value}")
+        return self.parser.BOOLEAN_STATES[value.lower()]
+
+    def get_boolean(self, section: str, option: str, default: bool) -> bool:
+        if val := self.parser[section].get(option):
+            return self._convert_to_boolean(val)
+        return default
+
+    def get_multi_booleans(self, section: str, option: str) -> list[bool]:
+        if val := self.parser[section].get(option):
+            return [self._convert_to_boolean(arg) for arg in split_semicolon_list(val)]
+        return []
+
     def get_list(self, section: str, option: str) -> list[str]:
         """Parse semicolon-separated list value of *option* in *section*."""
         return split_semicolon_list(self.parser[section].get(option, ""))
@@ -198,6 +214,21 @@ class DBConfig:
                 )
             implicating_fields &= arguments
         return implicating_fields
+
+    def sort_spec(self, section: str, default_field: str) -> list[tuple[str, bool]]:
+        try:
+            reverse = self.get_multi_booleans(section, "ReverseSort")
+        except ValueError as err:
+            log.warning(
+                "Invalid configuration setting for ReverseSort (defaulting to False): %s",
+                err,
+            )
+            reverse = [False]
+        sort_fields = self.get_list(section, "SortField") or [default_field]
+        specs = zip(
+            sort_fields, itertools.chain(reverse, itertools.repeat(False)), strict=False
+        )
+        return list(specs)
 
 
 @dataclasses.dataclass(frozen=True)

@@ -1,6 +1,7 @@
 """Unit tests for cli module, using pytest"""
 
 import configparser
+import contextlib
 import dataclasses
 import operator
 import pathlib
@@ -404,7 +405,7 @@ class TestDBConfig:
             assert cfg.parser[section][caseless("PathField")] == "Path"
             assert cfg.parser[section][caseless("CountField")] == "Count"
         assert cfg.parser["refresh"][caseless("BackupSuffix")] == ".bak"
-        assert not cfg.parser["refresh"].getboolean(caseless("ReverseSort"))
+        assert cfg.get_multi_booleans("refresh", caseless("ReverseSort")) == [False]
         assert cfg.parser["query"][caseless("Format")] == "none"
         assert (
             cfg.get_path("query", caseless("FieldFormats"))
@@ -421,6 +422,30 @@ class TestDBConfig:
         with pytest.raises(exc):
             _ = getattr(real_db, getter)()
         assert "Unable to read configuration from file" in caplog.text
+
+    @pytest.mark.parametrize("boolean", [True, False])
+    def test_get_boolean(self, real_db, boolean):
+        config = real_db.get_db_config()
+        default_value = config.get_boolean("refresh", "Unknown", default=boolean)
+        assert default_value is boolean
+        write_utf8(real_db.config, f"[refresh]\nUnknown: {boolean}\n")
+        config = real_db.get_db_config()
+        assert config.get_boolean("refresh", "Unknown", default=not boolean) == boolean
+
+    @pytest.mark.parametrize(
+        ("config_text", "expectation"),
+        [
+            ("", contextlib.nullcontext([])),
+            ("1;", contextlib.nullcontext([True])),
+            ("真", pytest.raises(ValueError, match="真")),
+        ],
+    )
+    def test_get_multi_booleans(self, real_db, config_text, expectation):
+        write_utf8(real_db.config, f"[refresh]\nReverseSort: {config_text}\n")
+        config = real_db.get_db_config()
+        with expectation as e:
+            result = config.get_multi_booleans("refresh", "ReverseSort")
+            assert result == e
 
     def test_get_list(self, real_db):
         write_utf8(real_db.config, "[db]\n[refresh]\n")
@@ -469,6 +494,26 @@ class TestDBConfig:
             if record.levelname == "WARNING"
         )
         assert fields == set()
+
+    @pytest.mark.parametrize(
+        ("field_vals", "reverse_vals", "spec_expected"),
+        [
+            ("", "", [("Z", False)]),
+            ("A", "", [("A", False)]),
+            ("", "true", [("Z", True)]),
+            ("A; B", "false; true; false", [("A", False), ("B", True)]),
+            # One invalid Boolean will default the whole list.
+            ("A; B;", "true; NaB;", [("A", False), ("B", False)]),
+        ],
+    )
+    def test_sort_spec(self, real_db, field_vals, reverse_vals, spec_expected):
+        write_utf8(
+            real_db.config,
+            f"[refresh]\nSortField: {field_vals}\nReverseSort: {reverse_vals}\n",
+        )
+        config = real_db.get_db_config()
+        result = config.sort_spec("refresh", default_field="Z")
+        assert result == spec_expected
 
 
 _ENV_VARS = ["GALLERIES_CONF", "XDG_CONFIG_HOME"]

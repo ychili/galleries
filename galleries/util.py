@@ -12,12 +12,12 @@ import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
 import rich.console
 
 from . import PROG
-from .galleryms import Gallery
+from .galleryms import FieldKeyFunc, Gallery, KeyFunc, multisort
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -287,14 +287,31 @@ def load_from_json(filename: StrOrBytesPath) -> Any:
 # -----------------
 
 
+SortSpec: TypeAlias = "tuple[KeyFunc[Gallery], bool]"
+
+
 def sort_by_field(
-    galleries: Iterable[Gallery], sort_field: str, *, reverse: bool = False
-) -> list[Gallery]:
-    sort_key = alphanum_getter(sort_field)
-    if isinstance(galleries, list):
-        galleries.sort(key=sort_key, reverse=reverse)
-        return galleries
-    return sorted(galleries, key=sort_key, reverse=reverse)
+    galleries: Iterable[Gallery],
+    sort_field: str | Sequence[SortSpec],
+    *,
+    reverse: bool = False,
+) -> Iterable[Gallery]:
+    """Sort *galleries*, returning a reference to the sorted result.
+
+    *sort_field* should be a field name on which to sort (with, optionally,
+    *reverse* to sort descending) or, for sorting by multiple fields, it should
+    be a sequence of ``SortSpec`` tuples (in which case *reverse* is ignored).
+
+    The following calls are equivalent:
+
+    >>> sort_by_field([], "Field", reverse=False)
+    []
+    >>> sort_by_field([], [(alphanum_getter("Field"), False)])
+    []
+    """
+    if isinstance(sort_field, str):
+        sort_field = [(field_key_func(sort_field), reverse)]
+    return multisort(galleries, sort_field)
 
 
 def alphanum_getter(field: str) -> Callable[[Gallery], list[int | str]]:
@@ -307,6 +324,12 @@ def alphanum_getter(field: str) -> Callable[[Gallery], list[int | str]]:
         return alphanum_key(value)
 
     return getter
+
+
+def field_key_func(
+    field: str, key_factory: Callable[[str], KeyFunc[Gallery]] = alphanum_getter
+) -> FieldKeyFunc[Gallery]:
+    return FieldKeyFunc(key_factory(field), frozenset({field}))
 
 
 def atoi(s: str) -> int | str:

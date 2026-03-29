@@ -919,15 +919,15 @@ class TestRefresh:
 
     SORT_FIELD_NAME = "Some Arbitrary Field"
     SORTING_INPUT_DATA = (
-        f"Tags,{SORT_FIELD_NAME}\nxYz AbC,20\ndef,30\nabc,10\nabc deF,40\n"
+        f"Tags,{SORT_FIELD_NAME}\nxYz AbC,20\nxyz,10\ndef,30\nabc,10\nabc deF,40\n"
     )
     _RESULTS_EXPECTED_ASCENDING = (
-        b"Tags,Some Arbitrary Field\r\nabc,10\r\n"
+        b"Tags,Some Arbitrary Field\r\nabc,10\r\nxyz,10\r\n"
         b"abc xyz,20\r\ndef,30\r\nabc def,40\r\n"
     )
     _RESULTS_EXPECTED_DESCENDING = (
         b"Tags,Some Arbitrary Field\r\nabc def,40\r\n"
-        b"def,30\r\nabc xyz,20\r\nabc,10\r\n"
+        b"def,30\r\nabc xyz,20\r\nabc,10\r\nxyz,10\r\n"
     )
 
     @pytest.mark.parametrize(
@@ -944,7 +944,7 @@ class TestRefresh:
         set_config_value = functools.partial(
             _edit_db_conf, db_conf_path(initialize_collection), "refresh"
         )
-        set_config_value("SortField", self.SORT_FIELD_NAME)
+        set_config_value("SortField", f"{self.SORT_FIELD_NAME}; \n\tTags")
         set_config_value("ReverseSort", reverse_sort)
         set_config_value("BackupSuffix", ".MYBACKUP")
         rc = galleries.cli.main(["-vv", "refresh", "--no-check"])

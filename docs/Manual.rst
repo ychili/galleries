@@ -1000,7 +1000,7 @@ from the setting db.\ `CSVName`_ and the names of tag fields from
 refresh.\ `TagFields`_.
 The path field is set by refresh.\ `PathField`_, and the count field is
 set by refresh.\ `CountField`_.
-The field by which galleries will be sorted is set by
+The field or fields by which galleries will be sorted is set by
 refresh.\ `SortField`_.
 If refresh.\ `ReverseSort`_ is set to true, galleries will be sorted in
 descending sort order (Z to A instead of A to Z).
@@ -1308,20 +1308,25 @@ this setting.
 :Type: `Semicolon list`_ of `Field name`_\ s
 :Default value: set by `TagFields`_
 
+SortField
+`````````
+Table rows written by `refresh`_ will be sorted by this field.
+If more than one field name is listed, rows will be sorted by each one
+in order.
+For each field, the direction of the sort is controlled by the values of
+`ReverseSort`_. The first value in that list will be applied to the first
+field in this list, and so on.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `PathField`_
+
 ReverseSort
 ```````````
 If set to false, sort ascending---A to Z or smaller to greater.
 If set to true, sort descending---Z to A or greater to smaller.
 
-:Type: `Boolean`_
+:Type: `Semicolon list`_ of `Boolean`_\ s
 :Default value: False
-
-SortField
-`````````
-Table rows written by `refresh`_ will be sorted by this field.
-
-:Type: `Field name`_
-:Default value: set by `PathField`_
 
 UniqueFields
 ````````````

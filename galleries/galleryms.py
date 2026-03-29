@@ -1089,6 +1089,17 @@ class RelatedTag(Generic[T]):
         return self.overlap_count / self.tag.count
 
 
+@dataclasses.dataclass(frozen=True)
+class FieldKeyFunc(Generic[T]):
+    """A KeyFunc that remembers what fields it will access."""
+
+    key: KeyFunc[T]
+    fields: frozenset[str]
+
+    def __call__(self, value: T) -> SupportsRichComparison:
+        return self.key(value)
+
+
 split_on_whitespace = re.compile(r"\S+").findall
 
 
