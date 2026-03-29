@@ -24,6 +24,11 @@ class TestReader(unittest.TestCase):
             [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})],
         )
 
+    def test_empty_fields(self):
+        reader = galleries.util.StrictReader([self._FIELDNAMES_IN, ",,"])
+        first_row = next(reader)
+        self.assertEqual(tuple(first_row.values()), ("", "", ""), first_row)
+
     def test_missing_fields(self):
         reader = galleries.util.StrictReader([self._FIELDNAMES_IN, 'f,"g,"'])
         with self.assertRaises(galleries.util.MissingFieldError) as assert_raises_ctx:
@@ -41,6 +46,7 @@ class TestReader(unittest.TestCase):
         self.assertEqual(exc.row, ["f", "g", "h", ""])
         self.assertEqual(exc.fieldnames, self._FIELDNAMES_OUT)
         self.assertEqual(exc.line_num, 2)
+
 
 
 class TestReadDB(unittest.TestCase):
