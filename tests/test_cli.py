@@ -1,5 +1,6 @@
 """Unit tests for cli module, using pytest"""
 
+import argparse
 import configparser
 import contextlib
 import dataclasses
@@ -50,6 +51,31 @@ def real_db(tmp_path):
     spec.collection.mkdir()
     spec.subdir.mkdir()
     return spec
+
+
+class TestAppendStoreConstAction:
+    def test_shared_dest(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "-a",
+            action=galleries.cli.lib.AppendStoreConstAction,
+            const="A",
+            type=int,
+            dest="shared",
+        )
+        parser.add_argument(
+            "-z",
+            action=galleries.cli.lib.AppendStoreConstAction,
+            const="Z",
+            type=int,
+            dest="shared",
+        )
+        none = parser.parse_args([])
+        assert none.shared is None
+        one = parser.parse_args(["-a1"])
+        assert one.shared == [(1, "A")]
+        alternating = parser.parse_args(["-z1", "-a2", "-z3"])
+        assert alternating.shared == [(1, "Z"), (2, "A"), (3, "Z")]
 
 
 class TestFileType:

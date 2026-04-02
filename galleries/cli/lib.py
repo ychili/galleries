@@ -10,7 +10,7 @@ import itertools
 import logging
 import os
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TextIO, TypeVar
 
@@ -47,6 +47,23 @@ DEFAULT_CONFIG_STATE: dict[str, dict[str, Any]] = {
 }
 
 log = logging.getLogger(__name__)
+
+
+class AppendStoreConstAction(argparse.Action):
+    """Like "append" and "append_const" combined."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        items = getattr(namespace, self.dest, None)
+        if items is None:
+            items = []
+        items.append((values, self.const))
+        setattr(namespace, self.dest, items)
 
 
 class FileType:
