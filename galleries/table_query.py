@@ -10,7 +10,14 @@ import locale
 import logging
 import shlex
 import shutil
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    Reversible,
+    Sequence,
+)
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -26,6 +33,7 @@ from . import util
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsWrite
 
+FieldSortSpec = tuple[gms.FieldKeyFunc[gms.Gallery], bool]
 FormatT = TypeVar("FormatT", bound="Format")
 
 DEFAULT_BOX = rich.box.SIMPLE
@@ -190,19 +198,28 @@ def query_from_args(
 def sort_table(
     galleries: Iterable[gms.Gallery],
     fieldnames: Sequence[str],
-    sort_field: str | None = None,
+    sort_specs: Sequence[FieldSortSpec] | None = None,
     *,
-    reverse_sort: bool = False,
+    reverse_order: bool = False,
 ) -> Iterable[gms.Gallery]:
-    """Return *galleries* sorted by *sort_field* if given, otherwise unsorted.
+    """Return *galleries* sorted by *sort_specs* if given, otherwise unsorted.
 
-    Raise ``SortingError`` if *sort_field* is not found in *fieldnames*.
+    Raise ``SortingError`` if a fieldname in *sort_specs* is not found in
+    *fieldnames*.
+
+    If *reverse_order* is True, *galleries* will be returned in reverse order,
+    after any sorting.
     """
-    if sort_field:
-        if sort_field not in fieldnames:
-            log.error("Sort field not found in input: %s", sort_field)
-            raise SortingError(sort_field)
-        return util.sort_by_field(galleries, sort_field, reverse=reverse_sort)
+    if sort_specs:
+        sort_fields = {field for spec, _ in sort_specs for field in spec.fields}
+        if missing_fields := sort_fields - set(fieldnames):
+            log.error("Sort field(s) not found in input: %s", ", ".join(missing_fields))
+            raise SortingError(missing_fields)
+        galleries = util.sort_by_field(galleries, sort_specs)
+    if reverse_order:
+        if not isinstance(galleries, Reversible):
+            galleries = list(galleries)
+        return reversed(galleries)
     return galleries
 
 

@@ -11,7 +11,13 @@ from .. import PROG, __version__, relatedtag, table_query
 from . import ops
 from .lib import DB_CONFIG_NAME as DB_CONFIG_NAME
 from .lib import DB_DIR_NAME as DB_DIR_NAME
-from .lib import FileType, environ_get, read_global_configuration, set_logging_level
+from .lib import (
+    AppendStoreConstAction,
+    FileType,
+    environ_get,
+    read_global_configuration,
+    set_logging_level,
+)
 
 log = logging.getLogger(PROG)
 
@@ -144,10 +150,25 @@ def build_cla_parser() -> argparse.ArgumentParser:
         help="read CSV from %(metavar)s (use '-' for standard input)",
     )
     query_p.add_argument(
-        "-r", "--reverse", action="store_true", help="reverse order while sorting"
+        "-r", "--reverse", action="store_true", help="reverse order of results"
     )
     query_p.add_argument(
-        "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
+        "-s",
+        "--sort",
+        "--sort-asc",
+        metavar="FIELD",
+        dest="sort_spec",
+        const=False,
+        action=AppendStoreConstAction,
+        help="sort results ascending by %(metavar)s",
+    )
+    query_p.add_argument(
+        "--sort-desc",
+        metavar="FIELD",
+        dest="sort_spec",
+        const=True,
+        action=AppendStoreConstAction,
+        help="sort results descending by %(metavar)s",
     )
     output_format = query_p.add_mutually_exclusive_group()
     output_format.add_argument(

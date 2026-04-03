@@ -560,6 +560,30 @@ class TestQuery:
         assert rc > 0
         assert msg_in_error_logs(caplog, bad_field_arg)
 
+    SORTING_ROWS_IN = ["Tags,Pseudo Path,Count", "b,,1", "a,,1", "c,,2", "x,,3"]
+
+    @pytest.mark.parametrize(
+        ("args", "rows_expected"),
+        [
+            ([], SORTING_ROWS_IN[1:]),  # Unaltered
+            (["-r"], SORTING_ROWS_IN[-1:0:-1]),  # Reversed
+            (["-rsTags"], ["x,,3", "c,,2", "b,,1", "a,,1"]),  # Sorted and reversed
+            (["--sort-asc", "Pseudo Path"], SORTING_ROWS_IN[1:]),  # Sort is stable
+            (
+                ["--sort-desc=Count", "--sort-asc=Tags"],
+                ["x,,3", "c,,2", "a,,1", "b,,1"],
+            ),  # Complex sort
+        ],
+    )
+    def test_sort_and_reverse(self, tmp_path, capsys, args, rows_expected):
+        path = tmp_path / "sortinput.csv"
+        write_utf8(path, "".join(f"{row}\r\n" for row in self.SORTING_ROWS_IN))
+        rc = galleries.cli.main(["-vv", "query", "--input", str(path), *args])
+        assert rc == 0
+        rows_printed = capsys.readouterr().out.splitlines()
+        assert rows_printed[0] == self.SORTING_ROWS_IN[0], "Header does not change."
+        assert rows_printed[1:] == rows_expected
+
     def test_custom_csv_filename(self, initialize_collection, capsys):
         custom_filename = "MYGALL~1.CSV"
         text = "Tags\r\na b c\r\nx y z\r\n"

@@ -1,8 +1,12 @@
 """Unit tests for table_query, using pytest"""
 
+import collections
+import functools
 import re
 import sys
 
+import hypothesis
+import hypothesis.strategies as st
 import pytest
 import rich.box
 import rich.table
@@ -229,35 +233,69 @@ class TestMain:
     def test_no_sorting(self):
         glist = [galleries.galleryms.Gallery(mapping) for mapping in self._data]
         result = galleries.table_query.sort_table(
-            glist, self._fieldnames, sort_field=None
+            glist, self._fieldnames, sort_specs=None
         )
         assert glist == result
 
+    @staticmethod
+    def gallery_gen(values):
+        for value in values:
+            yield galleries.galleryms.Gallery(Field=value)
+
     @pytest.mark.parametrize("reverse_sort", [False, True])
-    def test_sorting(self, reverse_sort):
+    def test_sorting_by_example(self, reverse_sort):
         data_in = "abcaba"
         expected_results = "aaabbc"
-
-        def gallery_gen(values):
-            for value in values:
-                yield galleries.galleryms.Gallery(Field=value)
-
         result = galleries.table_query.sort_table(
-            gallery_gen(data_in),
+            self.gallery_gen(data_in),
             ["Field"],
-            sort_field="Field",
-            reverse_sort=reverse_sort,
+            sort_specs=[(galleries.util.field_key_func("Field"), reverse_sort)],
         )
         assert result == list(
-            gallery_gen(
+            self.gallery_gen(
                 expected_results if not reverse_sort else reversed(expected_results)
             )
         )
 
+    @hypothesis.given(
+        data_in=st.lists(st.integers() | st.text()),
+        direction_of_sorts=st.lists(st.booleans(), max_size=10),
+    )
+    def test_sorting_invariants(self, data_in, direction_of_sorts):
+        sort_specs = [
+            (galleries.util.field_key_func("Field"), reverse)
+            for reverse in direction_of_sorts
+        ]
+        sort_table = functools.partial(
+            galleries.table_query.sort_table,
+            fieldnames=["Field"],
+            sort_specs=sort_specs,
+        )
+        result = sort_table(self.gallery_gen(data_in))
+        if sort_specs:
+            assert isinstance(result, list)
+        repeat = sort_table(result)
+        assert repeat == result, (result, repeat)
+        original = list(self.gallery_gen(data_in))
+
+        def count_data(galleries):
+            return collections.Counter(val for g in galleries for val in g.values())
+
+        assert count_data(original) == count_data(result)
+
+    @hypothesis.given(data_in=st.lists(st.integers() | st.text()))
+    def test_reversing(self, data_in):
+        result = galleries.table_query.sort_table(
+            self.gallery_gen(data_in), ["Field"], reverse_order=True
+        )
+        assert list(result) == list(self.gallery_gen(reversed(data_in)))
+
     def test_sort_field_not_found(self, caplog):
         with pytest.raises(galleries.table_query.SortingError, match=self._bogus_field):
             galleries.table_query.sort_table(
-                galleries=[], fieldnames=self._fieldnames, sort_field=self._bogus_field
+                galleries=[],
+                fieldnames=self._fieldnames,
+                sort_specs=[(galleries.util.field_key_func(self._bogus_field), False)],
             )
         assert any_error_logs(caplog)
         assert self._bogus_field in caplog.text

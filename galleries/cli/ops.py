@@ -63,8 +63,8 @@ class CountSettings(_ReadOpSettings):
 
 class QuerySettings(_ReadOpSettings):
     term: list[str]
-    sort_field: str | None
-    reverse_sort: bool
+    sort_spec: list[tuple[str, bool]]
+    reverse_order: bool
     format: table_query.Format
     auto_format: table_query.Format
     field_formats: Path
@@ -315,8 +315,8 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
 
     return QuerySettings(
         term=cla.term,
-        sort_field=cla.sort,
-        reverse_sort=cla.reverse,
+        sort_spec=cla.sort_spec or [],
+        reverse_order=cla.reverse,
         format=fmt,
         field_formats=fmts_file,
         rich_table=table_file,
@@ -336,8 +336,8 @@ def query_op(settings: QuerySettings) -> int:
         galleries = table_query.sort_table(
             (gallery for gallery in reader if query.match(gallery)),
             reader.fieldnames,
-            sort_field=settings["sort_field"],
-            reverse_sort=settings["reverse_sort"],
+            sort_specs=prepare_sort_spec(settings["sort_spec"]),
+            reverse_order=settings["reverse_order"],
         )
         table_query.print_table(galleries, reader.fieldnames, output_formatter)
     return 0
@@ -504,9 +504,9 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
 
 def prepare_sort_spec(
     specs: Iterable[tuple[str, bool]],
-) -> list[tuple[util.KeyFunc, bool]]:
+) -> list[table_query.FieldSortSpec]:
     """Log and transform sort specs."""
-    specs_out: list[tuple[util.KeyFunc, bool]] = []
+    specs_out: list[table_query.FieldSortSpec] = []
     msg = "Sorting by [%d]: %s, %s"
     for idx, (fieldname, reverse) in enumerate(specs):
         log.debug(msg, idx, fieldname, "descending" if reverse else "ascending")

@@ -715,12 +715,22 @@ Options
     Default: value of db.\ `CSVName`_.
 
 -r, --reverse
-    Sort results in descending order.
+    Reverse the order of query results, after any sorting.
 
-    Default: ascending sort.
+    Default: don't reverse.
 
--s FIELD, --sort=FIELD
-    Sort results by *FIELD*.
+-s FIELD, --sort=FIELD, --sort-asc=FIELD
+   Sort results by *FIELD*, ascending.
+   This option can be passed more than once, in which case results will
+   be sorted first by the first *FIELD* passed, then by the second
+   *FIELD* if the values from the first are equal, and so on.
+
+    Default: don't sort.
+
+--sort-desc=FIELD
+   Sort results by *FIELD*, descending.
+   This option can be passed more than once, with the same meaning as
+   for ``--sort-asc``, with the order of the sort reversed.
 
     Default: don't sort.
 
