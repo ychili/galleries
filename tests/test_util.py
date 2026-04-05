@@ -48,7 +48,6 @@ class TestReader(unittest.TestCase):
         self.assertEqual(exc.line_num, 2)
 
 
-
 class TestReadDB(unittest.TestCase):
     CSV_LINES = ["F,G,H\r\n", "f,g,h\r\n"]
     _EXPECTED_OUT = [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})]

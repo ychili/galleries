@@ -17,6 +17,7 @@ import textwrap
 from collections import ChainMap, defaultdict
 from collections.abc import (
     Callable,
+    Generator,
     Iterable,
     Iterator,
     Mapping,
@@ -923,7 +924,7 @@ class Tabulator(Generic[_IndexT]):
 
     def tabulate(
         self, rows: Iterable[SupportsGetItem[_IndexT, object]]
-    ) -> Iterator[str]:
+    ) -> Generator[str]:
         """Yield one line of table at a time.
 
         Args:
@@ -935,6 +936,9 @@ class Tabulator(Generic[_IndexT]):
         Yields:
             One str for each line of resulting table.
                 If rows is empty, yield nothing.
+
+        Raises:
+            LookupError: If a field from `field_fmts` is not found in a row.
         """
         wrappers = self._wrappers()
 
