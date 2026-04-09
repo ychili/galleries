@@ -262,10 +262,17 @@ class TestMain:
         assert any_error_logs(caplog)
         assert self._bogus_field in caplog.text
 
-    def test_format_field_not_found(self, caplog):
+    def test_select_field_not_found(self, caplog):
+        # A table created this way, with no argument to select_fields,
+        # has NO fields selected:
         bogus_table = galleries.table_query.FormattedTablePrinter(
             {self._bogus_field: galleries.galleryms.FieldFormat(80)}
         )
+        assert not bogus_table.fieldnames
+        bogus_table.check_fields(self._fieldnames)  # No exception raised.
+        assert not any_error_logs(caplog)
+        # Fields have to be selected with order_fields:
+        bogus_table.order_fields([self._bogus_field])
         with pytest.raises(
             galleries.table_query.FormatterError, match=self._bogus_field
         ):
@@ -371,16 +378,24 @@ class TestParseRichTableSettings:
     def test_bare_field(self):
         obj = {"columns": [{"field": "A"}]}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert table.fieldnames == {"A"}
-        assert len(table.field_columns) == 1, table.field_columns
+        match table.field_columns:
+            case {"A": column_definition, **others}:
+                assert column_definition.header == "A"
+                assert not others
+            case unexpected:
+                pytest.fail(str(unexpected))
 
     def test_invalid_column_kwargs(self, caplog):
         obj = {"columns": [{"min_width": 40}, {"field": "A"}, None]}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert self.assert_msg_in_warning("{'min_width': 40}", caplog)
         assert self.assert_msg_in_warning("None", caplog)
-        assert table.fieldnames == {"A"}
-        assert len(table.field_columns) == 1, table.field_columns
+        match table.field_columns:
+            case {"A": column_definition, **others}:
+                assert column_definition.header == "A"
+                assert not others
+            case unexpected:
+                pytest.fail(str(unexpected))
 
     def test_unexpected_column_kwarg(self, caplog):
         obj = {"columns": [{"field": "A", "class": None}]}
@@ -407,7 +422,7 @@ class TestRichTablePrinter:
 
     def test_add_fields(self):
         printer = galleries.table_query.parse_rich_table_object({})
-        fieldnames = frozenset("ABCD")
+        fieldnames = list("ABCD")
         printer.check_fields(fieldnames)
         assert printer.fieldnames == fieldnames
 
@@ -415,6 +430,7 @@ class TestRichTablePrinter:
         printer = galleries.table_query.parse_rich_table_object(
             {"columns": [{"field": "FieldA"}]}
         )
+        printer.order_fields(["FieldA"])
         with pytest.raises(galleries.table_query.FormatterError, match="FieldA"):
             printer.check_fields([])
 
@@ -425,7 +441,7 @@ class TestRichTablePrinter:
 
     def test_print_valid_fieldnames(self, capsys):
         printer = galleries.table_query.parse_rich_table_object({})
-        printer.check_fields({"FieldA"})
+        printer.check_fields(["FieldA"])
         printer.print(_gallery_gen())
         captured = capsys.readouterr()
         assert "FieldA" in captured.out
@@ -433,7 +449,7 @@ class TestRichTablePrinter:
     def test_print_field_not_found(self):
         printer = galleries.table_query.parse_rich_table_object({})
         # The second gallery does not have FieldB.
-        printer.check_fields({"FieldA", "FieldB"})
+        printer.check_fields(["FieldA", "FieldB"])
         with pytest.raises(KeyError, match=repr("FieldB")):
             printer.print(_gallery_gen())
 
@@ -441,6 +457,7 @@ class TestRichTablePrinter:
         column = rich.table.Column(-1)  # type: ignore
         field_columns = {"FieldA": column}
         printer = galleries.table_query.RichTablePrinter(field_columns=field_columns)
+        printer.order_fields(["FieldA"])
         with pytest.raises(galleries.table_query.FormatterError):
             printer.print(_gallery_gen())
 

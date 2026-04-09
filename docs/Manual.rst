@@ -724,6 +724,21 @@ Options
 
     Default: don't sort.
 
+-S FIELD, --select=FIELD
+    Restrict results to selected *FIELD*.
+    This option can be passed more than once to build up a list of
+    selected fields.
+    Results will be shown in the order they are passed.
+    The default is to show all fields in the table
+    in the order they are found in the input.
+    This option also accepts the special value ``*`` that will restore
+    this default behavior, in case it has been overridden by a
+    configuration setting.
+
+    Default: value of query.\ `SelectFields`_,
+    or query.\ `SelectFieldFormats`_, or query.\ `SelectRichColumns`_,
+    depending on which output format is selected.
+
 --field-formats=FILE
     Parse field formats from *FILE*.
     See "`Field formats file`_" below for the syntax of this file.
@@ -1285,6 +1300,30 @@ this formatting method will be used when printing to a terminal.
 
 :Type: One of {format, rich}
 :Default value: rich
+
+SelectFields
+````````````
+The default arguments to `query`_’s ``--select`` option.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: \* (meaning, select all fields in the input
+                in their original order)
+
+SelectFieldFormats
+``````````````````
+The default arguments to `query`_’s ``--select`` option
+if using **format** output formatting.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `SelectFields`_
+
+SelectRichColumns
+`````````````````
+The default arguments to `query`_’s ``--select`` option
+if using **rich** output formatting.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `SelectFields`_
 
 [refresh]
 ---------

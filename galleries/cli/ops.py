@@ -69,6 +69,9 @@ class QuerySettings(_ReadOpSettings):
     auto_format: table_query.Format
     field_formats: Path
     rich_table: Path
+    select_field_formats: list[str]
+    select_rich_columns: list[str]
+    select_fields: list[str]
 
 
 class RefreshSettings(_ReadWriteOpSettings):
@@ -313,6 +316,14 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
         raise _CLIError
     fmts_file = Path(cla.field_formats or db_config.get_path("query", "FieldFormats"))
     table_file = Path(cla.rich_table or db_config.get_path("query", "RichTable"))
+    select_fields = db_config.get_list("query", "SelectFields")
+    select_field_formats = (
+        cla.select or db_config.get_list("query", "SelectFieldFormats") or select_fields
+    )
+    select_rich_columns = (
+        cla.select or db_config.get_list("query", "SelectRichColumns") or select_fields
+    )
+    select_fields_all_other_formats = cla.select or select_fields
 
     return QuerySettings(
         term=cla.term,
@@ -324,6 +335,9 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
         auto_format=auto_fmt,
         input_file=input_file,
         tag_fields=tag_fields,
+        select_field_formats=select_field_formats,
+        select_rich_columns=select_rich_columns,
+        select_fields=select_fields_all_other_formats,
     )
 
 
@@ -346,11 +360,10 @@ def query_op(settings: QuerySettings) -> int:
 
 def _query_output_formatter(
     settings: QuerySettings,
-) -> table_query.TablePrinter | None:
+) -> table_query.TablePrinter:
     """Sub-function of ``query_op``
 
-    Return a ``TablePrinter`` that can print galleries, or return ``None``
-    if no formatting was requested.
+    Return a ``TablePrinter`` that can print galleries.
     """
     fmt = settings["format"]
     if fmt == table_query.Format.AUTO:
@@ -358,6 +371,7 @@ def _query_output_formatter(
             fmt = settings["auto_format"]
         else:
             fmt = table_query.Format.NONE
+    formatter: table_query.TablePrinter
     if fmt == table_query.Format.FORMAT:
         try:
             field_fmts = table_query.parse_field_format_file(settings["field_formats"])
@@ -371,12 +385,16 @@ def _query_output_formatter(
                 settings["field_formats"],
             )
             raise _CLIError from err
-        return table_query.FormattedTablePrinter(field_fmts)
-    if fmt == table_query.Format.RICH:
-        table_file = settings["rich_table"]
-        return table_query.parse_rich_table_file(table_file)
-    # fmt == table_query.Format.NONE
-    return None
+        formatter = table_query.FormattedTablePrinter(
+            field_fmts, settings["select_field_formats"]
+        )
+    elif fmt == table_query.Format.RICH:
+        formatter = table_query.parse_rich_table_file(settings["rich_table"])
+        formatter.order_fields(settings["select_rich_columns"])
+    else:
+        assert fmt == table_query.Format.NONE
+        formatter = table_query.CSVTablePrinter(settings["select_fields"])
+    return formatter
 
 
 @_sc_runner

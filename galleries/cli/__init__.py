@@ -149,6 +149,13 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p.add_argument(
         "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
+    query_p.add_argument(
+        "-S",
+        "--select",
+        metavar="FIELD",
+        action="append",
+        help="display field %(metavar)s(s) in results",
+    )
     output_format = query_p.add_mutually_exclusive_group()
     output_format.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"

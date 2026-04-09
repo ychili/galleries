@@ -12,9 +12,8 @@ import shlex
 import shutil
 from collections.abc import (
     Callable,
-    Collection,
     Iterable,
-    KeysView,
+    Iterator,
     Mapping,
     MutableMapping,
     Sequence,
@@ -81,70 +80,142 @@ class Format(enum.Enum):
 
 
 class TablePrinter(abc.ABC):
+    FORMAT_NAME: str
+    STAR = "*"
+    add_fields = True
+
     @abc.abstractmethod
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
         pass
 
-    @abc.abstractmethod
-    def check_fields(self, fieldnames: Collection[str]) -> None:
+    _select_fields: Sequence[str]
+
+    @property
+    def fieldnames(self) -> Sequence[str]:
+        """Field names currently selected."""
+        return self._select_fields
+
+    def order_fields(self, fieldnames: Sequence[str] | None) -> None:
+        """Select fields *fieldnames* to display in output.
+
+        If *fieldnames* is None, an empty sequence, or a sequence containing
+        only the value ``STAR`` (by default, '*'), then selected ``fieldnames``
+        will be replaced with an empty list.
+        """
+        if not fieldnames or self._is_star(fieldnames):
+            self._select_fields = []
+        else:
+            self._select_fields = fieldnames
+
+    def _is_star(self, fieldnames: object) -> bool:
+        match fieldnames:
+            case [self.STAR]:
+                return True
+        return False
+
+    def check_fields(self, fieldnames: Sequence[str]) -> None:
         """
         Raise ``FormatterError`` if a requested field is not found in
         *fieldnames*.
+
+        If ``fieldnames`` currently selected is empty, then it will be replaced
+        with *fieldnames*.
         """
+        if self.add_fields and not self._select_fields:
+            self.order_fields(fieldnames)
+        for field in self._select_fields:
+            if field not in fieldnames:
+                log.error(
+                    "Field selected for output format '%s' not found in input: %s",
+                    self.FORMAT_NAME,
+                    field,
+                )
+                raise FormatterError(field)
+
+
+class CSVTablePrinter(TablePrinter):
+    """A TablePrinter that uses ``util.write_galleries``.
+
+    >>> printer = CSVTablePrinter(select_fields=["*"])
+    >>> printer.fieldnames
+    []
+    >>> printer.check_fields(["A"])
+    >>> printer.fieldnames
+    ['A']
+    """
+
+    FORMAT_NAME = "csv"
+
+    def __init__(
+        self, select_fields: Sequence[str] | None, file: StrPath | None = None
+    ) -> None:
+        self.order_fields(select_fields)
+        self.file = file
+
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        util.write_galleries(galleries, self._select_fields, file=self.file)
 
 
 class FormattedTablePrinter(TablePrinter):
     """A TablePrinter that uses ``print_formatted``."""
 
+    FORMAT_NAME = "format"
+
     def __init__(
         self,
         field_formats: dict[str, gms.FieldFormat],
+        select_fields: Sequence[str] | None = None,
         file: SupportsWrite[str] | None = None,
     ) -> None:
         self.field_formats = field_formats
+        self.order_fields(select_fields)
         self.file = file
 
-    def print(self, galleries: Iterable[gms.Gallery]) -> None:
-        print_formatted(galleries, self.field_formats, self.file)
+    def selected_field_formats(self) -> dict[str, gms.FieldFormat]:
+        field_formats = {
+            field: self.field_formats.get(
+                field, gms.FieldFormat(gms.FieldFormat.REMAINING_SPACE)
+            )
+            for field in self._select_fields
+        }
+        fields_with_default_ff = field_formats.keys() - self.field_formats
+        if fields_with_default_ff:
+            log.debug(
+                "Constructed default FieldFormats for fields selected but not defined:"
+                " %r",
+                sorted(fields_with_default_ff),
+            )
+        return field_formats
 
-    def check_fields(self, fieldnames: Collection[str]) -> None:
-        for field in self.field_formats:
-            if field not in fieldnames:
-                log.error(
-                    "Field name from FieldFormats file not found in input: %s", field
-                )
-                raise FormatterError(field)
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        print_formatted(galleries, self.selected_field_formats(), self.file)
 
 
 class RichTablePrinter(TablePrinter):
-    """A TablePrinter that uses a ``rich.table.Table``.
+    """A TablePrinter that uses a ``rich.table.Table``."""
 
-    If *add_fields* is True (the default) and *fieldnames* is not given,
-    then ``check_fields`` will update fieldnames from its
-    *fieldnames* argument.
-    """
+    FORMAT_NAME = "rich"
 
     def __init__(
         self,
         table_kwds: Mapping[str, Any] | None = None,
         field_columns: MutableMapping[str, rich.table.Column] | None = None,
+        select_fields: Sequence[str] | None = None,
         console: rich.console.Console | None = None,
-        *,
-        add_fields: bool = True,
     ) -> None:
         self.table_kwds = dict(table_kwds or {})
         self.field_columns = field_columns or {}
+        self.order_fields(select_fields)
         self.console = console or util.console
-        self.add_fields = add_fields
 
-    @property
-    def fieldnames(self) -> KeysView[str]:
-        return self.field_columns.keys()
+    def selected_columns(self) -> Iterator[rich.table.Column]:
+        for field in self._select_fields:
+            yield self.field_columns.get(field, rich.table.Column(header=field))
 
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
-        table = rich.table.Table(*self.field_columns.values(), **self.table_kwds)
+        table = rich.table.Table(*self.selected_columns(), **self.table_kwds)
         for gallery in galleries:
-            row = [str(gallery[fieldname]) for fieldname in self.fieldnames]
+            row = [str(gallery[fieldname]) for fieldname in self._select_fields]
             table.add_row(*row)
         try:
             self.console.print(table)
@@ -158,17 +229,6 @@ class RichTablePrinter(TablePrinter):
             # Column at this point.
             log.error("Unable to render table: %s", err)
             raise FormatterError from err
-
-    def check_fields(self, fieldnames: Collection[str]) -> None:
-        if self.add_fields and not self.field_columns:
-            for field in fieldnames:
-                self.field_columns[field] = rich.table.Column(header=field)
-        for field in self.fieldnames:
-            if field not in fieldnames:
-                log.error(
-                    "Field name from RichTable file not found in input: %s", field
-                )
-                raise FormatterError(field)
 
 
 def query_from_args(
