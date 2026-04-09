@@ -283,16 +283,19 @@ def print_table(
     fieldnames: Sequence[str],
     output_formatter: TablePrinter | None = None,
 ) -> None:
-    if output_formatter:
-        output_formatter.check_fields(fieldnames)
-        galleries = list(galleries)
-        gallery_total = len(galleries)
-        log.info(
-            "Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies"
-        )
-        output_formatter.print(galleries)
-    else:
-        util.write_galleries(galleries, fieldnames=fieldnames)
+    if not output_formatter:
+        return util.write_galleries(galleries, fieldnames=fieldnames)
+    output_formatter.check_fields(fieldnames)
+    galleries = _lazy_total(galleries)
+    output_formatter.print(galleries)
+
+
+def _lazy_total(galleries: Iterable[gms.Gallery]) -> Iterator[gms.Gallery]:
+    gallery_total = 0
+    for gallery in galleries:
+        gallery_total += 1
+        yield gallery
+    log.info("Found %d galler%s", gallery_total, "y" if gallery_total == 1 else "ies")
 
 
 def print_formatted(
