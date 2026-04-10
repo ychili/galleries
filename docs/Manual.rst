@@ -694,6 +694,7 @@ Options
     or **auto**.
     The argument **none** selects no formatting.
     That is, rows are printed as they are in CSV format.
+    The argument **tsv** selects tab-separated values format.
     The argument **format** selects formatted output, where fields are
     printed in wrapped columns.
     To use formatted output, a field formats file must be provided

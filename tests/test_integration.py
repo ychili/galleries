@@ -614,6 +614,7 @@ class TestQuery:
         ("format_arg", "conf_param"),
         [
             ("none", "SelectFields"),
+            ("tsv", "SelectFields"),
             ("rich", "SelectFields"),
             ("rich", "SelectRichColumns"),
         ],
@@ -628,7 +629,7 @@ class TestQuery:
         assert msg_in_error_logs(caplog, field)
 
     @pytest.mark.parametrize("select_fields", [("C", "B", "A"), ("A", "B")])
-    @pytest.mark.parametrize("format_arg", ["none", "rich"])
+    @pytest.mark.parametrize("format_arg", ["none", "tsv", "rich"])
     def test_order_fields(self, tmp_path, capsys, format_arg, select_fields):
         csv_path = tmp_path / "test_input.csv"
         csv_path.write_text("A,B,C\na,b,c\n")

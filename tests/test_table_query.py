@@ -462,6 +462,18 @@ class TestRichTablePrinter:
             printer.print(_gallery_gen())
 
 
+class TestTSVTablePrinter:
+    def test_select_fields(self):
+        printer = galleries.table_query.TSVTablePrinter(["FieldA"])
+        printer.print(_gallery_gen())
+        printer = galleries.table_query.TSVTablePrinter(["*"])
+        printer.order_fields(["FieldA", "FieldB", "FieldC"])
+        with pytest.raises(KeyError, match="FieldB"):
+            printer.print(_gallery_gen())
+        with pytest.raises(galleries.table_query.FormatterError):
+            printer.check_fields(["FieldB"])
+
+
 def any_error_logs(caplog):
     return any(record.levelname == "ERROR" for record in caplog.records)
 

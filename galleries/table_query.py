@@ -61,6 +61,7 @@ class FormatterError(TableQueryError):
 
 class Format(enum.Enum):
     NONE = "none"
+    TSV = "tsv"
     FORMAT = "format"
     RICH = "rich"
     AUTO = "auto"
@@ -154,6 +155,27 @@ class CSVTablePrinter(TablePrinter):
 
     def print(self, galleries: Iterable[gms.Gallery]) -> None:
         util.write_galleries(galleries, self._select_fields, file=self.file)
+
+
+class TSVTablePrinter(TablePrinter):
+    FORMAT_NAME = "tsv"
+
+    def __init__(
+        self,
+        select_fields: Sequence[str] | None,
+        file: SupportsWrite[str] | None = None,
+    ) -> None:
+        self.order_fields(select_fields)
+        self.file = file
+
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        header = "\t".join(self._select_fields)
+        print(header, file=self.file)
+        for gallery in galleries:
+            row = "\t".join(
+                str(gallery[fieldname]) for fieldname in self._select_fields
+            )
+            print(row, file=self.file)
 
 
 class FormattedTablePrinter(TablePrinter):

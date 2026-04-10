@@ -391,6 +391,8 @@ def _query_output_formatter(
     elif fmt == table_query.Format.RICH:
         formatter = table_query.parse_rich_table_file(settings["rich_table"])
         formatter.order_fields(settings["select_rich_columns"])
+    elif fmt == table_query.Format.TSV:
+        formatter = table_query.TSVTablePrinter(settings["select_fields"])
     else:
         assert fmt == table_query.Format.NONE
         formatter = table_query.CSVTablePrinter(settings["select_fields"])
