@@ -1,6 +1,7 @@
 """Unit tests for table_query, using pytest"""
 
 import re
+import string
 import sys
 
 import pytest
@@ -472,6 +473,37 @@ class TestTSVTablePrinter:
             printer.print(_gallery_gen())
         with pytest.raises(galleries.table_query.FormatterError):
             printer.check_fields(["FieldB"])
+
+
+class TestRowTemplatePrinter:
+    def test_check_fields(self, caplog):
+        printer = galleries.table_query.RowTemplatePrinter("{a} {b} {c}")
+        assert printer.fieldnames == list("abc")
+        with pytest.raises(galleries.table_query.FormatterError, match="c$"):
+            printer.check_fields(["a", "b"])
+        assert any_error_logs(caplog)
+
+
+class TestRowFormatter:
+    MAPPING = {letter: letter for letter in string.ascii_lowercase}
+
+    def test_security(self):
+        malicious_format_string = "{a.__init__}"
+        # Using normal str.format_map
+        internal_repr = malicious_format_string.format_map(self.MAPPING)
+        assert re.match(r"<.*?method.*?__init__.*?>", internal_repr)
+        # Using RowFormatter
+        formatter = galleries.table_query.RowFormatter()
+        with pytest.raises(KeyError, match=r"a\.__init__"):
+            formatter.vformat(malicious_format_string, (), self.MAPPING)
+
+    def test_lookup(self):
+        formatter = galleries.table_query.RowFormatter()
+        positional_format_string = "{0!s}"
+        with pytest.raises(KeyError, match=repr("0")):
+            # By formatter.get_value, args with never be accessed, and '0' is
+            # not a key in MAPPING.
+            formatter.vformat(positional_format_string, ("first",), self.MAPPING)
 
 
 def any_error_logs(caplog):

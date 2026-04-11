@@ -10,6 +10,7 @@ import locale
 import logging
 import shlex
 import shutil
+import string
 from collections.abc import (
     Callable,
     Iterable,
@@ -78,6 +79,22 @@ class Format(enum.Enum):
             return cls[s.upper()]
         except KeyError:
             return s
+
+
+class RowFormatter(string.Formatter):
+    """A custom ``string.Formatter`` for formatting with row templates.
+
+    >>> RowFormatter().format("He is an {type}", type="halibut")
+    'He is an halibut'
+    """
+
+    # This get_field doesn't access attributes or items, just treating
+    # field_name as a complete lookup key.
+    def get_field(
+        self, field_name: str, args: Sequence[Any], kwargs: Mapping[str, Any]
+    ) -> tuple[Any, str]:
+        obj = self.get_value(field_name, args, kwargs)
+        return obj, field_name
 
 
 class TablePrinter(abc.ABC):
@@ -251,6 +268,44 @@ class RichTablePrinter(TablePrinter):
             # Column at this point.
             log.error("Unable to render table: %s", err)
             raise FormatterError from err
+
+
+class RowTemplatePrinter(TablePrinter):
+    """A TablePrinter that uses ``RowFormatter``.
+
+    >>> printer = RowTemplatePrinter("{Path:#>15}\\n")
+    >>> printer.fieldnames
+    ['Path']
+    >>> printer.print([{"Path": "Hash Me"}])
+    ########Hash Me
+    """
+
+    FORMAT_NAME = "rowtemplate"
+    add_fields = False
+
+    def __init__(
+        self, format_string: str, file: SupportsWrite[str] | None = None
+    ) -> None:
+        self.format_string = format_string
+        self.formatter = RowFormatter()
+        self.order_fields(None)
+        self.file = file
+
+    def print(self, galleries: Iterable[gms.Gallery]) -> None:
+        for gallery in galleries:
+            try:
+                row = self.formatter.vformat(self.format_string, (), gallery)
+            except ValueError as err:
+                log.error("Error with row template '%s': %s", self.format_string, err)
+                raise FormatterError from err
+            print(row, end="", file=self.file)
+
+    def order_fields(self, fieldnames: Any) -> None:
+        self._select_fields = [
+            field_name
+            for _, field_name, _, _ in self.formatter.parse(self.format_string)
+            if field_name is not None
+        ]
 
 
 def query_from_args(
