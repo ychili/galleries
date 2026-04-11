@@ -170,6 +170,20 @@ def build_cla_parser() -> argparse.ArgumentParser:
         action=AppendStoreConstAction,
         help="sort results descending by %(metavar)s",
     )
+    selection_method = query_p.add_mutually_exclusive_group()
+    selection_method.add_argument(
+        "-p",
+        "--print",
+        metavar="STRING",
+        help="print rows using template %(metavar)s containing {FIELD} placeholders",
+    )
+    selection_method.add_argument(
+        "-S",
+        "--select",
+        metavar="FIELD",
+        action="append",
+        help="display field %(metavar)s(s) in results",
+    )
     output_format = query_p.add_mutually_exclusive_group()
     output_format.add_argument(
         "--field-formats", metavar="FILE", help="parse field formats from %(metavar)s"

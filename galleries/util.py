@@ -260,7 +260,7 @@ def write_galleries(
         case _:
             file_cm = contextlib.nullcontext(file)
     with file_cm as outfile:
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 

@@ -3,6 +3,7 @@
 import collections
 import functools
 import re
+import string
 import sys
 
 import hypothesis
@@ -300,10 +301,17 @@ class TestMain:
         assert any_error_logs(caplog)
         assert self._bogus_field in caplog.text
 
-    def test_format_field_not_found(self, caplog):
+    def test_select_field_not_found(self, caplog):
+        # A table created this way, with no argument to select_fields,
+        # has NO fields selected:
         bogus_table = galleries.table_query.FormattedTablePrinter(
             {self._bogus_field: galleries.galleryms.FieldFormat(80)}
         )
+        assert not bogus_table.fieldnames
+        bogus_table.check_fields(self._fieldnames)  # No exception raised.
+        assert not any_error_logs(caplog)
+        # Fields have to be selected with order_fields:
+        bogus_table.order_fields([self._bogus_field])
         with pytest.raises(
             galleries.table_query.FormatterError, match=self._bogus_field
         ):
@@ -340,13 +348,13 @@ class TestParseRichTableSettings:
         path = tmp_path / "null"
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
 
     def test_empty_file(self, tmp_write_text, caplog):
         path = tmp_write_text("empty.txt", "")
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
         assert any(record.levelname == "WARNING" for record in caplog.records)
         assert path.name in caplog.text
 
@@ -358,7 +366,7 @@ class TestParseRichTableSettings:
         path = tmp_write_text(filename, text)
         table = galleries.table_query.parse_rich_table_file(path)
         assert not table.fieldnames
-        assert table.table.box == galleries.table_query.DEFAULT_BOX
+        assert table.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
         assert any_error_logs(caplog)
         assert path.name in caplog.text
 
@@ -377,7 +385,7 @@ class TestParseRichTableSettings:
     def test_table_settings_box(self, caplog, boxarg, box_expected):
         obj = {"table": {"box": boxarg, "unexpected": True}}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert table.table.box == box_expected
+        assert table.table_kwds["box"] == box_expected
         assert not any_error_logs(caplog)
 
     @pytest.mark.parametrize(
@@ -398,28 +406,35 @@ class TestParseRichTableSettings:
             assert self.assert_msg_in_warning(str(value), caplog)
         else:
             result = value
-            assert table.table.show_header == result
+            assert table.table_kwds["show_header"] == result
 
     def test_no_columns(self, caplog):
         obj = {"columns": {}}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert "columns" in caplog.text
-        assert not table.fieldnames
-        assert not table.table.columns
+        assert not table.field_columns
 
     def test_bare_field(self):
         obj = {"columns": [{"field": "A"}]}
         table = galleries.table_query.parse_rich_table_object(obj)
-        assert table.fieldnames == ["A"]
-        assert len(table.table.columns) == 1, table.table.columns
+        match table.field_columns:
+            case {"A": column_definition, **others}:
+                assert column_definition.header == "A"
+                assert not others
+            case unexpected:
+                pytest.fail(str(unexpected))
 
     def test_invalid_column_kwargs(self, caplog):
         obj = {"columns": [{"min_width": 40}, {"field": "A"}, None]}
         table = galleries.table_query.parse_rich_table_object(obj)
         assert self.assert_msg_in_warning("{'min_width': 40}", caplog)
         assert self.assert_msg_in_warning("None", caplog)
-        assert table.fieldnames == ["A"]
-        assert len(table.table.columns) == 1, table.table.columns
+        match table.field_columns:
+            case {"A": column_definition, **others}:
+                assert column_definition.header == "A"
+                assert not others
+            case unexpected:
+                pytest.fail(str(unexpected))
 
     def test_unexpected_column_kwarg(self, caplog):
         obj = {"columns": [{"field": "A", "class": None}]}
@@ -439,11 +454,10 @@ class TestParseRichTableSettings:
 class TestRichTablePrinter:
     def test_default_rich_table(self):
         printer = galleries.table_query.parse_rich_table_object({})
-        assert not printer.fieldnames
+        assert not printer.field_columns
         assert printer.console is galleries.util.console
         assert printer.add_fields
-        assert printer.table.box == galleries.table_query.DEFAULT_BOX
-        assert not printer.table.columns
+        assert printer.table_kwds["box"] == galleries.table_query.DEFAULT_BOX
 
     def test_add_fields(self):
         printer = galleries.table_query.parse_rich_table_object({})
@@ -455,6 +469,7 @@ class TestRichTablePrinter:
         printer = galleries.table_query.parse_rich_table_object(
             {"columns": [{"field": "FieldA"}]}
         )
+        printer.order_fields(["FieldA"])
         with pytest.raises(galleries.table_query.FormatterError, match="FieldA"):
             printer.check_fields([])
 
@@ -465,7 +480,7 @@ class TestRichTablePrinter:
 
     def test_print_valid_fieldnames(self, capsys):
         printer = galleries.table_query.parse_rich_table_object({})
-        printer.check_fields({"FieldA"})
+        printer.check_fields(["FieldA"])
         printer.print(_gallery_gen())
         captured = capsys.readouterr()
         assert "FieldA" in captured.out
@@ -473,16 +488,60 @@ class TestRichTablePrinter:
     def test_print_field_not_found(self):
         printer = galleries.table_query.parse_rich_table_object({})
         # The second gallery does not have FieldB.
-        printer.check_fields({"FieldA", "FieldB"})
+        printer.check_fields(["FieldA", "FieldB"])
         with pytest.raises(KeyError, match=repr("FieldB")):
             printer.print(_gallery_gen())
 
     def test_print_bad_table(self):
-        table = rich.table.Table()
-        table.add_column(-1)  # type: ignore
-        printer = galleries.table_query.RichTablePrinter(table, ["FieldA"])
+        column = rich.table.Column(-1)  # type: ignore
+        field_columns = {"FieldA": column}
+        printer = galleries.table_query.RichTablePrinter(field_columns=field_columns)
+        printer.order_fields(["FieldA"])
         with pytest.raises(galleries.table_query.FormatterError):
             printer.print(_gallery_gen())
+
+
+class TestTSVTablePrinter:
+    def test_select_fields(self):
+        printer = galleries.table_query.TSVTablePrinter(["FieldA"])
+        printer.print(_gallery_gen())
+        printer = galleries.table_query.TSVTablePrinter(["*"])
+        printer.order_fields(["FieldA", "FieldB", "FieldC"])
+        with pytest.raises(KeyError, match="FieldB"):
+            printer.print(_gallery_gen())
+        with pytest.raises(galleries.table_query.FormatterError):
+            printer.check_fields(["FieldB"])
+
+
+class TestRowTemplatePrinter:
+    def test_check_fields(self, caplog):
+        printer = galleries.table_query.RowTemplatePrinter("{a} {b} {c}")
+        assert printer.fieldnames == list("abc")
+        with pytest.raises(galleries.table_query.FormatterError, match="c$"):
+            printer.check_fields(["a", "b"])
+        assert any_error_logs(caplog)
+
+
+class TestRowFormatter:
+    MAPPING = {letter: letter for letter in string.ascii_lowercase}
+
+    def test_security(self):
+        malicious_format_string = "{a.__init__}"
+        # Using normal str.format_map
+        internal_repr = malicious_format_string.format_map(self.MAPPING)
+        assert re.match(r"<.*?method.*?__init__.*?>", internal_repr)
+        # Using RowFormatter
+        formatter = galleries.table_query.RowFormatter()
+        with pytest.raises(KeyError, match=r"a\.__init__"):
+            formatter.vformat(malicious_format_string, (), self.MAPPING)
+
+    def test_lookup(self):
+        formatter = galleries.table_query.RowFormatter()
+        positional_format_string = "{0!s}"
+        with pytest.raises(KeyError, match=repr("0")):
+            # By formatter.get_value, args with never be accessed, and '0' is
+            # not a key in MAPPING.
+            formatter.vformat(positional_format_string, ("first",), self.MAPPING)
 
 
 def any_error_logs(caplog):

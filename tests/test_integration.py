@@ -520,11 +520,10 @@ class TestQuery:
         assert not captured.err
         assert captured.out == "\r\n"
 
-    def test_sort_field_not_found(self, input_args_empty, caplog):
+    @pytest.mark.parametrize("option", ["--sort", "--select"])
+    def test_optional_arg_field_not_found(self, input_args_empty, caplog, option):
         bad_field_in_arg = "???"
-        rc = galleries.cli.main(
-            ["query", *input_args_empty, "--sort", bad_field_in_arg]
-        )
+        rc = galleries.cli.main(["query", *input_args_empty, option, bad_field_in_arg])
         assert rc > 0
         assert msg_in_error_logs(caplog, bad_field_in_arg)
 
@@ -635,6 +634,50 @@ class TestQuery:
         assert rc > 0
         assert msg_in_error_logs(caplog, arg)
 
+    @pytest.mark.parametrize(
+        ("format_arg", "conf_param"),
+        [
+            ("none", "SelectFields"),
+            ("tsv", "SelectFields"),
+            ("rich", "SelectFields"),
+            ("rich", "SelectRichColumns"),
+        ],
+    )
+    def test_invalid_field_selection_from_config(
+        self, initialize_collection, caplog, format_arg, conf_param
+    ):
+        field = "野"
+        _edit_db_conf(db_conf_path(initialize_collection), "query", conf_param, field)
+        rc = galleries.cli.main(["query", "--format", format_arg])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, field)
+
+    @pytest.mark.parametrize("select_fields", [("C", "B", "A"), ("A", "B")])
+    @pytest.mark.parametrize("format_arg", ["none", "tsv", "rich"])
+    def test_order_fields(self, tmp_path, capsys, format_arg, select_fields):
+        csv_path = tmp_path / "test_input.csv"
+        csv_path.write_text("A,B,C\na,b,c\n")
+        select_params = [f"--select={arg}" for arg in select_fields]
+        rc = galleries.cli.main(
+            [
+                "-vv",
+                "query",
+                "--format",
+                format_arg,
+                *select_params,
+                "--input",
+                str(csv_path),
+            ]
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        lines_out = captured.out.splitlines()
+        print(lines_out)
+        # Check for fieldnames separated by a comma or by a run of whitespace.
+        # The order is what we're testing.
+        expected_out_pattern = r",|(\s+?)".join(select_fields)
+        assert any(re.search(expected_out_pattern, line) for line in lines_out)
+
     @pytest.mark.usefixtures("write_to_csv")
     @pytest.mark.parametrize("args", [[" "], ["Π", "#f"]])
     def test_invalid_search_terms(self, caplog, args):
@@ -676,15 +719,23 @@ class TestQuery:
     _FF_JP = "パス\t40\n数\t5\n"
 
     @pytest.mark.parametrize(
-        "file_content",
+        ("file_content", "messages_expected"),
         [
-            None,  # FileNotFoundError
-            _FF_JP.encode("shift-jis"),  # UnicodeDecodeError
-            _FF_JP.encode("utf-8"),  # FieldNotFoundError
+            pytest.param(None, ["Unable to read"], id="FileNotFoundError"),
+            pytest.param(
+                _FF_JP.encode("shift-jis"),
+                ["Unable to decode"],
+                id="UnicodeDecodeError",
+            ),
+            pytest.param(
+                _FF_JP.encode("utf-8"),
+                ["パス", "output format 'format'"],
+                id="FormatterError",
+            ),
         ],
     )
     def test_field_format_file_errors(
-        self, tmp_path, input_args_empty, caplog, file_content
+        self, tmp_path, input_args_empty, caplog, file_content, messages_expected
     ):
         field_formats_file = tmp_path / "field_formats_test"
         if file_content:
@@ -694,12 +745,14 @@ class TestQuery:
                 "--quiet",
                 "query",
                 *input_args_empty,
+                "--select=パス",
                 "--field-formats",
                 str(field_formats_file),
             ]
         )
         assert rc > 0
-        assert msg_in_error_logs(caplog, "FieldFormats file")
+        for substring in messages_expected:
+            assert msg_in_error_logs(caplog, substring)
 
     def test_field_format_file_empty(self, tmp_path, capsys):
         field_formats_file = tmp_path / "field_formats_test"
@@ -717,8 +770,26 @@ class TestQuery:
         )
         assert rc == 0
         captured = capsys.readouterr()
-        assert not captured.out
+        assert captured.out == " one      \n two three\n four     \n"
         assert not captured.err
+
+    @pytest.mark.parametrize(
+        ("format_string", "expected"),
+        [
+            ("\0", "\0" * 5),
+            ("{ID: >2} {Path}\n", " 1 /\n 2 /bin\n 3 /boot\n 4 /dev\n 5 /etc\n"),
+        ],
+    )
+    def test_print_option(self, tmp_path, capsys, format_string, expected):
+        csv_file = tmp_path / "test_input.csv"
+        write_utf8(csv_file, "ID,Path\n1,/\n2,/bin\n3,/boot\n4,/dev\n5,/etc\n")
+        rc = galleries.cli.main(
+            ["-q", "query", "--input", str(csv_file), "--print", format_string]
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert captured.out == expected
 
 
 @pytest.mark.parametrize(

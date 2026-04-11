@@ -137,3 +137,23 @@ class TestSorting(unittest.TestCase):
         for test in (empty_gall, normal_galls):
             with self.assertRaises(KeyError):
                 test.sort(key=galleries.util.alphanum_getter(missing_fieldname))
+
+
+class TestWriteGalleries(unittest.TestCase):
+    GALLERY_IN = [galleries.galleryms.Gallery({"F": "f", "G": "g", "H": "h"})]
+
+    def test_restval(self):
+        """When fieldnames is a superset of ``reader.fieldnames``."""
+        buf = io.StringIO()
+        galleries.util.write_galleries(
+            self.GALLERY_IN, fieldnames=["H", "G", "F", "E"], file=buf
+        )
+        result = buf.getvalue()
+        self.assertEqual(result, "H,G,F,E\r\nh,g,f,\r\n")  # '' is substituted.
+
+    def test_extrasaction(self):
+        """When fieldnames is a subset of ``reader.fieldnames``."""
+        buf = io.StringIO()
+        galleries.util.write_galleries(self.GALLERY_IN, fieldnames=["F", "H"], file=buf)
+        result = buf.getvalue()
+        self.assertEqual(result, "F,H\r\nf,h\r\n")  # Unrequested fields are ignored.

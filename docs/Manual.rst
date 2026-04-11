@@ -394,6 +394,25 @@ to any program that can filter by row—like **grep**\ (1).
 This is useful for searching the table by data not in a tag field,
 such as the content of the path field.
 
+Finally, the ``--print`` option allows you to print matching rows
+according to a template string that you provide.
+The syntax is based on Python's format strings, using curly braces to
+delimit fieldnames within the string.
+Escape sequences are not expanded, and a newline is not automatically
+added at the end, so you will have to place these characters within the
+template string using your shell.
+For example, in most shells (see, as an example,
+`Bash's documentation for the use of $'' strings`_)
+``galleries query --print $'{Path}\t{Count}\t{Tags}\n'``
+will print the values of those three fields separated by a tab
+with each row separated by a newline.
+As a side note, the argument ``--format=TSV``, combined with the
+``--select`` option to order the placement of fields, will produce the
+same output as the above example command plus a header line.
+
+.. _Bash's documentation for the use of $'' strings:
+   https://www.gnu.org/software/bash/manual/html_node/ANSI_002dC-Quoting.html
+
 Analyzing tag relationships
 ===========================
 
@@ -659,10 +678,10 @@ The **query** command prints galleries that match *search_term*.
 If *search_term* is not given then all galleries in the input are
 printed.
 
-**query** supports unformatted output and two methods of formatted
-output.
-Unformatted output mode prints galleries as the CSV rows appear in the
-input, plus fieldname headers.
+**query** supports a number of output modes.
+Pre-defined output formats can be toggled with the ``--format`` option.
+The default is unformatted output, printing galleries as the CSV rows
+appear in the input, including fieldname headers.
 Rich formatted output mode, selected by ``--format=rich``, uses the
 `Rich`_ terminal text formatting library to display the output as a
 table.
@@ -673,6 +692,8 @@ galleries in a table-like format.
 It requires a "`field formats file`_" so it knows which fields to
 include, how wide each column in the table should be, and optionally
 which terminal effects to apply.
+Custom output formats can be created by passing a row template string to
+the ``--print`` option.
 
 Options
 -------
@@ -694,6 +715,7 @@ Options
     or **auto**.
     The argument **none** selects no formatting.
     That is, rows are printed as they are in CSV format.
+    The argument **tsv** selects tab-separated values format.
     The argument **format** selects formatted output, where fields are
     printed in wrapped columns.
     To use formatted output, a field formats file must be provided
@@ -714,6 +736,18 @@ Options
 
     Default: value of db.\ `CSVName`_.
 
+-p STRING, --print=STRING
+    Display rows according to row template *STRING*.
+    Fieldnames surrounded by curly braces will be replaced with the
+    content of that field.
+    All other characters in *STRING* will be printed as they are.
+    No header will be printed, just rows.
+    This option will take precedence over all other output formatting
+    options.
+    In particular, it can't be combined with the ``--select`` option,
+    as the selection and order of fieldnames are already implied by the
+    row template.
+
 -r, --reverse
     Reverse the order of query results, after any sorting.
 
@@ -733,6 +767,21 @@ Options
    for ``--sort-asc``, with the order of the sort reversed.
 
     Default: don't sort.
+
+-S FIELD, --select=FIELD
+    Restrict results to selected *FIELD*.
+    This option can be passed more than once to build up a list of
+    selected fields.
+    Results will be shown in the order they are passed.
+    The default is to show all fields in the table
+    in the order they are found in the input.
+    This option also accepts the special value ``*`` that will restore
+    this default behavior, in case it has been overridden by a
+    configuration setting.
+
+    Default: value of query.\ `SelectFields`_,
+    or query.\ `SelectFieldFormats`_, or query.\ `SelectRichColumns`_,
+    depending on which output format is selected.
 
 --field-formats=FILE
     Parse field formats from *FILE*.
@@ -1295,6 +1344,30 @@ this formatting method will be used when printing to a terminal.
 
 :Type: One of {format, rich}
 :Default value: rich
+
+SelectFields
+````````````
+The default arguments to `query`_’s ``--select`` option.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: \* (meaning, select all fields in the input
+                in their original order)
+
+SelectFieldFormats
+``````````````````
+The default arguments to `query`_’s ``--select`` option
+if using **format** output formatting.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `SelectFields`_
+
+SelectRichColumns
+`````````````````
+The default arguments to `query`_’s ``--select`` option
+if using **rich** output formatting.
+
+:Type: `Semicolon list`_ of `Field name`_\ s
+:Default value: set by `SelectFields`_
 
 [refresh]
 ---------
