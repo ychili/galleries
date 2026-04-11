@@ -149,7 +149,14 @@ def build_cla_parser() -> argparse.ArgumentParser:
     query_p.add_argument(
         "-s", "--sort", metavar="FIELD", help="sort results by %(metavar)s"
     )
-    query_p.add_argument(
+    selection_method = query_p.add_mutually_exclusive_group()
+    selection_method.add_argument(
+        "-p",
+        "--print",
+        metavar="STRING",
+        help="print rows using template %(metavar)s containing {FIELD} placeholders",
+    )
+    selection_method.add_argument(
         "-S",
         "--select",
         metavar="FIELD",

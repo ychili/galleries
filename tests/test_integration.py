@@ -749,6 +749,24 @@ class TestQuery:
         assert captured.out == " one      \n two three\n four     \n"
         assert not captured.err
 
+    @pytest.mark.parametrize(
+        ("format_string", "expected"),
+        [
+            ("\0", "\0" * 5),
+            ("{ID: >2} {Path}\n", " 1 /\n 2 /bin\n 3 /boot\n 4 /dev\n 5 /etc\n"),
+        ],
+    )
+    def test_print_option(self, tmp_path, capsys, format_string, expected):
+        csv_file = tmp_path / "test_input.csv"
+        write_utf8(csv_file, "ID,Path\n1,/\n2,/bin\n3,/boot\n4,/dev\n5,/etc\n")
+        rc = galleries.cli.main(
+            ["-q", "query", "--input", str(csv_file), "--print", format_string]
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert not captured.err
+        assert captured.out == expected
+
 
 @pytest.mark.parametrize(
     ("query_args", "expected_results"),

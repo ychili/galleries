@@ -72,6 +72,7 @@ class QuerySettings(_ReadOpSettings):
     select_field_formats: list[str]
     select_rich_columns: list[str]
     select_fields: list[str]
+    row_template: str | None
 
 
 class RefreshSettings(_ReadWriteOpSettings):
@@ -338,6 +339,7 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
         select_field_formats=select_field_formats,
         select_rich_columns=select_rich_columns,
         select_fields=select_fields_all_other_formats,
+        row_template=cla.print,
     )
 
 
@@ -365,6 +367,8 @@ def _query_output_formatter(
 
     Return a ``TablePrinter`` that can print galleries.
     """
+    if settings["row_template"] is not None:
+        return table_query.RowTemplatePrinter(settings["row_template"])
     fmt = settings["format"]
     if fmt == table_query.Format.AUTO:
         if sys.stdout.isatty():
