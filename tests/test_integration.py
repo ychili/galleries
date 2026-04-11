@@ -84,6 +84,10 @@ def test_help(capsys):
             assert subcmd in captured.out
 
 
+def samepath(a, b):
+    return pathlib.Path(a) == pathlib.Path(b)
+
+
 @pytest.mark.parametrize("argv", [[], ["-c", "/any/string"]])
 @pytest.mark.parametrize("env_var", [None, "from_environment"])
 def test_path_cmd(monkeypatch, capsys, argv, env_var):
@@ -93,11 +97,11 @@ def test_path_cmd(monkeypatch, capsys, argv, env_var):
     assert rc == 0
     text_out = capsys.readouterr().out.strip()
     if argv:
-        assert text_out == argv[-1]
+        assert samepath(text_out, argv[-1])
     elif env_var:
-        assert text_out == env_var
+        assert samepath(text_out, env_var)
     else:
-        assert text_out == str(pathlib.Path.cwd())
+        assert samepath(text_out, pathlib.Path.cwd())
 
 
 class TestInit:
