@@ -570,3 +570,17 @@ def test_split_semicolon_list():
     assert func("\n1\n2\n3") == ["1\n2\n3"]
     assert func("1;2;3") == ["1", "2", "3"]
     assert func("1;\n2;\n3") == ["1", "2", "3"]
+
+
+def test_parse_args_extend_action():
+    parser = galleries.cli.build_cla_parser()
+    query_default = parser.parse_args(["query"])
+    assert query_default.field is None
+    assert query_default.select is None
+    query_mixed = parser.parse_args(["query", "-f", "A,B", "-S", "B", "-S", "C,A"])
+    assert query_mixed.field == ["A", "B"]
+    assert query_mixed.select == ["B", "C", "A"]
+    related_default = parser.parse_args(["related"])
+    assert related_default.field is None
+    related_list = parser.parse_args(["related", "-f", "B,A"])
+    assert related_list.field == ["B", "A"]

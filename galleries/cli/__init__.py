@@ -17,6 +17,7 @@ from .lib import (
     environ_get,
     read_global_configuration,
     set_logging_level,
+    split_comma_list,
 )
 
 log = logging.getLogger(PROG)
@@ -129,7 +130,8 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "-f",
         "--field",
         metavar="FIELD",
-        action="append",
+        type=split_comma_list,
+        action="extend",
         help="search field %(metavar)s(s) instead of default TagFields",
     )
     query_p.add_argument(
@@ -181,7 +183,8 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "-S",
         "--select",
         metavar="FIELD",
-        action="append",
+        type=split_comma_list,
+        action="extend",
         help="display field %(metavar)s(s) in results",
     )
     output_format = query_p.add_mutually_exclusive_group()
@@ -224,7 +227,8 @@ def build_cla_parser() -> argparse.ArgumentParser:
         "-f",
         "--field",
         metavar="NAME",
-        action="append",
+        type=split_comma_list,
+        action="extend",
         help="show tags from %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(

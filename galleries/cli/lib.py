@@ -482,3 +482,7 @@ def split_semicolon_list(value: str) -> list[str]:
     if not value:
         return []
     return [stripped for item in value.split(";") if (stripped := item.strip())]
+
+
+def split_comma_list(value: str) -> list[str]:
+    return [item for item in value.split(",") if item]

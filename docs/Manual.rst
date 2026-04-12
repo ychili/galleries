@@ -705,7 +705,7 @@ Options
     Use *FIELD* as the default tag field for *search_term*\ s that don't
     have their own field specifiers.
     This option can be passed more than once to build up a list of
-    tag fields.
+    tag fields, or *FIELD* can be a comma-separated list of field names.
 
     Default: value of query.\ `TagFields`_.
 
@@ -771,7 +771,8 @@ Options
 -S FIELD, --select=FIELD
     Restrict results to selected *FIELD*.
     This option can be passed more than once to build up a list of
-    selected fields.
+    selected fields,
+    or *FIELD* can be a comma-separated list of field names.
     Results will be shown in the order they are passed.
     The default is to show all fields in the table
     in the order they are found in the input.
@@ -1099,7 +1100,7 @@ Options
 -f NAME, --field=NAME
     Restrict results to tags from the tag field *NAME*.
     This option can be passed more than once to build up a list of
-    tag fields.
+    tag fields, or *NAME* can be a comma-separated list of field names.
 
     Default: value of related.\ `TagFields`_.
 
