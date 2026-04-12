@@ -233,7 +233,7 @@ class Implicator:  # noqa: PLW1641
         aliases: MutableMapping[str, str] | None = None,
         graph: ImplicationGraph | None = None,
     ) -> None:
-        self.graph = ImplicationGraph(graph or {})
+        self.graph = ImplicationGraph() if graph is None else graph
         self.aliases = ChainMap(aliases or {})
         if implications is not None:
             for implication in implications:

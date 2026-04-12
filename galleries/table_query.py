@@ -244,8 +244,8 @@ class RichTablePrinter(TablePrinter):
         select_fields: Sequence[str] | None = None,
         console: rich.console.Console | None = None,
     ) -> None:
-        self.table_kwds = dict(table_kwds or {})
-        self.field_columns = field_columns or {}
+        self.table_kwds = table_kwds if table_kwds is not None else {}
+        self.field_columns = field_columns if field_columns is not None else {}
         self.order_fields(select_fields)
         self.console = console or util.console
 
