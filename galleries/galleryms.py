@@ -107,7 +107,7 @@ class TagSet(set[str]):
                     break
         return consequents
 
-    def aliased_tags(self: TagSetT, aliases: Mapping[str, str]) -> TagSetT:
+    def aliased_tags(self: TagSetT, aliases: SupportsItems[str, str]) -> TagSetT:
         """Return a new set with aliased tags replaced by real tags."""
         tagset = type(self)(self.copy())
         tagset.apply_aliases(aliases)
@@ -126,7 +126,7 @@ class TagSet(set[str]):
             # populated on the previous iteration.
             current_tags = new_tags
 
-    def apply_aliases(self, aliases: Mapping[str, str]) -> None:
+    def apply_aliases(self, aliases: SupportsItems[str, str]) -> None:
         """Update with *aliases*, translating tags from key to value."""
         for alias, tag in aliases.items():
             if alias in self:
