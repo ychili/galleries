@@ -31,6 +31,7 @@ import rich.table
 from . import PROG
 from . import galleryms as gms
 from . import util
+from .console import FieldFormat, Tabulator
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsWrite
@@ -206,7 +207,7 @@ class FormattedTablePrinter(TablePrinter):
 
     def __init__(
         self,
-        field_formats: dict[str, gms.FieldFormat],
+        field_formats: dict[str, FieldFormat],
         select_fields: Sequence[str] | None = None,
         file: SupportsWrite[str] | None = None,
     ) -> None:
@@ -214,10 +215,10 @@ class FormattedTablePrinter(TablePrinter):
         self.order_fields(select_fields)
         self.file = file
 
-    def selected_field_formats(self) -> dict[str, gms.FieldFormat]:
+    def selected_field_formats(self) -> dict[str, FieldFormat]:
         field_formats = {
             field: self.field_formats.get(
-                field, gms.FieldFormat(gms.FieldFormat.REMAINING_SPACE)
+                field, FieldFormat(FieldFormat.REMAINING_SPACE)
             )
             for field in self._select_fields
         }
@@ -390,17 +391,17 @@ def _lazy_total(galleries: Iterable[gms.Gallery]) -> Iterator[gms.Gallery]:
 
 def print_formatted(
     rows: Iterable[gms.Gallery],
-    field_formats: Mapping[str, gms.FieldFormat],
+    field_formats: Mapping[str, FieldFormat],
     file: SupportsWrite[str] | None = None,
 ) -> None:
     """Write *rows* to *file* in wrapped columns."""
     max_width = shutil.get_terminal_size().columns
-    tabulator = gms.Tabulator(field_formats, total_width=max_width, right_margin=0)
+    tabulator = Tabulator(field_formats, total_width=max_width, right_margin=0)
     for line in tabulator.tabulate(rows):
         print(line, file=file)
 
 
-def parse_field_format_file(filename: StrPath) -> dict[str, gms.FieldFormat]:
+def parse_field_format_file(filename: StrPath) -> dict[str, FieldFormat]:
     """Parse lines in *filename*. Only return lines successfully parsed."""
     text = Path(filename).read_text(encoding="utf-8")
     max_widths = {}
@@ -417,7 +418,7 @@ def parse_field_format_file(filename: StrPath) -> dict[str, gms.FieldFormat]:
     return max_widths
 
 
-def _field_format_from_text(line: str) -> tuple[str, gms.FieldFormat] | None:
+def _field_format_from_text(line: str) -> tuple[str, FieldFormat] | None:
     args = shlex.split(line, comments=True)
     if not args:
         return None
@@ -425,7 +426,7 @@ def _field_format_from_text(line: str) -> tuple[str, gms.FieldFormat] | None:
         raise ValueError(f"Fieldname argument {args[0]} without width argument")
     fieldname = args[0]
     if "REM" in args[1].upper():
-        width = gms.FieldFormat.REMAINING_SPACE
+        width = FieldFormat.REMAINING_SPACE
     else:
         try:
             width = locale.atoi(args[1])
@@ -439,7 +440,7 @@ def _field_format_from_text(line: str) -> tuple[str, gms.FieldFormat] | None:
     try:
         return (
             fieldname,
-            gms.FieldFormat.from_names(width, fg_color, bg_color, effect),
+            FieldFormat.from_names(width, fg_color, bg_color, effect),
         )
     except KeyError as err:
         raise ValueError(f"Bad color argument: {err}") from err

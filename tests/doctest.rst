@@ -130,7 +130,7 @@ work with strings containing characters that occupy more than one
 terminal column. Nevertheless, here is an example of normal usage, which
 we can at least use to test for regressions.
 
->>> from galleries.galleryms import FieldFormat, Tabulator
+>>> from galleries.console import FieldFormat, Tabulator
 >>> ff = {'A': FieldFormat(10), 'B': FieldFormat(FieldFormat.REM), 'C': FieldFormat(30)}
 >>> tab = Tabulator(ff, total_width=73)
 >>> rows = [

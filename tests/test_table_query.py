@@ -12,6 +12,7 @@ import pytest
 import rich.box
 import rich.table
 
+import galleries.console
 import galleries.galleryms
 import galleries.table_query
 import galleries.util
@@ -56,17 +57,15 @@ class TestParseFieldFormatFile:
         text = "FieldName REM\n"
         path = tmp_write_text("rem-argument.txt", text)
         assert self.func(path) == {
-            "FieldName": galleries.galleryms.FieldFormat(
-                width=galleries.galleryms.FieldFormat.REMAINING_SPACE
+            "FieldName": galleries.console.FieldFormat(
+                width=galleries.console.FieldFormat.REMAINING_SPACE
             )
         }
 
     def test_valid_argument(self, tmp_write_text):
         text = "FieldName 40\n"
         path = tmp_write_text("valid-argument.txt", text)
-        assert self.func(path) == {
-            "FieldName": galleries.galleryms.FieldFormat(width=40)
-        }
+        assert self.func(path) == {"FieldName": galleries.console.FieldFormat(width=40)}
 
     def test_invalid_argument(self, tmp_write_text, caplog):
         text = "FieldName NotANumber\n"
@@ -81,9 +80,7 @@ class TestParseFieldFormatFile:
             FieldName      22
         """
         path = tmp_write_text("added-whitespace.txt", text)
-        assert self.func(path) == {
-            "FieldName": galleries.galleryms.FieldFormat(width=22)
-        }
+        assert self.func(path) == {"FieldName": galleries.console.FieldFormat(width=22)}
 
     def test_mixed_validity(self, tmp_write_text, caplog):
         text = """
@@ -93,10 +90,10 @@ class TestParseFieldFormatFile:
         """
         path = tmp_write_text("mixed-validity.txt", text)
         assert self.func(path) == {
-            "FieldA": galleries.galleryms.FieldFormat(
-                width=galleries.galleryms.FieldFormat.REMAINING_SPACE
+            "FieldA": galleries.console.FieldFormat(
+                width=galleries.console.FieldFormat.REMAINING_SPACE
             ),
-            "FieldC": galleries.galleryms.FieldFormat(width=16),
+            "FieldC": galleries.console.FieldFormat(width=16),
         }
         assert any_error_logs(caplog)
         assert ":3:" in caplog.text, "Line number of error"
@@ -108,17 +105,15 @@ class TestParseFieldFormatFile:
             FieldName 22  # A trailing comment with number 15
         """
         path = tmp_write_text("comments.txt", text)
-        assert self.func(path) == {
-            "FieldName": galleries.galleryms.FieldFormat(width=22)
-        }
+        assert self.func(path) == {"FieldName": galleries.console.FieldFormat(width=22)}
         assert not any_error_logs(caplog)
 
     def test_quoting_and_escaping(self, tmp_write_text):
         text = "'Field name' 17\nName\\ with\\ spaces 18\n"
         path = tmp_write_text("quoting-and-escaping.txt", text)
         assert self.func(path) == {
-            "Field name": galleries.galleryms.FieldFormat(width=17),
-            "Name with spaces": galleries.galleryms.FieldFormat(width=18),
+            "Field name": galleries.console.FieldFormat(width=17),
+            "Name with spaces": galleries.console.FieldFormat(width=18),
         }
 
     def test_silent_overwrites(self, tmp_write_text, caplog):
@@ -127,9 +122,7 @@ class TestParseFieldFormatFile:
             FieldName 20
         """
         path = tmp_write_text("silent-overwrites.txt", text)
-        assert self.func(path) == {
-            "FieldName": galleries.galleryms.FieldFormat(width=20)
-        }
+        assert self.func(path) == {"FieldName": galleries.console.FieldFormat(width=20)}
         assert not caplog.text
 
     def test_optionals(self, tmp_write_text):
@@ -140,10 +133,10 @@ class TestParseFieldFormatFile:
         """
         path = tmp_write_text("optionals.txt", text)
         assert self.func(path) == {
-            "FieldA": galleries.galleryms.FieldFormat.from_names(width=10, bg="black"),
-            "FieldB": galleries.galleryms.FieldFormat(width=20),
-            "FieldC": galleries.galleryms.FieldFormat.from_names(
-                width=galleries.galleryms.FieldFormat.REMAINING_SPACE,
+            "FieldA": galleries.console.FieldFormat.from_names(width=10, bg="black"),
+            "FieldB": galleries.console.FieldFormat(width=20),
+            "FieldC": galleries.console.FieldFormat.from_names(
+                width=galleries.console.FieldFormat.REMAINING_SPACE,
                 fg="bright white",
                 effect="bold",
             ),
@@ -305,7 +298,7 @@ class TestMain:
         # A table created this way, with no argument to select_fields,
         # has NO fields selected:
         bogus_table = galleries.table_query.FormattedTablePrinter(
-            {self._bogus_field: galleries.galleryms.FieldFormat(80)}
+            {self._bogus_field: galleries.console.FieldFormat(80)}
         )
         assert not bogus_table.fieldnames
         bogus_table.check_fields(self._fieldnames)  # No exception raised.
@@ -324,7 +317,7 @@ class TestMain:
 class TestPrintFormatted:
     @pytest.mark.parametrize(
         ("field_formats", "expected_out"),
-        [({}, []), ({"FieldA": galleries.galleryms.FieldFormat(79)}, [" a", " a"])],
+        [({}, []), ({"FieldA": galleries.console.FieldFormat(79)}, [" a", " a"])],
     )
     def test_successful(self, capsys, field_formats, expected_out):
         galleries.table_query.print_formatted(
@@ -335,7 +328,7 @@ class TestPrintFormatted:
 
     def test_format_field_not_found(self, capsys):
         bogus_field = "CdleiF"
-        field_formats = {bogus_field: galleries.galleryms.FieldFormat(79)}
+        field_formats = {bogus_field: galleries.console.FieldFormat(79)}
         with pytest.raises(KeyError, match=repr(bogus_field)):
             galleries.table_query.print_formatted(
                 rows=_gallery_gen(), field_formats=field_formats, file=sys.stdout
