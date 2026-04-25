@@ -418,21 +418,21 @@ def parse_field_format_file(filename: StrPath) -> dict[str, FieldFormat]:
 
 
 def _field_format_from_text(line: str) -> tuple[str, FieldFormat] | None:
-    args = shlex.split(line, comments=True)
-    if not args:
-        return None
-    if len(args) < 2:
-        raise ValueError(f"Fieldname argument {args[0]} without width argument")
-    fieldname = args[0]
-    if "REM" in args[1].upper():
+    match shlex.split(line, comments=True):
+        case [fieldname]:
+            raise ValueError(f"Fieldname argument {fieldname} without width argument")
+        case [fieldname, width_arg, *optional_args]:
+            optionals = iter(optional_args)
+        case _:
+            return None
+    if "REM" in width_arg.upper():
         width = FieldFormat.REMAINING_SPACE
     else:
         try:
-            width = locale.atoi(args[1])
+            width = locale.atoi(width_arg)
         except ValueError as err:
-            msg = f"Could not convert width argument {args[1]} to integer"
+            msg = f"Could not convert width argument {width_arg} to integer"
             raise ValueError(msg) from err
-    optionals = iter(args[2:])
     fg_color = next(optionals, "").lower()
     bg_color = next(optionals, "").lower()
     effect = next(optionals, "").lower()
