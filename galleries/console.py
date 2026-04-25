@@ -74,15 +74,14 @@ class FieldFormat:
     ) -> Self:
         """Construct using named colors and effects.
 
+        Available colors and effects are listed in FieldFormat.COLORS and
+        FieldFormat.EFFECTS, respectively.
+
         Args:
             width: same as __init__.
             fg: foreground color, i.e. font color.
             bg: background color.
             effect: text effect.
-
-        Available colors and effects are listed in FieldFormat.COLORS and
-        FieldFormat.EFFECTS, respectively.
-
         """
         fg = cls.COLORS[fg][0]
         bg = cls.COLORS[bg][0]
