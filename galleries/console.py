@@ -137,7 +137,7 @@ class Tabulator(Generic[_IndexT]):
             if fmt.width != FieldFormat.REMAINING_SPACE
         }
 
-    def tabulate(
+    def tabulate(  # noqa: PLR0912
         self, rows: Iterable[SupportsGetItem[_IndexT, object]]
     ) -> Generator[str]:
         """Yield one line of table at a time.

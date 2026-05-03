@@ -145,7 +145,7 @@ def init_sc(cla: argparse.Namespace, global_config: GlobalConfig) -> int:
     return init_op(settings)
 
 
-def init_op(settings: InitSettings) -> int:
+def init_op(settings: InitSettings) -> int:  # noqa: PLR0911
     """Init operation"""
     err_msg = "Unable to init"
     root = settings["root_dir"]
@@ -441,7 +441,7 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
     )
 
 
-def refresh_op(settings: RefreshSettings) -> int:
+def refresh_op(settings: RefreshSettings) -> int:  # noqa: PLR0911
     """Refresh operation"""
     gardener = refresh.Gardener()
     filename = settings["input_file"]

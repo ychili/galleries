@@ -37,7 +37,7 @@ def main(args: Sequence[str] | None = None) -> int:
     return args_ns.func(args_ns, global_config)
 
 
-def build_cla_parser() -> argparse.ArgumentParser:
+def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
     """Build and return command-line argument parser."""
     top_level = argparse.ArgumentParser(add_help=False)
     top_level.set_defaults(func=ops.path_sc)
