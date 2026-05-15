@@ -12,14 +12,13 @@ import os
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 from .. import PROG
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
-
-PathSpecT = TypeVar("PathSpecT", bound="CollectionPathSpec")
+    from typing_extensions import Self
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
@@ -260,7 +259,7 @@ class CollectionPathSpec:
     def get_db_path(self, filename: StrPath) -> Path:
         return self.subdir / filename
 
-    def with_root(self: PathSpecT, collection: StrPath) -> PathSpecT:
+    def with_root(self, collection: StrPath) -> Self:
         """Return new path spec with the same names rooted in *collection*."""
         root = Path(collection)
         new_subdir = root / self.subdir.name
