@@ -39,7 +39,6 @@ class Const:
 # PARSING HELPERS
 # ---------------
 
-
 T = TypeVar("T")
 KT = TypeVar("KT")
 VT = TypeVar("VT")
@@ -285,7 +284,6 @@ def load_from_json(filename: StrOrBytesPath) -> Any:
 
 # SORTING FUNCTIONS
 # -----------------
-
 
 SortSpec: TypeAlias = "tuple[KeyFunc[Gallery], bool]"
 

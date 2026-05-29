@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from _typeshed import ConvertibleToInt, SupportsGetItem
     from typing_extensions import Self
 
-
 _IndexT = TypeVar("_IndexT", bound=str | int)
 
 

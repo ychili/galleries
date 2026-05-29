@@ -40,7 +40,6 @@ if TYPE_CHECKING:
 FieldSortSpec = tuple[gms.FieldKeyFunc[gms.Gallery], bool]
 StrT = TypeVar("StrT", bound=str)
 
-
 DEFAULT_BOX = rich.box.SIMPLE
 
 log = logging.getLogger(PROG)

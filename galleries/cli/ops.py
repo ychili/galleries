@@ -22,7 +22,6 @@ from .lib import CollectionFinder, DBConfig, GlobalConfig, join_semicolon_list
 if TYPE_CHECKING:
     from _typeshed import StrPath
 
-
 P = ParamSpec("P")
 ArgsT = TypeVar("ArgsT", bound=argparse.Namespace)
 SettingsT = TypeVar("SettingsT")
