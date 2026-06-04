@@ -39,9 +39,7 @@ select = [
     "UP",     # pyupgrade
     "D100",   # undocumented-public-module
     "D419",   # empty-docstring
-    "PLC",    # Pylint convention
-    "PLE",    # Pylint error
-    "PLW",    # Pylint warning
+    "PL",     # Pylint
 ]
 
 [tool.pyright]

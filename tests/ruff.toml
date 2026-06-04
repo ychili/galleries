@@ -1,0 +1,9 @@
+extend = "../pyproject.toml"
+
+# Use some looser rules for test files.
+
+[lint]
+extend-ignore = [
+    "PLR2004",  # magic-value-comparison
+]
+pylint.max-args = 7
