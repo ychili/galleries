@@ -251,8 +251,10 @@ class TestMain:
             )
         )
 
+    sortables_strategy = st.lists(st.integers()) | st.lists(st.text())
+
     @hypothesis.given(
-        data_in=st.lists(st.integers() | st.text()),
+        data_in=sortables_strategy,
         direction_of_sorts=st.lists(st.booleans(), max_size=10),
     )
     def test_sorting_invariants(self, data_in, direction_of_sorts):
@@ -277,7 +279,7 @@ class TestMain:
 
         assert count_data(original) == count_data(result)
 
-    @hypothesis.given(data_in=st.lists(st.integers() | st.text()))
+    @hypothesis.given(data_in=sortables_strategy)
     def test_reversing(self, data_in):
         result = galleries.table_query.sort_table(
             self.gallery_gen(data_in), ["Field"], reverse_order=True
