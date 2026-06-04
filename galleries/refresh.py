@@ -263,9 +263,10 @@ class TagActionsObject:
                 symbols.add_union(name, *union_elements)
             except KeyError as err:
                 self.extr.warn("Bad set/union name: %s", err)
+        MIN_CHAIN_LENGTH = 2
         for name, elements in self.extr.get_items(table, "chains"):
             chain = self.extr.list(elements)
-            if len(chain) < 2:
+            if len(chain) < MIN_CHAIN_LENGTH:
                 self.extr.warn("Chain has fewer than two names in it: %s", name)
                 continue
             try:
