@@ -86,10 +86,13 @@ def test_get_tags_from_multiple_files(tmp_path):
     assert tagset == _TAG_SET_EXPECTED_MULTIPLE
 
 
-def test_get_aliases_error(tmp_path, caplog):
+@pytest.mark.parametrize(
+    "data", [b"".join(ASCII_BYTES), b'["This is an array, not an object."]\n']
+)
+def test_get_aliases_error(tmp_path, caplog, data):
     path = tmp_path / "aliases_file.json"
-    path.write_bytes(b"".join(ASCII_BYTES))
-    # JSONDecodeError is caught
+    path.write_bytes(data)
+    # The error is caught.
     aliases = galleries.refresh.get_aliases(path)
     assert not aliases
     assert any(record.levelname == "ERROR" for record in caplog.records)
