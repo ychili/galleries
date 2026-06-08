@@ -87,7 +87,11 @@ def test_get_tags_from_multiple_files(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "data", [b"".join(ASCII_BYTES), b'["This is an array, not an object."]\n']
+    "data",
+    [
+        pytest.param(b"".join(ASCII_BYTES), id="invalid JSON"),
+        pytest.param(b'["This is an array, not an object."]\n', id="wrong type"),
+    ],
 )
 def test_get_aliases_error(tmp_path, caplog, data):
     path = tmp_path / "aliases_file.json"
@@ -107,7 +111,12 @@ def test_get_aliases_valid(tmp_path):
 
 @pytest.mark.parametrize(
     ("data", "descriptors_expected"),
-    zip(ASCII_BYTES, _DESCRIPTORS_EXPECTED, strict=True),
+    (
+        pytest.param(*values, id=f"descriptors{idx}")
+        for idx, values in enumerate(
+            zip(ASCII_BYTES, _DESCRIPTORS_EXPECTED, strict=True)
+        )
+    ),
 )
 def test_get_descriptor_implications(tmp_path, data, descriptors_expected):
     path = tmp_path / "descriptors.asc"

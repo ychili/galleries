@@ -1032,10 +1032,12 @@ class TestRefresh:
     @pytest.mark.parametrize(
         ("reverse_sort", "results_expected"),
         [
-            ("False", _RESULTS_EXPECTED_ASCENDING),
-            ("True", _RESULTS_EXPECTED_DESCENDING),
+            pytest.param("False", _RESULTS_EXPECTED_ASCENDING, id="ReverseSort=False"),
+            pytest.param("True", _RESULTS_EXPECTED_DESCENDING, id="ReverseSort=True"),
             # Invalid ReverseSort defaulting to ascending
-            ("ブーリアン", _RESULTS_EXPECTED_ASCENDING),
+            pytest.param(
+                "ブーリアン", _RESULTS_EXPECTED_ASCENDING, id="invalid ReverseSort"
+            ),
         ],
     )
     def test_sorting(self, initialize_collection, reverse_sort, results_expected):
