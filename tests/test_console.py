@@ -10,7 +10,10 @@ import galleries.console
 
 class TestFieldFormat(unittest.TestCase):
     @hypothesis.given(
-        st.text().filter(lambda s: s not in galleries.console.FieldFormat.COLORS)
+        st.text().filter(
+            lambda s: s not in galleries.console.FieldFormat.COLORS
+            and s not in galleries.console.FieldFormat.EFFECTS
+        )
     )
     def test_unknown_arguments(self, key):
         # Unknown color arguments raise KeyError:
