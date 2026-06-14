@@ -111,12 +111,12 @@ def test_get_aliases_valid(tmp_path):
 
 @pytest.mark.parametrize(
     ("data", "descriptors_expected"),
-    (
+    [
         pytest.param(*values, id=f"descriptors{idx}")
         for idx, values in enumerate(
             zip(ASCII_BYTES, _DESCRIPTORS_EXPECTED, strict=True)
         )
-    ),
+    ],
 )
 def test_get_descriptor_implications(tmp_path, data, descriptors_expected):
     path = tmp_path / "descriptors.asc"
