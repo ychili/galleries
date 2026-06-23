@@ -229,7 +229,7 @@ The set of implications and aliases created by a TagActions file are
 validated for logical consistency in three ways.
 
 (1) No circular implications.
-    You cannot create a tag implications or series of tag implications
+    You cannot create a tag implication or series of tag implications
     where a tag ends up implying itself, as in
     :math:`A \implies B \implies A`.
     Without this check the implication process would loop infinitely.
