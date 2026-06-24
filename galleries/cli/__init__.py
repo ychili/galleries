@@ -229,7 +229,7 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
         metavar="NAME",
         type=split_comma_list,
         action="extend",
-        help="show tags from %(metavar)s(s) instead of default TagFields",
+        help="search field %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(
         "-i",
@@ -245,6 +245,14 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
         metavar="N",
         type=int,
         help="limit number of results per TAG to %(metavar)s (0 for no limit)",
+    )
+    related_p.add_argument(
+        "-S",
+        "--select",
+        metavar="FIELD",
+        type=split_comma_list,
+        action="extend",
+        help="show tags from %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(
         "-s",

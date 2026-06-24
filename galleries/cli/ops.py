@@ -89,6 +89,7 @@ class RefreshSettings(_ReadWriteOpSettings):
 
 
 class RelatedSettings(_ReadOpSettings):
+    select_tag_fields: list[str]
     limit_results: int | None
     sort_metric: str
     term: list[str]
@@ -545,7 +546,8 @@ def related_sc(cla: argparse.Namespace, config: GlobalConfig) -> int:
 
 def related_settings(cla: argparse.Namespace, db_config: DBConfig) -> RelatedSettings:
     """Merge settings for related operation."""
-    tag_fields = cla.field or db_config.get_list("related", "TagFields")
+    default_tag_fields = cla.field or db_config.get_list("related", "TagFields")
+    select_tag_fields = cla.select or db_config.get_list("related", "TagFields")
     input_file = cla.csvfile or db_config.get_path("related", "CSVName")
     limit: int | None = cla.limit
     sort_by: str | None = cla.sort
@@ -563,7 +565,8 @@ def related_settings(cla: argparse.Namespace, db_config: DBConfig) -> RelatedSet
 
     return RelatedSettings(
         input_file=input_file,
-        tag_fields=tag_fields,
+        tag_fields=default_tag_fields,
+        select_tag_fields=select_tag_fields,
         limit_results=limit,
         sort_metric=sort_by,
         term=cla.term,
@@ -573,12 +576,13 @@ def related_settings(cla: argparse.Namespace, db_config: DBConfig) -> RelatedSet
 def related_op(settings: RelatedSettings) -> int:
     """Related operation"""
     input_file = settings["input_file"]
-    tag_fields = settings["tag_fields"]
-    with _read_db(input_file, tag_fields) as reader:
+    default_tag_fields = settings["tag_fields"]
+    select_tag_fields = settings["select_tag_fields"]
+    with _read_db(input_file, [*default_tag_fields, *select_tag_fields]) as reader:
         query = table_query.query_from_args(
-            settings["term"], reader.fieldnames, tag_fields
+            settings["term"], reader.fieldnames, default_tag_fields
         )
-        related_tags = relatedtag.get_related_tags(reader, query, frozenset(tag_fields))
+        related_tags = relatedtag.get_related_tags(reader, query, select_tag_fields)
         similarity_results = relatedtag.sort(
             related_tags, sort_by=settings["sort_metric"], n=settings["limit_results"]
         )

@@ -1098,7 +1098,8 @@ Options
     Show help message for **related**.
 
 -f NAME, --field=NAME
-    Restrict results to tags from the tag field *NAME*.
+    Use *NAME* as the default tag field for *search_term*\ s that don't
+    have their own field specifiers.
     This option can be passed more than once to build up a list of
     tag fields, or *NAME* can be a comma-separated list of field names.
 
@@ -1114,6 +1115,13 @@ Options
     *N* can be **0** for no limit on the number of results.
 
     Default: value of related.\ `Limit`_.
+
+-S FIELD, --select=FIELD
+    Restrict results to tags from the tag field *NAME*.
+    This option can be passed more than once to build up a list of
+    tag fields, or *NAME* can be a comma-separated list of field names.
+
+    Default: value of related.\ `TagFields`_.
 
 -s NAME, --sort=NAME
     Sort results by *NAME*, where *NAME* is one the field names in the

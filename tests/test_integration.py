@@ -888,18 +888,32 @@ class TestRelated:
         ["e", "5", "1", "0.44721", "0.20000", "1.00000", "20%"],
     ]
 
-    def test_options(self, tmp_path, capsys):
+    @pytest.mark.parametrize("field_args", [[], ["-f", "Tags"]])
+    @pytest.mark.parametrize("select_args", [[], ["-S", "Tags"]])
+    def test_options(self, tmp_path, capsys, field_args, select_args):
         csv_file = tmp_path / "test_input.csv"
         write_utf8(csv_file, self._CSV_CONTENT_1)
-        rc = galleries.cli.main(
-            ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "~a", "b"]
-        )
+        argv = ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "~a", "b"]
+        argv.extend(field_args if field_args else [])
+        argv.extend(select_args if select_args else [])
+        rc = galleries.cli.main(argv)
         assert rc == 0
         stdout = capsys.readouterr().out
         print(stdout)
         results = [line.split() for line in stdout.splitlines()]
         for line in self._EXPECTED_RESULTS_FOR_OPTIONS:
             assert line in results
+
+    @pytest.mark.parametrize("test_option", ["--field", "--select"])
+    def test_invalid_field_names(self, tmp_path, caplog, test_option):
+        csv_file = tmp_path / "test_input.csv"
+        write_utf8(csv_file, self._CSV_CONTENT_1)
+        bad_field_arg = "spam"
+        rc = galleries.cli.main(
+            ["related", f"--input={csv_file}", test_option, bad_field_arg, "a"]
+        )
+        assert rc > 0
+        assert bad_field_arg in caplog.text
 
 
 class TestRefresh:
