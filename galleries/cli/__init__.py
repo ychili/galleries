@@ -132,7 +132,7 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
         metavar="FIELD",
         type=split_comma_list,
         action="extend",
-        help="search field %(metavar)s(s) instead of default TagFields",
+        help="search %(metavar)s(s) instead of default TagFields",
     )
     query_p.add_argument(
         "-F",
@@ -162,7 +162,7 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
         dest="sort_spec",
         const=False,
         action=AppendStoreConstAction,
-        help="sort results ascending by %(metavar)s",
+        help="sort results ascending by %(metavar)s(s)",
     )
     query_p.add_argument(
         "--sort-desc",
@@ -170,7 +170,7 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
         dest="sort_spec",
         const=True,
         action=AppendStoreConstAction,
-        help="sort results descending by %(metavar)s",
+        help="sort results descending by %(metavar)s(s)",
     )
     selection_method = query_p.add_mutually_exclusive_group()
     selection_method.add_argument(
@@ -226,10 +226,10 @@ def build_cla_parser() -> argparse.ArgumentParser:  # noqa: PLR0915
     related_p.add_argument(
         "-f",
         "--field",
-        metavar="NAME",
+        metavar="FIELD",
         type=split_comma_list,
         action="extend",
-        help="search field %(metavar)s(s) instead of default TagFields",
+        help="search %(metavar)s(s) instead of default TagFields",
     )
     related_p.add_argument(
         "-i",

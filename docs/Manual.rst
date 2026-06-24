@@ -1097,11 +1097,11 @@ Options
 -h, --help
     Show help message for **related**.
 
--f NAME, --field=NAME
-    Use *NAME* as the default tag field for *search_term*\ s that don't
+-f FIELD, --field=FIELD
+    Use *FIELD* as the default tag field for *search_term*\ s that don't
     have their own field specifiers.
     This option can be passed more than once to build up a list of
-    tag fields, or *NAME* can be a comma-separated list of field names.
+    tag fields, or *FIELD* can be a comma-separated list of field names.
 
     Default: value of related.\ `TagFields`_.
 
