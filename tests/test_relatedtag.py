@@ -24,6 +24,9 @@ def test_get_related_tags():
         for tag in related_tags
     )
     assert all(tag.query is query for tag in related_tags)
+    bad_field = "XYZ"
+    with pytest.raises(KeyError, match=bad_field):
+        list(galleries.relatedtag.get_related_tags(GALLERIES, query, {bad_field}))
 
 
 @pytest.mark.parametrize("field_settings", [None, ()])
