@@ -53,12 +53,12 @@ class Gardener:
     """Garden galleries."""
 
     def __init__(self) -> None:
-        self.needed_fields: set[str] = set()
+        self.needed_fields = set[str]()
         self._tag_fields: dict[str, list[Callable[[gms.TagSet], None]]] = {}
         self._do_count: Callable[[gms.Gallery], None] = lambda *args, **kwds: None
-        self._path_field: str = ""
-        self._count_field: str = ""
-        self._root_path: Path = Path()
+        self._path_field = ""
+        self._count_field = ""
+        self._root_path: StrPath = Path()
         self._unique_fields: dict[str, set[object]] = {}
 
     def set_update_count(
@@ -176,7 +176,7 @@ class TagActionsObject:
         self._pools: dict[frozenset[str], _TagActionsContainer] = {}
         # A field's spec is the set of pools that apply to a given field
         # For each pair x:P, P is the set of pools that contain field x.
-        self._field_spec: defaultdict[str, set[frozenset[str]]] = defaultdict(set)
+        self._field_spec = defaultdict[str, set[frozenset[str]]](set)
         self.update(obj or {}, extr=extr)
 
     def read_file(self, filename: StrPath, file_format: str | None = None) -> None:
@@ -252,7 +252,7 @@ class TagActionsObject:
                 )
 
     def _parse_descriptors(self, table: Mapping) -> Iterator[gms.RegularImplication]:
-        symbols: WordMultiplier[str] = WordMultiplier()
+        symbols = WordMultiplier[str]()
         for name, words in self.extr.get_items(table, "sets"):
             symbols.add_set(name, self.extr.list(words))
         for name, elements in self.extr.get_items(table, "unions"):
@@ -304,7 +304,7 @@ class TagActionsObject:
         # (the set of pools that apply to them).
         # If two or more fields have the same spec, they can share the same
         # Implicator.
-        spec_fields: defaultdict[frozenset[frozenset[str]], set[str]] = defaultdict(set)
+        spec_fields = defaultdict[frozenset[frozenset[str]], set[str]](set)
         for field, spec in self._field_spec.items():
             spec_fields[frozenset(spec)].add(field)
         return spec_fields
@@ -478,7 +478,7 @@ def traverse_fs(root: Path, *, leaves_only: bool = False) -> Iterator[tuple[Path
     If *leaves_only* is True (default is False), only yield directories that
     have no child directories of their own.
     """
-    total_count: int = 0
+    total_count = 0
     child_nodes: list[Path] = []
     try:
         for path in root.iterdir():

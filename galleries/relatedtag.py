@@ -137,7 +137,7 @@ def results_table(
     """
     if field_settings is None:
         field_settings = TABLE_COLUMN_SETTINGS.items()
-    printer: ResultsTable[str] = ResultsTable(table=rich.table.Table(box=None))
+    printer = ResultsTable[str](table=rich.table.Table(box=None))
     for fieldname, settings in field_settings:
         column_kwds = dict(settings)  # Copy before mutating.
         header = column_kwds.pop("header", str)(fieldname)
