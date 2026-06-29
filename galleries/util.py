@@ -145,7 +145,18 @@ def toml_address(keys: Iterable[str | None]) -> str:
 # I/O UTILITIES
 # -------------
 
-console = rich.console.Console(markup=False)
+
+class RichConsole(rich.console.Console):
+
+    # This handler will be called by Rich since version 13.8.0
+    def on_broken_pipe(self) -> None:
+        self.quiet = True
+        # We prefer to handle BrokenPipeError ourselves.
+        # See handle_broken_pipe
+        raise BrokenPipeError
+
+
+console = RichConsole(markup=False)
 
 
 class FieldNotFoundError(Exception):
@@ -262,6 +273,16 @@ def write_galleries(
         writer = csv.DictWriter(outfile, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def handle_broken_pipe() -> None:
+    """Handle SIGPIPE by diverting standard output to ``os.devnull``.
+
+    See https://docs.python.org/3/library/signal.html#note-on-sigpipe
+    for details.
+    """
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())
 
 
 def load_from_toml(filename: StrOrBytesPath) -> dict[str, Any]:

@@ -642,7 +642,17 @@ def _run_op(
     else:
         db_config = paths.get_db_config()
     settings = settings_func(cla, db_config)
-    return op_func(settings)
+    try:
+        status = op_func(settings)
+        # flush output here to force SIGPIPE to be triggered
+        # while inside this try block.
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Python flushes standard streams on exit; redirect remaining output
+        # to devnull to avoid another BrokenPipeError at shutdown.
+        util.handle_broken_pipe()
+        return 0
+    return status
 
 
 @contextlib.contextmanager
@@ -654,9 +664,7 @@ def _read_db(
         with util.read_db(file=file, fieldnames=fieldnames) as reader:
             yield reader
     except BrokenPipeError as err:
-        # Even though BrokenPipeError was caught, suppress the error
-        # message by closing stderr before exiting.
-        sys.stderr.close()
+        util.handle_broken_pipe()
         raise _CLIError(0) from err
     except refresh.FolderPathError:
         # Error is handled at higher level. Re-raise, otherwise exception is

@@ -10,6 +10,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 
 import pytest
 
@@ -822,6 +823,23 @@ def test_pipe_query_to_count(initialize_collection, query_args, expected_results
     for lineno, (count, tag, *extra) in enumerate(output_pairs, start=1):
         assert not extra, f"Unexpected character(s) on line {lineno} of count output"
         assert expected_results[tag] == count, tag
+
+
+@pytest.mark.parametrize(
+    "cmd_args", [["count"], ["count", "--summarize"], ["query"], ["related"]]
+)
+def test_broken_pipe(initialize_collection, capsys, cmd_args):
+    csv_path(initialize_collection).write_bytes(TestCount.CSV_TAGS_ONLY)
+    with subprocess.Popen(
+        ["galleries", "-c", str(initialize_collection), *cmd_args],
+        stdout=subprocess.PIPE,
+    ) as cmd_proc:
+        run_normal(
+            [sys.executable, "-c", "import sys; sys.stdin.close()"],
+            stdin=cmd_proc.stdout,
+        )
+    assert cmd_proc.returncode == 0
+    assert not capsys.readouterr().err
 
 
 class TestRelated:
