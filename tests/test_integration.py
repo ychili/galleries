@@ -316,19 +316,6 @@ def db_conf_path(root):
 
 
 @pytest.fixture
-def initialize_collection(tmp_path, real_path):
-    """Initialize default collection."""
-    root = tmp_path / "test_collection"
-    global_config = real_path / "config"
-    write_utf8(global_config, "[global]\ndefault = default\n")
-    global_collections = real_path / "collections"
-    write_utf8(global_collections, f"[default]\nroot = {root}")
-    galleries.cli.main([f"--collection={root}", "init"])
-    galleries.cli.main([f"--collection={root}", "traverse"])
-    return root
-
-
-@pytest.fixture
 def write_to_csv(initialize_collection):
     root = initialize_collection
 

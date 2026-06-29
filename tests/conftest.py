@@ -28,3 +28,16 @@ def real_path(global_config_dir: Path) -> Path:
     """Create and return ``global_config_dir`` as a real directory."""
     global_config_dir.mkdir()
     return global_config_dir
+
+
+@pytest.fixture
+def initialize_collection(tmp_path: Path, real_path: Path) -> Path:
+    """Initialize default collection."""
+    root = tmp_path / "test_collection"
+    global_config = real_path / "config"
+    global_config.write_text("[global]\ndefault = default\n", encoding="utf-8")
+    global_collections = real_path / "collections"
+    global_collections.write_text(f"[default]\nroot = {root}", encoding="utf-8")
+    galleries.cli.main([f"--collection={root}", "init"])
+    galleries.cli.main([f"--collection={root}", "traverse"])
+    return root
