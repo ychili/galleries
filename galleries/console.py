@@ -265,7 +265,7 @@ def distribute(n: int, k: int) -> list[int]:
     >>> distribute(79, 4)
     [20, 20, 20, 19]
     """
-    arr = [n // k for i in range(k)]
+    arr = [n // k for _ in range(k)]
     r = n % k
     for i in range(r):
         arr[i] += 1
