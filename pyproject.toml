@@ -45,3 +45,11 @@ select = [
 [tool.pyright]
 pythonVersion = "3.10"
 typeCheckingMode = "standard"
+deprecateTypingAliases = true
+reportConstantRedefinition = "warning"
+reportDuplicateImport = "warning"
+reportPrivateUsage = "warning"
+reportUnusedClass = "warning"
+reportUnusedFunction = "warning"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
