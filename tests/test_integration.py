@@ -17,7 +17,7 @@ import pytest
 import galleries.cli
 import galleries.cli.lib
 
-SUBCOMMANDS = [None, "init", "traverse", "count", "query", "refresh", "related"]
+SUBCOMMANDS = ["", "init", "traverse", "count", "query", "refresh", "related"]
 DIR_TREE = ["d1", "d1/d1.1", "d1/d1.2", "d2", "d2/d2.1", "d3", "d4"]
 FILE_TREE = ["d1/d1.1/f1.1.1", "d1/d1.1/f1.1.2", "d2/f2.1", "d2/d2.1/f2.1.1", "d3/f3.1"]
 
@@ -62,27 +62,27 @@ def test_version_subprocess(flag):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-@pytest.mark.parametrize("subcmd", SUBCOMMANDS)
-def test_help_subprocess(subcmd, flag):
+def test_help_subprocess(flag):
     my_galleries = shutil.which("galleries")
     assert my_galleries is not None, "Executable not found on $PATH!"
-    args = [my_galleries, subcmd, flag]
-    proc = run_normal([arg for arg in args if arg])
+    args = [my_galleries, flag]
+    proc = run_normal(args)
     assert proc.stdout.startswith("usage: galleries")
 
 
 # Call cli.main() directly to test these:
 
 
-def test_help(capsys):
+@pytest.mark.parametrize("subcmd", SUBCOMMANDS)
+def test_help(capsys, subcmd):
     with pytest.raises(SystemExit) as raises_ctx:
-        galleries.cli.main(["--help"])
+        galleries.cli.main([subcmd, "--help"] if subcmd else ["--help"])
     assert raises_ctx.value.code == 0
     captured = capsys.readouterr()
-    assert captured.out.startswith("usage:")
-    for subcmd in SUBCOMMANDS:
-        if subcmd:
-            assert subcmd in captured.out
+    assert re.match(rf"usage: \S+ {subcmd}", captured.out)
+    if not subcmd:
+        # Top-level help screen should list all subcommands.
+        assert all(sc_name in captured.out for sc_name in SUBCOMMANDS)
 
 
 def samepath(a, b):
