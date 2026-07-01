@@ -75,9 +75,9 @@ def test_help_subprocess(subcmd, flag):
 
 
 def test_help(capsys):
-    with contextlib.suppress(SystemExit):
-        rc = galleries.cli.main(["--help"])
-        assert rc == 0
+    with pytest.raises(SystemExit) as raises_ctx:
+        galleries.cli.main(["--help"])
+    assert raises_ctx.value.code == 0
     captured = capsys.readouterr()
     assert captured.out.startswith("usage:")
     for subcmd in SUBCOMMANDS:
