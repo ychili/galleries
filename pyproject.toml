@@ -14,9 +14,21 @@ addopts = """--import-mode=importlib \
 
 [tool.coverage.run]
 branch = true
+command_line = "-m pytest"
+omit = [
+    "*/__main__.py",
+]
 source = [
     "galleries",
     "tests",
+]
+
+[tool.coverage.report]
+# exclude_also requires version 7.2.0:
+exclude_also = [
+    "@(abc\\.)?abstractmethod",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]
 
 [tool.mypy]
