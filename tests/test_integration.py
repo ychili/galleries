@@ -632,12 +632,19 @@ class TestQuery:
         results = captured.out.splitlines()[1:]
         assert rows_expected == results
 
-    def test_invalid_format_from_config(self, initialize_collection, caplog):
-        arg = "免許"
-        _edit_db_conf(db_conf_path(initialize_collection), "query", "Format", arg)
+    @pytest.mark.parametrize(
+        ("format_arg", "conf_param"),
+        [("免許", "Format"), ("免許", "AutoFormat"), ("TSV", "AutoFormat")],
+    )
+    def test_invalid_format_from_config(
+        self, initialize_collection, caplog, format_arg, conf_param
+    ):
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "query", conf_param, format_arg
+        )
         rc = galleries.cli.main(["query"])
         assert rc > 0
-        assert msg_in_error_logs(caplog, arg)
+        assert msg_in_error_logs(caplog, format_arg.lower())
 
     @pytest.mark.parametrize(
         ("format_arg", "conf_param"),

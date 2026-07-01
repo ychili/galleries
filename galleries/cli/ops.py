@@ -312,7 +312,7 @@ def query_settings(cla: argparse.Namespace, db_config: DBConfig) -> QuerySetting
         log.error("Invalid configuration setting: %s", err)
         raise _CLIError from err
     if auto_fmt not in {table_query.Format.FORMAT, table_query.Format.RICH}:
-        log.error("Invalid configuration setting for AutoFormat: %s", fmt.value)
+        log.error("Invalid configuration setting for AutoFormat: %s", auto_fmt.value)
         raise _CLIError
     fmts_file = Path(cla.field_formats or db_config.get_path("query", "FieldFormats"))
     table_file = Path(cla.rich_table or db_config.get_path("query", "RichTable"))
