@@ -516,6 +516,15 @@ class TestRowTemplatePrinter:
             printer.check_fields(["a", "b"])
         assert any_error_logs(caplog)
 
+    def test_print_unknown_conversion_specifier(self, caplog):
+        format_string = "{FieldA!q}"
+        printer = galleries.table_query.RowTemplatePrinter(format_string)
+        assert printer.fieldnames == ["FieldA"]
+        with pytest.raises(galleries.table_query.FormatterError):
+            printer.print(_gallery_gen())
+        assert any_error_logs(caplog)
+        assert format_string in caplog.text
+
 
 class TestRowFormatter:
     MAPPING = {letter: letter for letter in string.ascii_lowercase}
