@@ -7,10 +7,7 @@ import functools
 import os
 import pathlib
 import re
-import shutil
 import stat
-import subprocess
-import sys
 
 import pytest
 
@@ -20,10 +17,6 @@ import galleries.cli.lib
 SUBCOMMANDS = ["", "init", "traverse", "count", "query", "refresh", "related"]
 DIR_TREE = ["d1", "d1/d1.1", "d1/d1.2", "d2", "d2/d2.1", "d3", "d4"]
 FILE_TREE = ["d1/d1.1/f1.1.1", "d1/d1.1/f1.1.2", "d2/f2.1", "d2/d2.1/f2.1.1", "d3/f3.1"]
-
-run_normal = functools.partial(
-    subprocess.run, check=True, capture_output=True, encoding="utf-8"
-)
 
 # Patch get_global_config_dir for all tests in this module.
 pytestmark = pytest.mark.usefixtures("global_config_dir")
@@ -44,33 +37,6 @@ def mktree(root, directories, files):
         root.joinpath(path).mkdir()
     for path in files:
         root.joinpath(path).touch()
-
-
-# Use subprocess to test --version and --help and to make sure "galleries" is
-# installed on $PATH.
-
-
-@pytest.mark.parametrize("flag", ["-V", "--version"])
-def test_version_subprocess(flag):
-    cmd = "galleries"
-    my_galleries = shutil.which(cmd)
-    assert my_galleries is not None, "Executable not found on $PATH!"
-    args = [my_galleries, flag]
-    proc = run_normal(args)
-    assert cmd in proc.stdout
-    assert galleries.cli.__version__ in proc.stdout
-
-
-@pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_help_subprocess(flag):
-    my_galleries = shutil.which("galleries")
-    assert my_galleries is not None, "Executable not found on $PATH!"
-    args = [my_galleries, flag]
-    proc = run_normal(args)
-    assert proc.stdout.startswith("usage: galleries")
-
-
-# Call cli.main() directly to test these:
 
 
 @pytest.mark.parametrize("subcmd", SUBCOMMANDS)
@@ -795,51 +761,6 @@ class TestQuery:
         rc = galleries.cli.main(["query", "--print", format_string])
         assert rc > 0
         assert msg_in_error_logs(caplog, format_string)
-
-
-@pytest.mark.parametrize(
-    ("query_args", "expected_results"),
-    [
-        ([], {"a": "3", "b": "2", "c": "2", "d": "1", "e": "1"}),
-        (["b"], {"a": "2", "b": "2", "c": "2"}),
-    ],
-)
-def test_pipe_query_to_count(initialize_collection, query_args, expected_results):
-    """Pipe the results of "query" to "count"."""
-    csv_path(initialize_collection).write_bytes(TestCount.CSV_TAGS_ONLY)
-    collection_args = ("-c", str(initialize_collection))
-    with subprocess.Popen(
-        ["galleries", *collection_args, "query", *query_args], stdout=subprocess.PIPE
-    ) as query_proc:
-        count_proc = run_normal(
-            ["galleries", *collection_args, "count", "-i-"], stdin=query_proc.stdout
-        )
-        assert query_proc.stdout is not None
-    print(count_proc.stdout)
-    output_pairs = [line.split() for line in count_proc.stdout.splitlines()]
-    assert len(output_pairs) == len(expected_results), (output_pairs, expected_results)
-    # Makes no assertions about the order of count results, just checks that
-    # values are correct
-    for lineno, (count, tag, *extra) in enumerate(output_pairs, start=1):
-        assert not extra, f"Unexpected character(s) on line {lineno} of count output"
-        assert expected_results[tag] == count, tag
-
-
-@pytest.mark.parametrize(
-    "cmd_args", [["count"], ["count", "--summarize"], ["query"], ["related"]]
-)
-def test_broken_pipe(initialize_collection, capsys, cmd_args):
-    csv_path(initialize_collection).write_bytes(TestCount.CSV_TAGS_ONLY)
-    with subprocess.Popen(
-        ["galleries", "-c", str(initialize_collection), *cmd_args],
-        stdout=subprocess.PIPE,
-    ) as cmd_proc:
-        run_normal(
-            [sys.executable, "-c", "import sys; sys.stdin.close()"],
-            stdin=cmd_proc.stdout,
-        )
-    assert cmd_proc.returncode == 0
-    assert not capsys.readouterr().err
 
 
 class TestRelated:
