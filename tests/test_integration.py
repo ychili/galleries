@@ -785,7 +785,7 @@ class TestQuery:
             ("{ID: >2} {Path}\n", " 1 /\n 2 /bin\n 3 /boot\n 4 /dev\n 5 /etc\n"),
         ],
     )
-    def test_print_option(self, tmp_path, capsys, format_string, expected):
+    def test_print_option_valid(self, tmp_path, capsys, format_string, expected):
         csv_file = tmp_path / "test_input.csv"
         write_utf8(csv_file, "ID,Path\n1,/\n2,/bin\n3,/boot\n4,/dev\n5,/etc\n")
         rc = galleries.cli.main(
@@ -795,6 +795,12 @@ class TestQuery:
         captured = capsys.readouterr()
         assert not captured.err
         assert captured.out == expected
+
+    @pytest.mark.parametrize("format_string", ["{", "He is an {type"])
+    def test_print_option_invalid(self, caplog, format_string):
+        rc = galleries.cli.main(["query", "--print", format_string])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, format_string)
 
 
 @pytest.mark.parametrize(

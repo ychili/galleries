@@ -367,7 +367,11 @@ def _query_output_formatter(
     Return a ``TablePrinter`` that can print galleries.
     """
     if settings["row_template"] is not None:
-        return table_query.RowTemplatePrinter(settings["row_template"])
+        try:
+            return table_query.RowTemplatePrinter(settings["row_template"])
+        except ValueError as err:
+            log.error("Error with row template '%s': %s", settings["row_template"], err)
+            raise _CLIError from err
     fmt = settings["format"]
     if fmt == table_query.Format.AUTO:
         if sys.stdout.isatty():
