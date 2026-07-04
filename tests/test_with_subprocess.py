@@ -79,14 +79,22 @@ def test_pipe_query_to_count(setup_collection, query_args, expected_results):
 @pytest.mark.parametrize(
     "cmd_args", [["count"], ["count", "--summarize"], ["query"], ["related"]]
 )
-def test_broken_pipe(setup_collection, capsys, cmd_args):
+def test_broken_pipe(setup_collection, capfd, cmd_args):
     with subprocess.Popen(
-        ["galleries", "-c", str(setup_collection), *cmd_args],
+        ["galleries", "-c", str(setup_collection), "-q", *cmd_args],
         stdout=subprocess.PIPE,
     ) as cmd_proc:
         run_normal(
             [sys.executable, "-c", "import sys; sys.stdin.close()"],
             stdin=cmd_proc.stdout,
         )
-    assert cmd_proc.returncode == 0
-    assert not capsys.readouterr().err
+    captured = capfd.readouterr()
+    print(captured)
+    if sys.platform == "win32" and cmd_proc.returncode:
+        # Issue79935: I/O on a broken pipe may raise an EINVAL OSError instead
+        #             of BrokenPipeError
+        assert cmd_proc.returncode == 120
+        assert "Errno 22" in captured.err
+    else:
+        assert cmd_proc.returncode == 0
+        assert not captured.err
