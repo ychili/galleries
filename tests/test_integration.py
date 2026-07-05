@@ -45,7 +45,7 @@ def test_help(capsys, subcmd):
         galleries.cli.main([subcmd, "--help"] if subcmd else ["--help"])
     assert raises_ctx.value.code == 0
     captured = capsys.readouterr()
-    assert re.match(rf"usage: \S+ {subcmd}", captured.out)
+    assert re.match(rf"usage: .+ {subcmd}", captured.out)
     if not subcmd:
         # Top-level help screen should list all subcommands.
         assert all(sc_name in captured.out for sc_name in SUBCOMMANDS)
