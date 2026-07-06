@@ -21,7 +21,7 @@ from collections.abc import (
     Sequence,
 )
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Self, TypeVar
 
 import rich.box
 import rich.console
@@ -35,7 +35,6 @@ from .console import FieldFormat, Tabulator
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsWrite
-    from typing_extensions import Self
 
 FieldSortSpec = tuple[gms.FieldKeyFunc[gms.Gallery], bool]
 StrT = TypeVar("StrT", bound=str)

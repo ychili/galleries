@@ -8,11 +8,10 @@ import dataclasses
 import itertools
 import textwrap
 from collections.abc import Generator, Iterable, Iterator, Mapping
-from typing import TYPE_CHECKING, ClassVar, Generic, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Generic, Self, TypeVar
 
 if TYPE_CHECKING:
     from _typeshed import ConvertibleToInt, SupportsGetItem
-    from typing_extensions import Self
 
 _IndexT = TypeVar("_IndexT", bound=str | int)
 

@@ -29,6 +29,7 @@ from typing import (
     Generic,
     NamedTuple,
     NewType,
+    Self,
     TypeAlias,
     TypeVar,
 )
@@ -39,7 +40,6 @@ if TYPE_CHECKING:
         SupportsItems,
         SupportsRichComparison,
     )
-    from typing_extensions import Self
 
 T = TypeVar("T")
 BinaryCompFunc: TypeAlias = (

@@ -12,13 +12,12 @@ import os
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TextIO
+from typing import TYPE_CHECKING, Any, Literal, Self, TextIO
 
 from .. import PROG
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
-    from typing_extensions import Self
 
 DB_DIR_NAME = ".galleries"
 DB_CONFIG_NAME = "db.conf"
