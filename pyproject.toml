@@ -33,7 +33,7 @@ exclude_also = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["build"]
 
 [tool.ruff.lint]
@@ -49,7 +49,7 @@ select = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 typeCheckingMode = "standard"
 deprecateTypingAliases = true
 reportConstantRedefinition = "warning"
