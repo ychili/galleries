@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sys
+import tomllib
 from collections.abc import (
     Callable,
     Collection,
@@ -27,11 +28,6 @@ import rich.console
 
 from . import PROG
 from .galleryms import FieldKeyFunc, Gallery, KeyFunc, multisort
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath, SupportsWrite
