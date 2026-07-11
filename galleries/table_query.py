@@ -377,7 +377,7 @@ def print_table(
         return util.write_galleries(galleries, fieldnames=fieldnames)
     output_formatter.check_fields(fieldnames)
     galleries = _lazy_total(galleries)
-    output_formatter.print(galleries)
+    return output_formatter.print(galleries)
 
 
 def _lazy_total(galleries: Iterable[gms.Gallery]) -> Iterator[gms.Gallery]:
