@@ -833,8 +833,8 @@ class TestRelated:
         csv_file = tmp_path / "test_input.csv"
         write_utf8(csv_file, self._CSV_CONTENT_1)
         argv = ["related", f"--input={csv_file}", "--sort=overlap", "-l4", "~a", "b"]
-        argv.extend(field_args if field_args else [])
-        argv.extend(select_args if select_args else [])
+        argv.extend(field_args or [])
+        argv.extend(select_args or [])
         rc = galleries.cli.main(argv)
         assert rc == 0
         stdout = capsys.readouterr().out
