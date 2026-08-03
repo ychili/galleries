@@ -108,9 +108,9 @@ def get_related_tags(
 ) -> Iterator[RelatedTag[str]]:
     """Yield tags in *tag_fields* from *galleries* matched by *query*."""
     # Counter for tags in tag_fields from all galleries
-    total_tag_counter: collections.Counter[str] = collections.Counter()
+    total_tag_counter = collections.Counter[str]()
     # Counter for tags in tag_fields from galleries matched by query
-    related_tag_counter: collections.Counter[str] = collections.Counter()
+    related_tag_counter = collections.Counter[str]()
     # Count of galleries matched by query
     search_count = 0
     for gallery in galleries:
