@@ -31,12 +31,6 @@ exclude_also = [
     "if TYPE_CHECKING:",
 ]
 
-[tool.mypy]
-python_version = "3.10"
-implicit_optional = false
-# Methods of Collection[Any] may return Any
-warn_return_any = false
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
