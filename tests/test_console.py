@@ -71,5 +71,15 @@ class TestTabulator(unittest.TestCase):
         self.assertEqual(len(list(tabulator.tabulate(rows))), 4)
 
 
+class TestDistribute(unittest.TestCase):
+    COLUMN_MAX = 0x4000
+
+    @hypothesis.given(n=st.integers(), k=st.integers(min_value=1, max_value=COLUMN_MAX))
+    def test_invariants(self, n, k):
+        result = list(galleries.console.distribute(n, k))
+        assert sum(result) == n
+        assert len(result) == k
+
+
 if __name__ == "__main__":
     unittest.main()

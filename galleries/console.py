@@ -213,7 +213,7 @@ class Tabulator(Generic[_IndexT]):
             rems = distribute(remainder, n_remaining_cols)
             for field in sizes:
                 if self.field_fmts[field].width == FieldFormat.REMAINING_SPACE:
-                    width = rems.pop(0)
+                    width = next(rems)
                     sizes[field] = width
                     wrappers[field] = textwrap.TextWrapper(width=width)
 
@@ -259,15 +259,15 @@ class Tabulator(Generic[_IndexT]):
         return val
 
 
-def distribute(n: int, k: int) -> list[int]:
-    """Distribute *n* quantities to *k* quantities, one by one.
+def distribute(n: int, k: int) -> Iterator[int]:
+    """Distribute *n* quantities to *k* quantities, one by one, lazily.
 
-    >>> distribute(79, 4)
+    >>> list(distribute(79, 4))
     [20, 20, 20, 19]
     """
-    arr = [n // k for _ in range(k)]
+    width_0 = n // k
     r = n % k
-    for i in range(r):
-        arr[i] += 1
-    assert sum(arr) == n
-    return arr
+    for _ in range(r):
+        yield width_0 + 1
+    for _ in range(k - r):
+        yield width_0
