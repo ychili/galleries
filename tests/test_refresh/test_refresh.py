@@ -302,29 +302,27 @@ class TestValidateTagActions(RefreshTestCase):
         errors = self.validate()
         self.assertFalse(errors)
 
+    @staticmethod
+    def implications_from_pairs(ordered_pairs):
+        return list(
+            itertools.starmap(galleries.galleryms.RegularImplication, ordered_pairs)
+        )
+
     def test_valid(self):
-        implications = [
-            galleries.galleryms.RegularImplication(a, b)
-            for a, b in ("ab", "cd", "ef", "gh", "ia")
-        ]
+        implications = self.implications_from_pairs(("ab", "cd", "ef", "gh", "ia"))
         aliases = {"y": "z"}
         errors = self.validate(implications, aliases)
         self.assertFalse(errors)
 
     def test_one_cycle(self):
-        implications = [
-            galleries.galleryms.RegularImplication(a, b) for a, b in ("ab", "bc", "ca")
-        ]
+        implications = self.implications_from_pairs(("ab", "bc", "ca"))
         with self.assertLogs(level=logging.ERROR) as cm:
             errors = self.validate(implications)
         self.assertEqual(errors, 1)
         self._assert_log(cm, "a -> b -> c -> a")
 
     def test_multiple_cycles(self):
-        implications = [
-            galleries.galleryms.RegularImplication(a, b)
-            for a, b in ("ab", "ba", "de", "ed")
-        ]
+        implications = self.implications_from_pairs(("ab", "ba", "de", "ed"))
         with self.assertLogs(level=logging.ERROR):
             errors = self.validate(implications)
         # find_cycle returns after the first cycle found.
@@ -354,9 +352,7 @@ class TestValidateTagActions(RefreshTestCase):
                 self._assert_log(cm, "'a'", "'b'", "'c'")
 
     def test_multiple_errors(self):
-        implications = [
-            galleries.galleryms.RegularImplication(a, b) for a, b in ("ab", "bc", "ca")
-        ]
+        implications = self.implications_from_pairs(("ab", "bc", "ca"))
         aliases = {"a": "c", "x": "y", "y": "z"}
         # Expect: 1 cycle, 2 AIs, 1 TA
         # 2 AIs because validate_implications_not_aliased returns:
