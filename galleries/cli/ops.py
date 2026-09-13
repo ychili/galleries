@@ -478,10 +478,7 @@ def refresh_op(settings: RefreshSettings) -> int:  # noqa: PLR0911
     if not rows:
         return 0
     util.sort_by_field(rows, prepare_sort_spec(sort_spec))
-    backup_file = filename.replace(
-        filename.with_name(filename.name + settings["backup_suffix"])
-    )
-    log.info("Backed up '%s' -> '%s'", filename, backup_file)
+    backup_file = _back_up(filename, settings["backup_suffix"])
     try:
         util.write_galleries(
             rows,
@@ -528,6 +525,23 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
         msg = "Found %d logical error%s in TagActions files: %s"
         log.info(msg, errors, "" if errors == 1 else "s", paths)
     return errors
+
+
+def _back_up(filepath: Path, suffix: str) -> Path:
+    """Sub-function of ``refresh_op``"""
+    if not suffix:
+        log.debug(
+            "NOT backing up '%s' because BackupSuffix is an empty string", filepath
+        )
+        return filepath
+    target = filepath.with_name(filepath.name + suffix)
+    try:
+        backup = filepath.replace(target)
+    except OSError as err:
+        log.error("Unable to back up CSV file: %s", err)
+        raise _CLIError from err
+    log.info("Backed up '%s' -> '%s'", filepath, backup)
+    return backup
 
 
 def prepare_sort_spec(
