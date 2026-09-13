@@ -7,6 +7,7 @@ import functools
 import os
 import pathlib
 import re
+import shutil
 import stat
 
 import pytest
@@ -132,6 +133,23 @@ class TestInit:
         assert rc > 0
         assert msg_in_error_logs(caplog, "TemplateDir is not a directory")
         assert "my_db_files" in caplog.text
+
+    def test_template_dir_exception(self, monkeypatch, tmp_path, caplog):
+        def failcopy(*args, **kw):
+            print(f"failcopy called with {args} and {kw}")
+            raise OSError("copy failed")
+
+        monkeypatch.setattr(shutil, "copy", failcopy)
+        source = tmp_path / "source_collection"
+        source.mkdir()
+        db_dir = source / ".db"
+        mktree(source, [".db", "01"], [".db/NOTE"])
+        destination = tmp_path / "destination_collection"
+        rc = galleries.cli.main(["init", "--template", str(db_dir), str(destination)])
+        assert rc > 0
+        assert msg_in_error_logs(caplog, "While copying files from TemplateDir")
+        assert "01" not in caplog.text
+        assert "NOTE': copy failed" in caplog.text
 
     def test_template_dir_destination_exists(self, tmp_path, caplog):
         source = tmp_path / "source_collection"
