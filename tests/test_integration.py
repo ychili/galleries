@@ -911,6 +911,21 @@ class TestRefresh:
         result = csv_path(initialize_collection).read_bytes()
         assert result == b"Path,Tags\r\n,abc xyz\r\n"
 
+    @pytest.mark.parametrize("suffix", ["", "~"])
+    def test_backup_suffixes(self, initialize_collection, suffix):
+        _edit_db_conf(
+            db_conf_path(initialize_collection), "refresh", "BackupSuffix", suffix
+        )
+        csvfile = csv_path(initialize_collection)
+        # Must be at least one row to trigger refresh and backup:
+        csvfile.write_bytes(b"Path,Tags\n,\n")
+        original_ino = csvfile.stat().st_ino
+        rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        assert rc == 0
+        assert self.backup_path(csvfile, suffix).stat().st_ino == original_ino
+        if not suffix:
+            assert csvfile.stat().st_ino == original_ino
+
     @pytest.mark.skipif(
         os.name != "posix", reason="file permissions don't work the same on non-Posix"
     )
