@@ -932,15 +932,18 @@ class TestRefresh:
     def test_file_permissions(self, initialize_collection):
         target_mode = 0o640
         csv_path(initialize_collection).chmod(target_mode)
+
+        def get_mode_bits(path):
+            return stat.S_IMODE(path.stat().st_mode)
+
+        if get_mode_bits(csv_path(initialize_collection)) != target_mode:
+            # Not all filesystems will support this target mode, but we tried.
+            pytest.skip(f"unable to change mode of file to {target_mode=:o}")
         # Must be at least one row to trigger refresh and backup:
         csv_path(initialize_collection).write_bytes(b"Path,Tags\n,\n")
         with temp_umask(0):
             rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
         assert rc == 0
-
-        def get_mode_bits(path):
-            return stat.S_IMODE(path.stat().st_mode)
-
         backup_mode = get_mode_bits(self.backup_path(csv_path(initialize_collection)))
         dbfile_mode = get_mode_bits(csv_path(initialize_collection))
         print(f"{target_mode=:o}, {backup_mode=:o}, {dbfile_mode=:o}")
