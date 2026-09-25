@@ -210,6 +210,7 @@ class TestTraverse:
         print(csv_rows)
         assert len(csv_rows) == total
         assert csv_rows[0] == "Path,Count,Tags"
+        return csv_rows
 
     def test_no_configuration(self, caplog):
         assert galleries.cli.main(["traverse"]) > 0
@@ -248,19 +249,19 @@ class TestTraverse:
         traverse_cmdline_args = ["-c", str(root), "traverse", "-o", str(csvpath)]
         traverse_rc = galleries.cli.main(traverse_cmdline_args)
         assert traverse_rc == 0
-        self._assert_csv(csvpath, total=2)
-        mtime_of_first_run = csvpath.stat().st_mtime
-        # Run traverse again.
+        output_of_first_run = self._assert_csv(csvpath, total=2)
+        # Add a non-empty directory.
+        mktree(root, ["MyFirstGallery"], ["MyFirstGallery/a.out"])
+        # Run traverse again (without --force).
         traverse_rc = galleries.cli.main(traverse_cmdline_args)
         assert traverse_rc > 0
         assert msg_in_error_logs(caplog, "Refusing to overwrite existing CSV file")
         assert str(csvpath) in caplog.text
-        assert csvpath.stat().st_mtime == mtime_of_first_run  # unmodified
+        assert output_of_first_run == self._assert_csv(csvpath, total=2)  # unmodified
         # Run traverse again with --force.
         traverse_rc = galleries.cli.main([*traverse_cmdline_args, "--force"])
         assert traverse_rc == 0
-        self._assert_csv(csvpath, total=2)
-        assert csvpath.stat().st_mtime > mtime_of_first_run  # modified
+        self._assert_csv(csvpath, total=3)  # modified
 
     def test_standard_output(self, tmp_path, capsys):
         root = tmp_path / "test_collection"
