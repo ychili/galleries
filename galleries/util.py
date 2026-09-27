@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import functools
 import json
 import logging
 import os
@@ -222,6 +223,9 @@ class StrictReader(csv.DictReader):
         return Gallery(zip(self.fieldnames, row, strict=True))
 
 
+open_csv = functools.partial(open, encoding="utf-8", newline="")
+
+
 @contextlib.contextmanager
 def read_db(
     file: StrOrBytesPath | Iterable[str] | None = None,
@@ -236,7 +240,7 @@ def read_db(
     """
     match file:
         case str() | bytes() | os.PathLike():
-            file_cm = open(file, encoding="utf-8", newline="")
+            file_cm = open_csv(file)
         case None:
             file_cm = contextlib.nullcontext(sys.stdin)
         case _:
@@ -264,7 +268,7 @@ def write_galleries(
     """
     match file:
         case str() | bytes() | os.PathLike():
-            file_cm = open(file, "w", encoding="utf-8", newline="", opener=opener)
+            file_cm = open_csv(file, "w", opener=opener)
         case None:
             file_cm = contextlib.nullcontext(sys.stdout)
         case _:
