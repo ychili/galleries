@@ -478,17 +478,8 @@ def refresh_op(settings: RefreshSettings) -> int:  # noqa: PLR0911
     if not rows:
         return 0
     util.sort_by_field(rows, prepare_sort_spec(sort_spec))
-    backup_file = _back_up(filename, settings["backup_suffix"])
-    try:
-        util.write_galleries(
-            rows,
-            fieldnames=reader.fieldnames,
-            file=filename,
-            opener=opener_copy_mode(backup_file),
-        )
-    except OSError as err:
-        log.error("Unable to open CSV file for writing: %s", err)
-        return 1
+    with _write_db_with_backup(filename, settings["backup_suffix"]) as file:
+        util.write_galleries(rows, fieldnames=reader.fieldnames, file=file)
     log.info("Success: Saved refreshed table to '%s'", filename)
     return 0
 
@@ -528,12 +519,7 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
 
 
 def _back_up(filepath: Path, suffix: str) -> Path:
-    """Sub-function of ``refresh_op``"""
-    if not suffix:
-        log.debug(
-            "NOT backing up '%s' because BackupSuffix is an empty string", filepath
-        )
-        return filepath
+    """Sub-function of ``_write_db_with_backup``"""
     target = filepath.with_name(filepath.name + suffix)
     try:
         backup = filepath.replace(target)
@@ -542,6 +528,37 @@ def _back_up(filepath: Path, suffix: str) -> Path:
         raise _CLIError from err
     log.info("Backed up '%s' -> '%s'", filepath, backup)
     return backup
+
+
+@contextlib.contextmanager
+def _write_db_with_backup(filepath: Path, suffix: str) -> Iterator[TextIO]:
+    """Open DB file *filepath* for writing after backing up with *suffix*.
+
+    Raise ``_CLIError`` on error.
+    """
+    src_mode = filepath.stat().st_mode
+    log.debug("Got a mode of %s from file: %s", stat.filemode(src_mode), filepath)
+    mode_bits = stat.S_IMODE(src_mode)
+    open_mode = "x"
+    if suffix:
+        _back_up(filepath, suffix)
+    else:
+        log.debug(
+            "NOT backing up '%s' because BackupSuffix is an empty string", filepath
+        )
+        open_mode = "w"
+
+    def _opener(path: StrPath, flags: int) -> int:
+        return os.open(path, flags, mode=mode_bits)
+
+    try:
+        with util.open_csv(filepath, mode=open_mode, opener=_opener) as outfile:
+            yield outfile
+    except OSError as err:
+        log.error("Unable to write to CSV file: %s", err)
+        raise _CLIError from err
+    filepath.chmod(mode_bits)
+    log.debug("Set mode of refreshed file to %04o", mode_bits)
 
 
 def prepare_sort_spec(
@@ -629,19 +646,6 @@ def ignore_patterns(*patterns: StrPath) -> Callable[[Any, list[str]], set[str]]:
         return names_ignored
 
     return _inner_func
-
-
-def opener_copy_mode(path: StrPath) -> Callable[[StrPath, int], int]:
-    """Return an "opener" for opening a file with the same mode as *path*."""
-    mode_bits = stat.S_IMODE(os.stat(path).st_mode)
-
-    def _opener(path: StrPath, flags: int) -> int:
-        return os.open(path, flags, mode=mode_bits)
-
-    log.debug(
-        "A custom opener was created by copying mode bits %o from %s", mode_bits, path
-    )
-    return _opener
 
 
 def _run_op(

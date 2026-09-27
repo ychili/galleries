@@ -2,7 +2,6 @@
 
 import collections
 import collections.abc
-import contextlib
 import functools
 import os
 import pathlib
@@ -21,16 +20,6 @@ FILE_TREE = ["d1/d1.1/f1.1.1", "d1/d1.1/f1.1.2", "d2/f2.1", "d2/d2.1/f2.1.1", "d
 
 # Patch get_global_config_dir for all tests in this module.
 pytestmark = pytest.mark.usefixtures("global_config_dir")
-
-
-@contextlib.contextmanager
-def temp_umask(mask):
-    """Context manager that temporarily sets the process umask."""
-    oldmask = os.umask(mask)
-    try:
-        yield
-    finally:
-        os.umask(oldmask)
 
 
 def mktree(root, directories, files):
@@ -942,8 +931,7 @@ class TestRefresh:
             pytest.skip(f"unable to change mode of file to {target_mode=:o}")
         # Must be at least one row to trigger refresh and backup:
         csv_path(initialize_collection).write_bytes(b"Path,Tags\n,\n")
-        with temp_umask(0):
-            rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
+        rc = galleries.cli.main(["-vv", "refresh", "--no-check"])
         assert rc == 0
         backup_mode = get_mode_bits(self.backup_path(csv_path(initialize_collection)))
         dbfile_mode = get_mode_bits(csv_path(initialize_collection))
