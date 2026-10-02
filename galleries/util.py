@@ -12,7 +12,15 @@ import logging
 import os
 import re
 import sys
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Generator,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
 import rich.console
@@ -74,7 +82,9 @@ class ObjectExtractor:
                 self._parse_stack.pop()
 
     @contextlib.contextmanager
-    def get(self, mapping: Mapping[KT, VT], key: KT, default: VT) -> Iterator[VT]:
+    def get(
+        self, mapping: Mapping[KT, VT], key: KT, default: VT
+    ) -> Generator[VT, None, None]:
         self._parse_stack.append(str(key))
         try:
             value = mapping.get(key, default)
@@ -107,7 +117,9 @@ class ObjectExtractor:
             return self.list(value)
 
     @contextlib.contextmanager
-    def get_dict(self, mapping: Mapping[KT, dict], key: KT) -> Iterator[dict]:
+    def get_dict(
+        self, mapping: Mapping[KT, dict], key: KT
+    ) -> Generator[dict, None, None]:
         with self.get(mapping, key, default={}) as value:
             yield self.dict(value)
 
@@ -230,7 +242,7 @@ open_csv = functools.partial(open, encoding="utf-8", newline="")
 def read_db(
     file: StrOrBytesPath | Iterable[str] | None = None,
     fieldnames: Iterable[str] | None = None,
-) -> Iterator[Reader]:
+) -> Generator[Reader, None, None]:
     """Open *file*, and read DB inside a context manager.
 
     If *file* is str, bytes, or path-like, it is treated as a path and opened

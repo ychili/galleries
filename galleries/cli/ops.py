@@ -12,7 +12,7 @@ import os
 import shutil
 import stat
 import sys
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TextIO, TypedDict, TypeVar
 
@@ -531,7 +531,7 @@ def _back_up(filepath: Path, suffix: str) -> Path:
 
 
 @contextlib.contextmanager
-def _write_db_with_backup(filepath: Path, suffix: str) -> Iterator[TextIO]:
+def _write_db_with_backup(filepath: Path, suffix: str) -> Generator[TextIO, None, None]:
     """Open DB file *filepath* for writing after backing up with *suffix*.
 
     Raise ``_CLIError`` on error.
@@ -680,7 +680,7 @@ def _run_op(
 @contextlib.contextmanager
 def _read_db(
     file: StrPath | Iterable[str], fieldnames: Iterable[str] | None = None
-) -> Iterator[util.Reader]:
+) -> Generator[util.Reader, None, None]:
     """Try to read DB from *file*, raising ``_CLIError`` on error."""
     try:
         with util.read_db(file=file, fieldnames=fieldnames) as reader:
