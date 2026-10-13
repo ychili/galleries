@@ -26,6 +26,7 @@ source = [
 [tool.coverage.report]
 # exclude_also requires version 7.2.0:
 exclude_also = [
+    "# Defensive:",
     "@(abc\\.)?abstractmethod",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",

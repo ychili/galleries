@@ -416,7 +416,7 @@ class TestParseRichTableSettings:
             case {"A": column_definition, **others}:
                 assert column_definition.header == "A"
                 assert not others
-            case unexpected:
+            case unexpected:  # Defensive:
                 pytest.fail(str(unexpected))
 
     def test_invalid_column_kwargs(self, caplog):
@@ -428,7 +428,7 @@ class TestParseRichTableSettings:
             case {"A": column_definition, **others}:
                 assert column_definition.header == "A"
                 assert not others
-            case unexpected:
+            case unexpected:  # Defensive:
                 pytest.fail(str(unexpected))
 
     def test_unexpected_column_kwarg(self, caplog):

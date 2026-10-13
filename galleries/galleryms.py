@@ -733,7 +733,7 @@ class ArgumentParser:
                 word = word.replace(self.wildcard, "*")
                 return WildcardSearchTerm(word, fields=fields), logical_operator
             return WholeSearchTerm(word, fields=fields), logical_operator
-        raise ArgumentParsingError
+        raise ArgumentParsingError  # Defensive:
 
 
 class BaseImplication(abc.ABC):
