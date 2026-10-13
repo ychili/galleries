@@ -176,6 +176,7 @@ class TestSearchTerm(QueryTestCase):
 
     def test_wildcard_search_term(self):
         term = galleries.galleryms.WildcardSearchTerm("*", fields="tags")
+        self.assertTrue(callable(term.regex.match))
         gallery = galleries.galleryms.Gallery()
         self.assertRaises(KeyError, term.match, gallery)
         tag_set = galleries.galleryms.TagSet()
