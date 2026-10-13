@@ -141,7 +141,7 @@ def results_table(
     for fieldname, settings in field_settings:
         column_kwds = dict(settings)  # Copy before mutating.
         header = column_kwds.pop("header", str)(fieldname)
-        formatspec = column_kwds.pop("formatspec", None)
+        formatspec = column_kwds.pop("formatspec", "")
         printer.add_column(
             fieldname, format_spec=formatspec, header=header, **column_kwds
         )
