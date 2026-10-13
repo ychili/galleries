@@ -62,6 +62,11 @@ class TestImplicationGraph(unittest.TestCase):
 
 
 class TestImplicator(unittest.TestCase):
+    def test___eq__(self):
+        implicator = galleries.galleryms.Implicator()
+        self.assertEqual(implicator, implicator)
+        self.assertNotEqual(implicator, [])
+
     def test_aliased_implication(self):
         implicator = galleries.galleryms.Implicator()
         self.assertEqual(implicator.validate_implications_not_aliased(), [])
