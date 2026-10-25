@@ -449,6 +449,16 @@ class TestDBConfig:
             _ = getattr(real_db, getter)()
         assert "Unable to read configuration from file" in caplog.text
 
+    def test_no_interpolation(self, real_db):
+        """Test configparser interpolation is off."""
+        write_utf8(
+            real_db.config, "[db]\nCSVName=${CSVName}\nPathField=%(PathField)s\n"
+        )
+        config = real_db.acquire_db_config()
+        # Check no configparser.InterpolationMissingOptionErrors:
+        assert config.parser["db"]["CSVName"]
+        assert config.parser["db"]["PathField"]
+
     @pytest.mark.parametrize("boolean", [True, False])
     def test_get_boolean(self, real_db, boolean):
         config = real_db.get_db_config()

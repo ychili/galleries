@@ -1062,6 +1062,17 @@ class TestRefresh:
         assert result == csv_text, "The file should be unmodified."
 
 
+@pytest.mark.parametrize(
+    "subcmd", SUBCOMMANDS[2:]
+)  # Subset of subcommands for which parsing errors are fatal
+def test_db_conf_parsing_errors(initialize_collection, caplog, subcmd):
+    # Use MissingSectionHeaderError as a representative parsing error.
+    write_utf8(db_conf_path(initialize_collection), "CSVName = emaNVSC\n")
+    rc = galleries.cli.main(["-vv", subcmd])
+    assert rc > 0
+    assert msg_in_error_logs(caplog, "Unable to read configuration from file")
+
+
 def write_utf8(path, text):
     return path.write_text(text, encoding="utf-8")
 
