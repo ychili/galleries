@@ -1062,6 +1062,15 @@ class TestRefresh:
         assert result == csv_text, "The file should be unmodified."
 
 
+def test_global_conf_parsing_errors(global_config_dir, caplog):
+    global_config_dir.mkdir()
+    # Use DuplicateSectionError as a representative parsing error.
+    write_utf8(global_config_dir / "config", "[global]\n[global]\n")
+    rc = galleries.cli.main(["-vv"])
+    assert rc > 0
+    assert msg_in_error_logs(caplog, "Unable to read global configuration file")
+
+
 @pytest.mark.parametrize(
     "subcmd", SUBCOMMANDS[2:]
 )  # Subset of subcommands for which parsing errors are fatal
