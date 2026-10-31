@@ -13,7 +13,6 @@ addopts = """--import-mode=importlib \
              --doctest-glob='doctest*.rst'"""
 
 [tool.coverage.run]
-branch = true
 command_line = "-m pytest"
 omit = [
     "*/__main__.py",
