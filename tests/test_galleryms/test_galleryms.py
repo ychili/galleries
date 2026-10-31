@@ -312,17 +312,25 @@ class TestTagSet(unittest.TestCase):
             galleries.galleryms.TagSet.from_tagstring(str(tag_set)), tag_set
         )
 
+    _TAGS = {"Rome", "New Amsterdam", "Tenochtitlan"}
+    _ALIASES = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
+
+    def test_aliased_tags(self):
+        tag_set = galleries.galleryms.TagSet(self._TAGS)
+        unmodified = tag_set.aliased_tags({})
+        self.assertEqual(unmodified, tag_set)
+        aliased = tag_set.aliased_tags(self._ALIASES)
+        self.assertEqual(aliased - tag_set, {"New York"})
+
     def test_apply_implications(self):
-        tags = {"Rome", "New Amsterdam", "Tenochtitlan"}
-        tag_set_1 = galleries.galleryms.TagSet(tags)
+        tag_set_1 = galleries.galleryms.TagSet(self._TAGS)
         tag_set_1.apply_implications([])
         # Applying no implications will leave the tag set unmodified.
-        self.assertEqual(tag_set_1, galleries.galleryms.TagSet(tags))
+        self.assertEqual(tag_set_1, galleries.galleryms.TagSet(self._TAGS))
 
     def test_apply_aliases(self):
-        aliases = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
-        tag_set = galleries.galleryms.TagSet({"Rome", "New Amsterdam", "Tenochtitlan"})
-        tag_set.apply_aliases(aliases)
+        tag_set = galleries.galleryms.TagSet(self._TAGS)
+        tag_set.apply_aliases(self._ALIASES)
         self.assertEqual(tag_set, {"Rome", "New York", "Tenochtitlan"})
 
 
