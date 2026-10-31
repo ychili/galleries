@@ -29,6 +29,7 @@ from typing import (
     Generic,
     NamedTuple,
     NewType,
+    Protocol,
     Self,
     TypeAlias,
     TypeVar,
@@ -740,14 +741,12 @@ class ArgumentParser:
         raise ArgumentParsingError  # Defensive:
 
 
-class BaseImplication(abc.ABC):
-    @abc.abstractmethod
-    def match(self, tag: str) -> str | None:
-        pass
+class BaseImplication(Protocol):
+    def match(self, tag: str) -> str | None: ...
 
 
 @dataclasses.dataclass(frozen=True)
-class RegularImplication(BaseImplication):
+class RegularImplication:
     """Store a regular implication.
 
     *antecedent* implies *consequent*.
