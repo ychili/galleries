@@ -28,7 +28,7 @@ from . import galleryms as gms
 from . import util
 
 if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath, StrPath
+    from _typeshed import StrPath
 
 T = TypeVar("T")
 KT = TypeVar("KT")
@@ -375,55 +375,6 @@ def set_chains(
             consequent = tuple(result_stack)
             result_stack.append(elem)
             yield consequent, tuple(result_stack)
-
-
-def check_mapping(obj: object, default: type[Mapping] = dict) -> Mapping:
-    """
-    Return *obj* if it is a mapping. Otherwise return an empty instance of
-    *default*.
-    """
-    if not isinstance(obj, Mapping):
-        log.error("Decoded file was not mapping")
-        return default()
-    return obj
-
-
-def get_implications(filename: StrPath) -> frozenset[gms.BaseImplication]:
-    """Read *filename* and parse implications based on its file extension."""
-    extensions = ("dat", "txt", "asc", "list")
-    path = Path(filename)
-    if path.match("*.json"):
-        data = check_mapping(util.load_from_json(path))
-        return frozenset(
-            gms.RegularImplication(str(k), str(v)) for k, v in data.items()
-        )
-    if any(path.match(f"*.{ext}") for ext in extensions):
-        text = path.read_text(encoding="utf-8")
-        return frozenset(
-            gms.DescriptorImplication(desc) for desc in gms.split_on_whitespace(text)
-        )
-    log.warning(
-        "Implications file exists but does not match known file extensions: %s",
-        filename,
-    )
-    return frozenset()
-
-
-def get_aliases(filename: StrOrBytesPath) -> dict[str, str]:
-    data = check_mapping(util.load_from_json(filename))
-    return {str(alias): str(tag) for alias, tag in data.items()}
-
-
-def get_tags_from_file(*filepaths: StrPath) -> gms.TagSet:
-    """
-    Merge (union) whitespaced-separated tags from files in *filepaths* into one
-    ``TagSet``.
-    """
-    tags = gms.TagSet()
-    for path in filepaths:
-        text = Path(path).read_text(encoding="utf-8")
-        tags.update(gms.TagSet.from_tagstring(text))
-    return tags
 
 
 def validate_tag_actions(implicator: gms.Implicator) -> int:

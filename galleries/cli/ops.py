@@ -82,9 +82,6 @@ class RefreshSettings(_ReadWriteOpSettings):
     implicating_fields: set[str]
     no_check: bool
     validate: bool
-    implications: list[Path]
-    aliases: list[Path]
-    removals: list[Path]
     tag_actions: list[Path]
 
 
@@ -421,9 +418,6 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
     count_field = db_config.parser["refresh"]["CountField"]
     sort_spec = db_config.sort_spec("refresh", path_field)
     unique_fields = db_config.get_list("refresh", "UniqueFields")
-    implications = db_config.get_multi_paths("refresh", "Implications")
-    aliases = db_config.get_multi_paths("refresh", "Aliases")
-    removals = db_config.get_multi_paths("refresh", "Removals")
     unified = db_config.get_multi_paths("refresh", "TagActions")
     implicating_fields = db_config.get_implicating_fields()
 
@@ -436,9 +430,6 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
         count_field=count_field,
         sort_spec=sort_spec,
         unique_fields=unique_fields,
-        implications=implications,
-        aliases=aliases,
-        removals=removals,
         tag_actions=unified,
         implicating_fields=implicating_fields,
         no_check=cla.no_check,
@@ -491,14 +482,6 @@ def set_tag_actions(gardener: refresh.Gardener, settings: RefreshSettings) -> in
     to the gardener.
     """
     implicating_fields = settings["implicating_fields"]
-    for filename in settings["aliases"]:
-        gardener.set_alias_tags(refresh.get_aliases(filename), *implicating_fields)
-    for filename in settings["implications"]:
-        gardener.set_imply_tags(refresh.get_implications(filename), *implicating_fields)
-    if settings["removals"]:
-        gardener.set_remove_tags(
-            refresh.get_tags_from_file(*settings["removals"]), *implicating_fields
-        )
     tao = refresh.TagActionsObject(default_tag_fields=implicating_fields)
     unified = settings["tag_actions"]
     for filename in unified:
