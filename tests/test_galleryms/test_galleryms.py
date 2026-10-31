@@ -421,17 +421,6 @@ class TestArgumentParser(unittest.TestCase):
         )
 
 
-class TestDescriptorImplication(unittest.TestCase):
-    def test_match(self):
-        empty = galleries.galleryms.DescriptorImplication("")
-        self.assertIsNone(empty.match("_"))
-        self.assertEqual(empty.match("_a"), "a")
-        blue = galleries.galleryms.DescriptorImplication("blue")
-        self.assertIsNone(blue.match("blue_"))
-        self.assertEqual(blue.match("blue_color"), "color")
-        self.assertIsNone(blue.match("light_blue_color"))
-
-
 class TestMostCommon(unittest.TestCase):
     _ITERABLE = [1, 2, 3, 1, 2, 1]
     _EXPECTED = [3, 2, 2, 1, 1, 1]

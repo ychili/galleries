@@ -747,35 +747,6 @@ class BaseImplication(abc.ABC):
 
 
 @dataclasses.dataclass(frozen=True)
-class DescriptorImplication(BaseImplication):
-    """Store a descriptor implication.
-
-    Argument *word* is the descriptor in a tag. If match encounters a string
-    matching ``^{word}_(.+)`` then it will return the bit matched by ``(.+)``,
-    that is the thing in the tag that the descriptor is describing.
-
-    >>> DescriptorImplication("green").match("green_shirt")
-    'shirt'
-    """
-
-    word: str
-    pattern: re.Pattern[str] = dataclasses.field(init=False, compare=False)
-
-    def __post_init__(self) -> None:
-        word = re.escape(self.word)
-        object.__setattr__(self, "pattern", re.compile(f"\\A{word}_(.+)"))
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.word!r})"
-
-    def match(self, tag: str) -> str | None:
-        """Return tag string matched after the descriptor or None."""
-        if match := self.pattern.search(tag):
-            return match.group(1)
-        return None
-
-
-@dataclasses.dataclass(frozen=True)
 class RegularImplication(BaseImplication):
     """Store a regular implication.
 

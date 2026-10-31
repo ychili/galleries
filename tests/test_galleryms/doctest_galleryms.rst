@@ -43,12 +43,9 @@ Implication objects
 Test some properties of these objects like reconstructibility from their
 ``repr``, equality, and frozenness.
 
->>> from galleries.galleryms import RegularImplication, DescriptorImplication
+>>> from galleries.galleryms import RegularImplication
 >>> reg = RegularImplication("A", "C")
 >>> eval(repr(reg)) == reg
-True
->>> word = DescriptorImplication("word")
->>> eval(repr(word)) == word
 True
 >>> reg.consequent = "Conclusion"
 Traceback (most recent call last):
