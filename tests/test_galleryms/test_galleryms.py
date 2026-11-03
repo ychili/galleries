@@ -292,6 +292,22 @@ class TestRelatedTag(unittest.TestCase):
 
 
 class TestTagSet(unittest.TestCase):
+    _TAG_SET_EXPECTED_SINGLE = galleries.galleryms.TagSet(
+        {
+            "\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b",
+            "\x00\x01\x02\x03\x04\x05\x06\x07\x08",
+            (
+                "!\"#$%&'()*+,-./0123456789:;<=>?@abcdefghijklmnop"
+                "qrstuvwxyz[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f"
+            ),
+        }
+    )
+
+    def test_ascii_string(self):
+        string_in = "".join(chr(i) for i in range(0x80))
+        tag_set = galleries.galleryms.TagSet.from_tagstring(string_in)
+        self.assertEqual(tag_set, self._TAG_SET_EXPECTED_SINGLE)
+
     @hypothesis.given(chars=st.text(string.whitespace))
     def test_whitespace(self, chars):
         """
