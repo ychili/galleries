@@ -315,6 +315,15 @@ class TestTagSet(unittest.TestCase):
     _TAGS = {"Rome", "New Amsterdam", "Tenochtitlan"}
     _ALIASES = {"Constantinople": "İstanbul", "New Amsterdam": "New York"}
 
+    @hypothesis.given(
+        antecedent=st.text() | st.sampled_from(list(_TAGS)), n_repeats=st.integers(0, 3)
+    )
+    def test_implied_tags(self, antecedent, n_repeats):
+        """An implication with an empty consequent will imply no new tags."""
+        tag_set = galleries.galleryms.TagSet(self._TAGS)
+        implication = galleries.galleryms.RegularImplication(antecedent, consequent="")
+        self.assertFalse(tag_set.implied_tags([implication] * n_repeats))
+
     def test_aliased_tags(self):
         tag_set = galleries.galleryms.TagSet(self._TAGS)
         unmodified = tag_set.aliased_tags({})
@@ -326,6 +335,11 @@ class TestTagSet(unittest.TestCase):
         tag_set_1 = galleries.galleryms.TagSet(self._TAGS)
         tag_set_1.apply_implications([])
         # Applying no implications will leave the tag set unmodified.
+        self.assertEqual(tag_set_1, galleries.galleryms.TagSet(self._TAGS))
+        tag_set_1.apply_implications(
+            [galleries.galleryms.RegularImplication("Rome", "")]
+        )
+        # Likewise, applying an implication with a falsy consequent is a no-op.
         self.assertEqual(tag_set_1, galleries.galleryms.TagSet(self._TAGS))
 
     def test_apply_aliases(self):
