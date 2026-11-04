@@ -119,11 +119,15 @@ class TagSet(set[str]):
             current_tags = new_tags
 
     def apply_aliases(self, aliases: SupportsItems[str, str]) -> None:
-        """Update with *aliases*, translating tags from key to value."""
+        """Update with *aliases*, translating tags from key to value.
+
+        If the value is the empty string, '', then the key is discarded.
+        """
         for alias, tag in aliases.items():
             if alias in self:
                 self.remove(alias)
-                self.add(tag)
+                if tag:
+                    self.add(tag)
 
 
 class ImplicationGraph(defaultdict[str, TagSet]):

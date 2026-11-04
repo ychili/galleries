@@ -332,6 +332,9 @@ class TestTagSet(unittest.TestCase):
         tag_set = galleries.galleryms.TagSet(self._TAGS)
         tag_set.apply_aliases(self._ALIASES)
         self.assertEqual(tag_set, {"Rome", "New York", "Tenochtitlan"})
+        tag_set.apply_aliases({"Rome": ""})  # Equivalent to tag_set.discard
+        self.assertNotIn("Rome", tag_set)
+        self.assertNotIn("", tag_set, "The empty string is automatically elided.")
 
 
 class TestSplitOnWhitespace(unittest.TestCase):
