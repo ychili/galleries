@@ -159,9 +159,12 @@ class RichConsole(rich.console.Console):
 
     # This handler will be called by Rich since version 13.8.0
     def on_broken_pipe(self) -> None:
+        """Handle a ``BrokenPipeError`` by re-raising the exception."""
         self.quiet = True
         # We prefer to handle BrokenPipeError ourselves.
         # See handle_broken_pipe
+        if isinstance(exc := sys.exception(), BrokenPipeError):
+            raise exc
         raise BrokenPipeError
 
 

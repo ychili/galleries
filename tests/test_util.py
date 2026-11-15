@@ -13,6 +13,26 @@ import galleries.galleryms
 import galleries.util
 
 
+class TestRichConsole(unittest.TestCase):
+    def test_on_broken_pipe(self):
+        # Expected case: method re-raises the following exception.
+        exc = BrokenPipeError("Simulate a broken pipe.")
+        with self.assertRaises(BrokenPipeError) as assert_raises_ctx:
+            # This is similar to what happens in (newer versions of)
+            # RichConsole._check_buffer():
+            try:
+                raise exc
+            except BrokenPipeError:
+                galleries.util.console.on_broken_pipe()
+        self.assertEqual(assert_raises_ctx.exception, exc)
+        # Edge case: method ignores all other exception types.
+        with self.assertRaises(BrokenPipeError):
+            try:
+                raise ValueError("Anything")
+            except Exception:
+                galleries.util.console.on_broken_pipe()
+
+
 class TestReader(unittest.TestCase):
     _FIELDNAMES_IN = "F,G,H"
     _FIELDNAMES_OUT = ["F", "G", "H"]
