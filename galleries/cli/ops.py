@@ -437,7 +437,7 @@ def refresh_settings(cla: argparse.Namespace, db_config: DBConfig) -> RefreshSet
     )
 
 
-def refresh_op(settings: RefreshSettings) -> int:  # noqa: PLR0911
+def refresh_op(settings: RefreshSettings) -> int:
     """Refresh operation"""
     gardener = refresh.Gardener()
     filename = settings["input_file"]
